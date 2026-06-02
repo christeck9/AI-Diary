@@ -1,0 +1,936 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Diary - Local & Private Journal</title>
+  <meta name="description" content="AI Diary is a local-first, offline-first personal journal with local AI models (Gemma) and local speech-to-text (Whisper). Your thoughts never leave your device.">
+  
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <style>
+    :root {
+      --bg: #09090b;
+      --surface: #18181b;
+      --surface-glass: rgba(24, 24, 27, 0.6);
+      --border: rgba(255, 255, 255, 0.08);
+      --border-glow: rgba(139, 92, 246, 0.2);
+      --text: #f4f4f5;
+      --text-muted: #a1a1aa;
+      --primary: #8b5cf6;
+      --primary-glow: rgba(139, 92, 246, 0.4);
+      --secondary: #06b6d4;
+      --secondary-glow: rgba(6, 182, 212, 0.4);
+      --font: 'Outfit', sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      font-family: var(--font);
+      line-height: 1.6;
+      overflow-x: hidden;
+      padding-top: 80px; /* space for fixed navbar */
+    }
+
+    /* Bilingual Toggle Logic */
+    body.lang-en .es { display: none !important; }
+    body.lang-es .en { display: none !important; }
+
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar {
+      width: 8px;
+    }
+    ::-webkit-scrollbar-track {
+      background: var(--bg);
+    }
+    ::-webkit-scrollbar-thumb {
+      background: var(--surface);
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: var(--primary);
+    }
+
+    /* Ambient Gradients background */
+    .glowing-bg {
+      position: absolute;
+      top: -300px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 100vw;
+      height: 800px;
+      background: radial-gradient(circle, rgba(139, 92, 246, 0.15) 0%, rgba(6, 182, 212, 0.05) 50%, rgba(0,0,0,0) 100%);
+      z-index: -1;
+      pointer-events: none;
+    }
+
+    /* Header & Navbar */
+    header {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 80px;
+      background: rgba(9, 9, 9, 0.8);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      z-index: 1000;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 5%;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      text-decoration: none;
+      color: var(--text);
+      font-weight: 700;
+      font-size: 1.5rem;
+      letter-spacing: -0.5px;
+    }
+
+    .logo span {
+      background: linear-gradient(135deg, var(--primary), var(--secondary));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    nav {
+      display: flex;
+      align-items: center;
+      gap: 30px;
+    }
+
+    nav a {
+      text-decoration: none;
+      color: var(--text-muted);
+      font-weight: 500;
+      transition: color 0.3s ease;
+    }
+
+    nav a:hover {
+      color: var(--text);
+    }
+
+    /* Language Switcher Button */
+    .lang-switch {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 30px;
+      padding: 4px;
+      display: flex;
+      gap: 2px;
+      cursor: pointer;
+      position: relative;
+    }
+
+    .lang-btn {
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+
+    .lang-btn.active {
+      color: #fff;
+      background: linear-gradient(135deg, var(--primary), var(--secondary));
+      box-shadow: 0 4px 10px rgba(139, 92, 246, 0.2);
+    }
+
+    /* Container */
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 5%;
+    }
+
+    /* Hero Section */
+    .hero {
+      padding: 100px 0 60px;
+      text-align: center;
+      position: relative;
+    }
+
+    .badge-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(139, 92, 246, 0.1);
+      border: 1px solid var(--primary-glow);
+      padding: 6px 16px;
+      border-radius: 30px;
+      color: var(--primary);
+      font-weight: 600;
+      font-size: 0.9rem;
+      margin-bottom: 24px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    .hero h1 {
+      font-size: 3.5rem;
+      font-weight: 800;
+      line-height: 1.15;
+      letter-spacing: -1.5px;
+      margin-bottom: 24px;
+    }
+
+    .hero h1 span {
+      background: linear-gradient(135deg, var(--primary), var(--secondary));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .hero p {
+      font-size: 1.25rem;
+      color: var(--text-muted);
+      max-width: 650px;
+      margin: 0 auto 40px;
+      font-weight: 300;
+    }
+
+    .download-buttons {
+      display: flex;
+      justify-content: center;
+      gap: 20px;
+      flex-wrap: wrap;
+      margin-bottom: 50px;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      background: linear-gradient(135deg, var(--primary), var(--secondary));
+      color: #fff;
+      text-decoration: none;
+      padding: 14px 28px;
+      border-radius: 30px;
+      font-weight: 600;
+      font-size: 1rem;
+      box-shadow: 0 8px 24px rgba(139, 92, 246, 0.25);
+      transition: all 0.3s ease;
+      border: none;
+      cursor: pointer;
+    }
+
+    .btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 12px 30px rgba(139, 92, 246, 0.4);
+    }
+
+    .btn-secondary {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text);
+      box-shadow: none;
+    }
+
+    .btn-secondary:hover {
+      background: rgba(255, 255, 255, 0.03);
+      border-color: var(--primary);
+      box-shadow: 0 8px 20px rgba(255, 255, 255, 0.02);
+    }
+
+    /* Glassmorphic Grid / Features */
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 30px;
+      margin: 80px 0;
+    }
+
+    .card {
+      background: var(--surface-glass);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--border);
+      border-radius: 24px;
+      padding: 40px 30px;
+      transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: radial-gradient(800px circle at var(--x, 0px) var(--y, 0px), rgba(255,255,255,0.06), transparent 40%);
+      pointer-events: none;
+    }
+
+    .card:hover {
+      transform: translateY(-5px);
+      border-color: rgba(139, 92, 246, 0.3);
+      box-shadow: 0 15px 35px rgba(0, 0, 0, 0.4), 0 0 20px rgba(139, 92, 246, 0.05);
+    }
+
+    .card-icon {
+      width: 50px;
+      height: 50px;
+      border-radius: 14px;
+      background: rgba(139, 92, 246, 0.1);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--primary);
+      font-size: 1.5rem;
+      margin-bottom: 24px;
+      border: 1px solid var(--border-glow);
+    }
+
+    .card h3 {
+      font-size: 1.35rem;
+      font-weight: 600;
+      margin-bottom: 12px;
+    }
+
+    .card p {
+      color: var(--text-muted);
+      font-size: 0.95rem;
+      font-weight: 300;
+    }
+
+    /* Section styling */
+    .section-title {
+      text-align: center;
+      margin-bottom: 50px;
+    }
+
+    .section-title h2 {
+      font-size: 2.25rem;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+      margin-bottom: 12px;
+    }
+
+    .section-title p {
+      color: var(--text-muted);
+      font-size: 1.1rem;
+      font-weight: 300;
+      max-width: 600px;
+      margin: 0 auto;
+    }
+
+    /* Models comparison layout */
+    .comparison-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 30px;
+      margin-bottom: 80px;
+    }
+
+    .model-card {
+      background: var(--surface-glass);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--border);
+      border-radius: 24px;
+      padding: 40px;
+      position: relative;
+    }
+
+    .model-card.featured {
+      border-color: var(--primary);
+      box-shadow: 0 10px 30px rgba(139, 92, 246, 0.08);
+    }
+
+    .model-badge {
+      position: absolute;
+      top: -15px;
+      right: 30px;
+      background: linear-gradient(135deg, var(--primary), var(--secondary));
+      padding: 4px 14px;
+      border-radius: 20px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .model-name {
+      font-size: 1.75rem;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+
+    .model-desc {
+      color: var(--text-muted);
+      font-size: 0.95rem;
+      margin-bottom: 24px;
+      font-weight: 300;
+    }
+
+    .spec-list {
+      list-style: none;
+      margin-bottom: 30px;
+    }
+
+    .spec-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 0;
+      font-size: 0.95rem;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+      font-weight: 300;
+    }
+
+    .spec-item:last-child {
+      border-bottom: none;
+    }
+
+    .spec-item .dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--primary);
+    }
+
+    /* Specifications Table */
+    .specs-table-wrapper {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      overflow: hidden;
+      margin: 40px 0 80px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+      font-size: 0.95rem;
+    }
+
+    th, td {
+      padding: 16px 24px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    th {
+      background-color: rgba(255, 255, 255, 0.02);
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    td {
+      color: var(--text-muted);
+      font-weight: 300;
+    }
+
+    tr:last-child td {
+      border-bottom: none;
+    }
+
+    /* Guide Steps */
+    .steps {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 30px;
+      margin: 50px 0 80px;
+    }
+
+    .step {
+      background: var(--surface-glass);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 30px;
+      position: relative;
+    }
+
+    .step-number {
+      position: absolute;
+      top: -20px;
+      left: 30px;
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--primary), var(--secondary));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 1.1rem;
+      box-shadow: 0 4px 10px rgba(139, 92, 246, 0.2);
+    }
+
+    .step h4 {
+      font-size: 1.15rem;
+      font-weight: 600;
+      margin-top: 10px;
+      margin-bottom: 10px;
+    }
+
+    .step p {
+      color: var(--text-muted);
+      font-size: 0.9rem;
+      font-weight: 300;
+    }
+
+    /* Privacy Policy Accordion */
+    .privacy-policy {
+      background: var(--surface-glass);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      margin-bottom: 100px;
+      overflow: hidden;
+    }
+
+    .privacy-header {
+      padding: 24px 30px;
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      user-select: none;
+      background: rgba(255, 255, 255, 0.01);
+      transition: background 0.3s;
+    }
+
+    .privacy-header:hover {
+      background: rgba(255, 255, 255, 0.02);
+    }
+
+    .privacy-header h3 {
+      font-size: 1.25rem;
+      font-weight: 600;
+    }
+
+    .privacy-icon {
+      font-size: 1.2rem;
+      transition: transform 0.3s ease;
+      color: var(--primary);
+    }
+
+    .privacy-content {
+      max-height: 0;
+      overflow: hidden;
+      transition: max-height 0.4s cubic-bezier(0.16, 1, 0.3, 1), padding 0.4s ease;
+      padding: 0 30px;
+      border-top: 0 solid var(--border);
+    }
+
+    .privacy-content.open {
+      max-height: 1500px;
+      padding: 30px;
+      overflow-y: auto;
+      border-top-width: 1px;
+    }
+
+    .privacy-doc h4 {
+      margin-top: 20px;
+      margin-bottom: 8px;
+      font-size: 1.1rem;
+      color: var(--text);
+    }
+
+    .privacy-doc h4:first-child {
+      margin-top: 0;
+    }
+
+    .privacy-doc p, .privacy-doc li {
+      color: var(--text-muted);
+      font-size: 0.9rem;
+      font-weight: 300;
+      margin-bottom: 12px;
+    }
+
+    .privacy-doc ul {
+      margin-left: 20px;
+      margin-bottom: 16px;
+    }
+
+    /* Footer */
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 40px 0;
+      text-align: center;
+      background: rgba(9, 9, 9, 0.95);
+    }
+
+    footer p {
+      color: var(--text-muted);
+      font-size: 0.9rem;
+      font-weight: 300;
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      .hero h1 {
+        font-size: 2.5rem;
+      }
+      .hero p {
+        font-size: 1.1rem;
+      }
+      nav {
+        display: none; /* simple toggle would be best, but for single page we hide menu on mobile */
+      }
+    }
+  </style>
+</head>
+<body class="lang-es"> <!-- Default language: Spanish -->
+
+  <div class="glowing-bg"></div>
+
+  <header>
+    <a href="#" class="logo">
+      <span>AI Diary</span>
+    </a>
+    <nav>
+      <a href="#features" class="es">Características</a>
+      <a href="#features" class="en">Features</a>
+      <a href="#models" class="es">Modelos IA</a>
+      <a href="#models" class="en">AI Models</a>
+      <a href="#setup" class="es">Configuración</a>
+      <a href="#setup" class="en">Setup</a>
+      <a href="#privacy" class="es">Privacidad</a>
+      <a href="#privacy" class="en">Privacy</a>
+    </nav>
+    <div class="lang-switch" onclick="toggleLanguage()">
+      <button class="lang-btn active" id="btn-es">ES</button>
+      <button class="lang-btn" id="btn-en">EN</button>
+    </div>
+  </header>
+
+  <main class="container">
+    
+    <!-- Hero Section -->
+    <section class="hero">
+      <div class="badge-pill">
+        <span class="es">Inteligencia Artificial 100% Local</span>
+        <span class="en">100% Local Artificial Intelligence</span>
+      </div>
+      <h1 class="es">Tu Diario Personal.<br><span>Privado y Local.</span></h1>
+      <h1 class="en">Your Personal Diary.<br><span>Private & Local.</span></h1>
+      <p class="es">
+        Registra tu vida con el poder de la Inteligencia Artificial de forma totalmente segura. Tus datos, grabaciones y respuestas de IA nunca salen de tu dispositivo móvil.
+      </p>
+      <p class="en">
+        Record your life with the power of Artificial Intelligence in a completely secure way. Your data, voice recordings, and AI responses never leave your mobile device.
+      </p>
+      <div class="download-buttons">
+        <a href="#" class="btn">
+          <span class="es">Google Play Store</span>
+          <span class="en">Google Play Store</span>
+        </a>
+        <a href="https://testflight.apple.com/join/y1RbuYNp" target="_blank" class="btn btn-secondary">
+          <span class="es">iOS TestFlight (Beta)</span>
+          <span class="en">iOS TestFlight (Beta)</span>
+        </a>
+      </div>
+    </section>
+
+    <!-- Core Features Grid -->
+    <section id="features" class="grid">
+      <div class="card">
+        <div class="card-icon">🔐</div>
+        <h3 class="es">Privacidad Absoluta</h3>
+        <h3 class="en">Absolute Privacy</h3>
+        <p class="es">Toda tu información se almacena localmente en una base de datos SQLite encriptada en tu dispositivo. Nadie, ni siquiera nosotros, puede leer tu diario.</p>
+        <p class="en">All your information is stored locally in an encrypted SQLite database on your device. Nobody, not even us, can read your diary.</p>
+      </div>
+
+      <div class="card">
+        <div class="card-icon">🧠</div>
+        <h3 class="es">IAs Locales (Gemma)</h3>
+        <h3 class="en">Local AIs (Gemma)</h3>
+        <p class="es">Ejecuta modelos avanzados de lenguaje (Gemma 3 y 4) directamente en el hardware de tu teléfono de manera offline. Sin servidores ni cargos adicionales.</p>
+        <p class="en">Run advanced language models (Gemma 3 and 4) directly on your phone's hardware offline. No cloud servers, no extra fees.</p>
+      </div>
+
+      <div class="card">
+        <div class="card-icon">🎙️</div>
+        <h3 class="es">Transcripción Offline</h3>
+        <h3 class="en">Offline Transcription</h3>
+        <p class="es">Habla directamente al diario. Grabamos tus notas de voz y las transcribimos a texto usando el modelo Whisper de forma local y libre de nubes.</p>
+        <p class="en">Speak directly to your diary. We record your voice notes and transcribe them to text using a local Whisper model, completely cloud-free.</p>
+      </div>
+    </section>
+
+    <!-- Models Comparison -->
+    <section id="models">
+      <div class="section-title">
+        <h2 class="es">Modelos de IA Integrados</h2>
+        <h2 class="en">Integrated AI Models</h2>
+        <p class="es">Elige la Inteligencia Artificial local que mejor se adapte a tus necesidades de escritura.</p>
+        <p class="en">Choose the local Artificial Intelligence that best fits your writing needs.</p>
+      </div>
+
+      <div class="comparison-grid">
+        <div class="model-card">
+          <div class="model-name">Gemma 3 (4B)</div>
+          <div class="model-desc">
+            <span class="es">El asistente por defecto, rápido y ligero.</span>
+            <span class="en">The default assistant, fast and lightweight.</span>
+          </div>
+          <ul class="spec-list">
+            <li class="spec-item"><div class="dot"></div>
+              <span class="es">Ventana de contexto de 128k</span>
+              <span class="en">128k context window</span>
+            </li>
+            <li class="spec-item"><div class="dot"></div>
+              <span class="es">Generación de texto ultra rápida en móviles</span>
+              <span class="en">Ultra-fast text generation on mobile</span>
+            </li>
+            <li class="spec-item"><div class="dot"></div>
+              <span class="es">Marcado rápido en dialecto slim [SEARCH: "..."]</span>
+              <span class="en">Fast markup in slim dialect [SEARCH: "..."]</span>
+            </li>
+            <li class="spec-item"><div class="dot"></div>
+              <span class="es">Ideal para resúmenes de diarios habituales</span>
+              <span class="en">Perfect for daily diary summaries</span>
+            </li>
+          </ul>
+        </div>
+
+        <div class="model-card featured">
+          <div class="model-badge">Recomendado / Recommended</div>
+          <div class="model-name">Gemma 4 (E2B)</div>
+          <div class="model-desc">
+            <span class="es">Optimizado para análisis profundos.</span>
+            <span class="en">Optimized for deep analysis.</span>
+          </div>
+          <ul class="spec-list">
+            <li class="spec-item"><div class="dot"></div>
+              <span class="es">Motor altamente optimizado con lógica PLE</span>
+              <span class="en">Highly optimized engine with PLE logic</span>
+            </li>
+            <li class="spec-item"><div class="dot"></div>
+              <span class="es">Excelente capacidad de razonamiento introspectivo</span>
+              <span class="en">Excellent introspective reasoning capability</span>
+            </li>
+            <li class="spec-item"><div class="dot"></div>
+              <span class="es">Soporte nativo para llamadas a funciones (Tool Calls)</span>
+              <span class="en">Native support for function calls (Tool Calls)</span>
+            </li>
+            <li class="spec-item"><div class="dot"></div>
+              <span class="es">Dialecto nativo SFT para cero perplejidad</span>
+              <span class="en">SFT native dialect for zero perplexity</span>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- Specifications & Requirements -->
+    <section id="specs">
+      <div class="section-title">
+        <h2 class="es">Especificaciones y Requisitos</h2>
+        <h2 class="en">System Specifications & Requirements</h2>
+        <p class="es">La IA local requiere potencia de hardware para ejecutarse eficientemente en tu dispositivo.</p>
+        <p class="en">Local AI requires hardware power to execute efficiently on your device.</p>
+      </div>
+
+      <div class="specs-table-wrapper">
+        <table>
+          <thead>
+            <tr>
+              <th class="es">Componente</th>
+              <th class="en">Component</th>
+              <th class="es">Requisito Mínimo</th>
+              <th class="en">Minimum Requirement</th>
+              <th class="es">Recomendado</th>
+              <th class="en">Recommended</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="es">Memoria RAM</td>
+              <td class="en">RAM Memory</td>
+              <td>6 GB RAM</td>
+              <td>8 GB RAM o superior</td>
+            </tr>
+            <tr>
+              <td class="es">Procesador</td>
+              <td class="en">Processor (SoC)</td>
+              <td>Snapdragon 7 Gen 1 / Apple A14</td>
+              <td>Snapdragon 8 Gen 2 / Apple A16 o superior</td>
+            </tr>
+            <tr>
+              <td class="es">Sistema Operativo</td>
+              <td class="en">Operating System</td>
+              <td>Android 10 (API 29) / iOS 15</td>
+              <td>Android 13+ / iOS 17+</td>
+            </tr>
+            <tr>
+              <td class="es">Almacenamiento Libre</td>
+              <td class="en">Free Storage Space</td>
+              <td>~500 MB (Modelos básicos)</td>
+              <td>~2 GB (Modelos de voz y LLM de alta calidad)</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Guide / Onboarding -->
+    <section id="setup">
+      <div class="section-title">
+        <h2 class="es">Cómo empezar (Guía para Principiantes)</h2>
+        <h2 class="en">How to Start (Beginner's Guide)</h2>
+        <p class="es">Sigue estos sencillos pasos para activar el cerebro de tu diario.</p>
+        <p class="en">Follow these simple steps to activate your diary's brain.</p>
+      </div>
+
+      <div class="steps">
+        <div class="step">
+          <div class="step-number">1</div>
+          <h4 class="es">Descarga la App</h4>
+          <h4 class="en">Download the App</h4>
+          <p class="es">Instala AI Diary en tu teléfono mediante Google Play Store o iOS TestFlight.</p>
+          <p class="en">Install AI Diary on your phone via Google Play Store or iOS TestFlight.</p>
+        </div>
+
+        <div class="step">
+          <div class="step-number">2</div>
+          <h4 class="es">Descarga las IAs</h4>
+          <h4 class="en">Download the AIs</h4>
+          <p class="es">Ve a la pestaña de ajustes dentro de la app y selecciona descargar los modelos de lenguaje (Gemma) y voz (Whisper/Sherpa) en segundo plano.</p>
+          <p class="en">Go to the settings tab in the app and select to download the language (Gemma) and voice (Whisper/Sherpa) models in the background.</p>
+        </div>
+
+        <div class="step">
+          <div class="step-number">3</div>
+          <h4 class="es">Escribe o Habla</h4>
+          <h4 class="en">Write or Speak</h4>
+          <p class="es">¡Listo! Comienza a escribir tus notas o presiona el icono del micrófono para hablar. La IA procesará todo de manera 100% offline.</p>
+          <p class="en">Done! Start writing your notes or press the microphone icon to talk. The AI will process everything 100% offline.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Privacy Policy Collapsible -->
+    <section id="privacy" class="privacy-policy">
+      <div class="privacy-header" onclick="togglePrivacy()">
+        <h3 class="es">Política de Privacidad de la Aplicación</h3>
+        <h3 class="en">App Privacy Policy</h3>
+        <span class="privacy-icon" id="privacy-chevron">▼</span>
+      </div>
+      <div class="privacy-content" id="privacy-body">
+        <div class="privacy-doc">
+          <h4 class="es">Resumen de Privacidad</h4>
+          <h4 class="en">Privacy Summary</h4>
+          <p class="es">
+            <strong>AI Diary - Private Journal</strong> está diseñada con una arquitectura fuera de línea por diseño ("offline-first"). Toda la información que ingresas, grabas o que la Inteligencia Artificial procesa se almacena y ejecuta en tu propio teléfono inteligente y nunca se transmite a servidores de internet.
+          </p>
+          <p class="en">
+            <strong>AI Diary - Private Journal</strong> is designed with an offline-first architecture by design. All information you enter, record, or that the Artificial Intelligence processes is stored and executed on your own smartphone and is never transmitted to internet servers.
+          </p>
+
+          <h4 class="es">1. Recopilación de Información</h4>
+          <h4 class="en">1. Information Collection</h4>
+          <p class="es">
+            * <strong>Entradas del Diario:</strong> Se guardan en una base de datos local SQLite y no son legibles por nosotros ni por terceros.<br>
+            * <strong>Notas de Voz:</strong> La grabación y conversión a texto mediante el modelo Whisper se procesa en el dispositivo de manera local. No recopilamos grabaciones.<br>
+            * <strong>Modelos de Inteligencia Artificial:</strong> Las respuestas de Gemma 3 y 4 se calculan usando el hardware del teléfono, sin llamadas a APIs en la nube.
+          </p>
+          <p class="en">
+            * <strong>Diary Entries:</strong> Saved in a local SQLite database and are not readable by us or third parties.<br>
+            * <strong>Voice Notes:</strong> Recording and text conversion using the Whisper model is processed on the device locally. We do not collect recordings.<br>
+            * <strong>Artificial Intelligence Models:</strong> Gemma 3 and 4 responses are calculated using the phone's hardware, with no cloud API calls.
+          </p>
+
+          <h4 class="es">2. Permisos Requeridos</h4>
+          <h4 class="en">2. Permissions Required</h4>
+          <p class="es">
+            * <strong>Micrófono (RECORD_AUDIO):</strong> Usado únicamente para permitirte registrar notas de voz.<br>
+            * <strong>Notificaciones (POST_NOTIFICATIONS):</strong> Usado para mostrarte el estado del procesamiento local de la IA.<br>
+            * <strong>Almacenamiento (READ/WRITE_EXTERNAL_STORAGE):</strong> Usado si decides exportar o respaldar tus notas a un archivo.<br>
+            * <strong>Servicio en Primer Plano (FOREGROUND_SERVICE):</strong> Garantiza que el procesamiento local de la IA no se interrumpa.
+          </p>
+          <p class="en">
+            * <strong>Microphone (RECORD_AUDIO):</strong> Used only to allow you to record voice notes.<br>
+            * <strong>Notifications (POST_NOTIFICATIONS):</strong> Used to show you the status of the local AI processing.<br>
+            * <strong>Storage (READ/WRITE_EXTERNAL_STORAGE):</strong> Used if you decide to export or backup your notes to a file.<br>
+            * <strong>Foreground Service (FOREGROUND_SERVICE):</strong> Guarantees that local AI processing is not interrupted.
+          </p>
+
+          <h4 class="es">3. Compartición de Datos</h4>
+          <h4 class="en">3. Data Sharing</h4>
+          <p class="es">No compartimos información con ninguna red publicitaria, servidor de analíticas, ni terceros, ya que la aplicación es libre de rastreadores y no tiene conexión de red para procesar tus datos.</p>
+          <p class="en">We do not share information with any advertising network, analytics server, or third party, as the app is tracker-free and has no network connection to process your data.</p>
+
+          <h4 class="es">4. Contacto</h4>
+          <h4 class="en">4. Contact</h4>
+          <p class="es">Para preguntas relacionadas con la privacidad, contáctanos en: <code>christeck@gmail.com</code></p>
+          <p class="en">For privacy-related questions, contact us at: <code>christeck@gmail.com</code></p>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>&copy; 2026 Christeck. <span class="es">Todos los derechos reservados.</span><span class="en">All rights reserved.</span></p>
+    </div>
+  </footer>
+
+  <script>
+    // Toggle Language
+    function toggleLanguage() {
+      const body = document.body;
+      const btnEs = document.getElementById('btn-es');
+      const btnEn = document.getElementById('btn-en');
+      
+      if (body.classList.contains('lang-es')) {
+        body.classList.remove('lang-es');
+        body.classList.add('lang-en');
+        btnEs.classList.remove('active');
+        btnEn.classList.add('active');
+      } else {
+        body.classList.remove('lang-en');
+        body.classList.add('lang-es');
+        btnEn.classList.remove('active');
+        btnEs.classList.add('active');
+      }
+    }
+
+    // Toggle Privacy Accordion
+    function togglePrivacy() {
+      const body = document.getElementById('privacy-body');
+      const chevron = document.getElementById('privacy-chevron');
+      if (body.classList.contains('open')) {
+        body.classList.remove('open');
+        chevron.style.transform = 'rotate(0deg)';
+      } else {
+        body.classList.add('open');
+        chevron.style.transform = 'rotate(180deg)';
+      }
+    }
+
+    // Card Hover Highlight effect
+    const cards = document.querySelectorAll('.card');
+    cards.forEach(card => {
+      card.addEventListener('mousemove', e => {
+        const rect = card.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        card.style.setProperty('--x', `${x}px`);
+        card.style.setProperty('--y', `${y}px`);
+      });
+    });
+  </script>
+</body>
+</html>
