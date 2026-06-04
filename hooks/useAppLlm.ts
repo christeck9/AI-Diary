@@ -183,6 +183,10 @@ export function useAppLlm(lang: string = 'es') {
   const tokenCounterRef = useRef<number>(0);
   const startTimeRef = useRef<number>(0);
   const downloadResumableRef = useRef<FileSystem.DownloadResumable | null>(null);
+  // Synchronous mutex: React state updates are async, so isDownloading in a closure
+  // can be stale for several ms. This ref is set in the same JS tick, preventing
+  // resumeIncompleteDownloads from launching a duplicate downloadModel() call.
+  const isDownloadingRef = useRef(false);
 
   const isSettingsLoadedRef = useRef(false);
 
@@ -430,14 +434,28 @@ const clearResumeState = async (filename: string) => {
     // Get existing downloaded bytes for reliable resume
     const existingBytes = await getDownloadedBytes(filePath);
     let resumeData: string | undefined;
-    
+
     if (existingBytes > 0) {
-      // Use file size as resume point - this is more reliable than expo's resumeData
+      // Use file size as resume point — more reliable than expo's resumeData blob
       resumeData = String(existingBytes);
       console.log(`[LLM] Resuming download from ${existingBytes} bytes for ${filename}`);
+
+      // ── FIX: Pre-seed progress from existing bytes so the UI never flashes 0% ──
+      // Without this, the bar shows 0% until the first progress callback fires,
+      // causing the visible flicker between the old percentage and 0%.
+      const globalTotalBytes = (model.sizeMB + (model.mmprojSizeMB || 0)) * 1024 * 1024;
+      if (globalTotalBytes > 0) {
+        const alreadyDownloaded = isMmproj
+          ? (model.sizeMB * 1024 * 1024) + existingBytes
+          : existingBytes;
+        const initialPct = Math.min(99, Math.round((alreadyDownloaded / globalTotalBytes) * 100));
+        setDownloadPercent(initialPct);
+        setDownloadedMB(Math.round(alreadyDownloaded / (1024 * 1024) * 10) / 10);
+        console.log(`[LLM] Pre-seeded UI progress to ${initialPct}% from existing ${existingBytes} bytes`);
+      }
     }
 
-    // Using a ref to track the last calculated speed to avoid state-stale values in the callback
+    // Track bytes/time for speed calculation
     let lastBytes = existingBytes;
     let lastTime = Date.now();
 
@@ -525,6 +543,7 @@ const clearResumeState = async (filename: string) => {
 
   const downloadModel = async (model: ModelDefinition) => {
     try {
+      isDownloadingRef.current = true; // Set synchronously BEFORE any await
       setDownloadingModel(model);
       setIsDownloading(true);
       setStatus(curr => curr !== 'ready' ? 'downloading' : curr);
@@ -580,6 +599,7 @@ const clearResumeState = async (filename: string) => {
       const finalModelSize = (await getModelLocalSize(resolvedModel)) || 0;
       await saveModelFingerprint(resolvedModel, finalModelSize, new Date().toISOString());
 
+      isDownloadingRef.current = false;
       setIsDownloading(false);
       setDownloadingModel(null);
       setStatus(curr => curr === 'downloading' ? 'idle' : curr);
@@ -612,6 +632,7 @@ const clearResumeState = async (filename: string) => {
         console.warn('[LLM] Network or other resumable error occurred during download:', e.message);
       }
 
+      isDownloadingRef.current = false;
       setIsDownloading(false);
       setDownloadingModel(null);
       setStatus(curr => curr === 'downloading' ? 'idle' : curr);
@@ -626,6 +647,7 @@ const clearResumeState = async (filename: string) => {
       const filename = state.url === downloadingModel.url ? downloadingModel.fileName : (downloadingModel.mmprojFileName || downloadingModel.fileName);
       const resumeStatePath = getResumeStatePath(filename);
       await FileSystem.writeAsStringAsync(resumeStatePath, JSON.stringify(state));
+      isDownloadingRef.current = false;
       setIsDownloading(false);
       setStatus(curr => curr === 'downloading' ? 'idle' : curr);
     } catch (e) {
@@ -1007,14 +1029,17 @@ const clearResumeState = async (filename: string) => {
     }
 
     // We intentionally don't delete the partial file here so it can be resumed later.
-    // If we wanted to delete it, we would add the deletion logic here.
+    isDownloadingRef.current = false;
     setIsDownloading(false);
     setStatus(curr => curr === 'downloading' ? 'idle' : curr);
   };
 
   // Resume incomplete downloads on app start
   const resumeIncompleteDownloads = async () => {
-    if (isDownloading) return;
+    // Use the ref (not React state) to avoid the race condition where a manual
+    // download has already called downloadModel() but isDownloading is still
+    // false in this stale closure.
+    if (isDownloadingRef.current) return;
     
     const baseDir = FileSystem.documentDirectory?.replace(/\/+$/, '') + '/llm_models';
     const dirInfo = await FileSystem.getInfoAsync(baseDir);
