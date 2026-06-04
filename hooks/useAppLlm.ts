@@ -194,7 +194,7 @@ export function useAppLlm(lang: string = 'es') {
   const getResumeStatePath = (filename: string) =>
     `${FileSystem.documentDirectory?.replace(/\/+$/, '')}/llm_models/download_resume_${filename}.json`;
 
-const clearResumeState = async (filename: string) => {
+  const clearResumeState = async (filename: string) => {
     try {
       const path = getResumeStatePath(filename);
       const info = await FileSystem.getInfoAsync(path);
@@ -345,10 +345,10 @@ const clearResumeState = async (filename: string) => {
       try {
         const totalRam = await getTotalRAM();
         setDeviceRAM(totalRam);
-        
+
         const settings = await settingsService.get();
         let modelToUse = activeModel;
-        
+
         if (settings.preferredModel) {
           const model = AVAILABLE_MODELS.find(m => m.id === settings.preferredModel);
           if (model) {
@@ -375,7 +375,7 @@ const clearResumeState = async (filename: string) => {
             modelToUse = lightModel;
           }
         }
-        
+
         if (modelToUse.id !== activeModel.id) {
           setActiveModel(modelToUse);
         }
@@ -499,7 +499,7 @@ const clearResumeState = async (filename: string) => {
       await clearResumeState(filename);
     } catch (e: any) {
       downloadResumableRef.current = null;
-      
+
       // Always save resume state on error - use file size as reliable checkpoint
       if (Platform.OS === 'android') {
         try {
@@ -838,8 +838,8 @@ const clearResumeState = async (filename: string) => {
       };
 
       // Execute silently, no awaiting to prevent blocking
-      llamaContextRef.current.completion(completionOptions, () => {}).catch((e: any) => {
-         console.warn("[LLM] Prefill silent error:", e);
+      llamaContextRef.current.completion(completionOptions, () => { }).catch((e: any) => {
+        console.warn("[LLM] Prefill silent error:", e);
       });
     } catch (e) {
       console.warn("[LLM] Error in prefillContextLlm:", e);
@@ -881,12 +881,12 @@ const clearResumeState = async (filename: string) => {
       if (isLlama) {
         // Llama 3.2 1B Instruct dynamic parameters (staying strictly within the safe 0.70 - 1.20 range)
         targetTemp = forceDeterminism ? 0.15 : (forceHighTemperature ? 1.15 : (
-          consciousnessLevel === 1 ? 0.70 // Zen: lower bound to keep it concise, avoiding repetition collapse
-            : consciousnessLevel === 2 ? 0.85 // Balance: optimal baseline
-              : consciousnessLevel === 3 ? 1.15 // Deep: high temperature to inject entropy
-                : 1.20 // Philosophic: maximum conceptual diversity
+          consciousnessLevel === 1 ? 0.80 // Zen: lower bound to keep it concise, avoiding repetition collapse
+            : consciousnessLevel === 2 ? 0.90 // Balance: optimal baseline
+              : consciousnessLevel === 3 ? 1.0 // Deep: higher temperature to inject entropy
+                : 1.15 // Philosophic: maximum conceptual diversity
         ));
-        targetMinP = 0.08;
+        targetMinP = 0.10;
         targetTopP = 1.0; // Disabled to let min_p work cleanly
         targetRepeatPenalty = 1.15;
       } else if (isGemma3) {
@@ -908,7 +908,7 @@ const clearResumeState = async (filename: string) => {
       }
 
       const directives = {
-        'ZEN': "\n[[RULE: No thinking. No preamble. Respond in one sentence.]]" ,
+        'ZEN': "\n[[RULE: No thinking. No preamble. Respond in one sentence.]]",
         'BALANCE': "\n[[RULE: Keep your Thinking Process brief (maximum 2 paragraphs).]]",
         'NORMAL': "\n[[RULE: Keep your Thinking Process concise (maximum 4 paragraphs).]]",
         'PROFUNDO': ""
@@ -958,7 +958,7 @@ const clearResumeState = async (filename: string) => {
         min_p: targetMinP,
         repeat_penalty: targetRepeatPenalty,
         repeat_last_n: 128,
-        stop: isLlama 
+        stop: isLlama
           ? ["<|eot_id|>", "<|eom_id|>", "<|begin_of_text|>"]
           : isGemma3
             // Gemma 3 4B: standard end-of-turn token + safety fallbacks
@@ -1049,7 +1049,7 @@ const clearResumeState = async (filename: string) => {
     // download has already called downloadModel() but isDownloading is still
     // false in this stale closure.
     if (isDownloadingRef.current) return;
-    
+
     const baseDir = FileSystem.documentDirectory?.replace(/\/+$/, '') + '/llm_models';
     const dirInfo = await FileSystem.getInfoAsync(baseDir);
     if (!dirInfo.exists) return;
@@ -1058,7 +1058,7 @@ const clearResumeState = async (filename: string) => {
       // Check main model
       const modelPath = `${baseDir}/${model.fileName}`;
       const modelInfo = await FileSystem.getInfoAsync(modelPath);
-      
+
       if (modelInfo.exists && (modelInfo as any).size > 0) {
         const remoteSize = await getModelRemoteSize(model);
         if (remoteSize && (modelInfo as any).size < remoteSize * 0.99) {
@@ -1076,7 +1076,7 @@ const clearResumeState = async (filename: string) => {
       if (model.mmprojFileName) {
         const mmprojPath = `${baseDir}/${model.mmprojFileName}`;
         const mmprojInfo = await FileSystem.getInfoAsync(mmprojPath);
-        
+
         if (mmprojInfo.exists && (mmprojInfo as any).size > 0) {
           const remoteMmprojSize = await getModelRemoteSize({ ...model, fileName: model.mmprojFileName, url: model.mmprojUrl! } as ModelDefinition);
           if (remoteMmprojSize && (mmprojInfo as any).size < remoteMmprojSize * 0.99) {
@@ -1093,27 +1093,27 @@ const clearResumeState = async (filename: string) => {
     }
   };
 
-return { 
+  return {
     deviceRAM,
-    status, 
-    isDownloading, 
-    downloadingModel, 
-    activeModel, 
-    selectModel, 
-    downloadModel, 
-    pauseDownload, 
-    cancelDownload, 
-    loadModel, 
-    resetToHome, 
-    llamaContextRef, 
-    generateStreamingResponse, 
-    prefillContextLlm, 
-    abortGeneration, 
-    AVAILABLE_MODELS, 
-    downloadedMB, 
-    downloadSpeed, 
-    downloadPercent, 
-    currentContextSize, 
+    status,
+    isDownloading,
+    downloadingModel,
+    activeModel,
+    selectModel,
+    downloadModel,
+    pauseDownload,
+    cancelDownload,
+    loadModel,
+    resetToHome,
+    llamaContextRef,
+    generateStreamingResponse,
+    prefillContextLlm,
+    abortGeneration,
+    AVAILABLE_MODELS,
+    downloadedMB,
+    downloadSpeed,
+    downloadPercent,
+    currentContextSize,
     tokensUsed,
     // Model persistence functions
     getModelStatus,
