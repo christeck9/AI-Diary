@@ -142,18 +142,17 @@ export default function AdvancedScreen() {
             if (settings.preferredModel) setPreferredModel(settings.preferredModel);
             if (settings.manualEcoMode) setManualEcoMode(true);
 
-            // Migration fallback: move Brave key from plaintext JSON to SecureStore
+            // Backup fallback: if Brave key is in app_settings.json but not in SecureStore (e.g. after upgrade),
+            // restore it to SecureStore. Do NOT delete it from app_settings.json to preserve it as a backup.
             if (settings.braveApiKey && settings.braveApiKey.trim()) {
+              if (isMounted) setIsApiStored(true);
               if (!secureKey) {
                 try {
                   await SecureStore.setItemAsync('brave_search_api_key', settings.braveApiKey.trim());
-                  if (isMounted) setIsApiStored(true);
                 } catch (e) {
-                  console.warn('[SecureStore] Could not migrate Brave API key to SecureStore:', e);
+                  console.warn('[SecureStore] Could not restore Brave API key to SecureStore:', e);
                 }
               }
-              // Clear plaintext key regardless of migration outcome
-              setTimeout(() => { saveSettings({ braveApiKey: undefined }); }, 100);
             }
           }
         }
@@ -649,6 +648,7 @@ export default function AdvancedScreen() {
                           }
                           try {
                             await SecureStore.setItemAsync('brave_search_api_key', tempApiKey.trim());
+                            await saveSettings({ braveApiKey: tempApiKey.trim() });
                             setIsApiStored(true);
                             setTempApiKey('');
                             Alert.alert(
