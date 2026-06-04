@@ -879,8 +879,13 @@ const clearResumeState = async (filename: string) => {
       let targetTopP = forceDeterminism ? 0.90 : modelConfig.top_p;
 
       if (isLlama) {
-        // Llama 3.2 1B Instruct optimal parameters
-        targetTemp = forceDeterminism ? 0.15 : (forceHighTemperature ? 1.15 : 0.85);
+        // Llama 3.2 1B Instruct dynamic parameters (staying strictly within the safe 0.70 - 1.20 range)
+        targetTemp = forceDeterminism ? 0.15 : (forceHighTemperature ? 1.15 : (
+          consciousnessLevel === 1 ? 0.70 // Zen: lower bound to keep it concise, avoiding repetition collapse
+            : consciousnessLevel === 2 ? 0.85 // Balance: optimal baseline
+              : consciousnessLevel === 3 ? 1.15 // Deep: high temperature to inject entropy
+                : 1.20 // Philosophic: maximum conceptual diversity
+        ));
         targetMinP = 0.08;
         targetTopP = 1.0; // Disabled to let min_p work cleanly
         targetRepeatPenalty = 1.15;
