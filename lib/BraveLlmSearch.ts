@@ -41,7 +41,10 @@ async function getBraveApiKey(): Promise<string> {
       return secureKey.trim();
     }
   } catch (e) {
-    console.warn('[BRAVE_LLM] Error reading API key from SecureStore:', e);
+    // KeyPermanentlyInvalidatedException or similar Android KeyStore failure.
+    // Delete the corrupted entry so future writes can succeed.
+    console.warn('[BRAVE_LLM] KeyStore error reading API key — clearing corrupted entry:', e);
+    try { await SecureStore.deleteItemAsync('brave_search_api_key'); } catch (_) {}
   }
 
   // 3. Check app_settings.json via SettingsService (fallback)

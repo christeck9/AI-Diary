@@ -24,18 +24,31 @@ const PIN_KEY = 'vault_pin_code';
  * If no key exists, it generates a cryptographically strong one using crypto.getRandomValues.
  */
 async function getVaultMasterKey(): Promise<string> {
-  let key = await SecureStore.getItemAsync(MASTER_KEY_STORAGE_KEY);
+  let key: string | null = null;
+
+  // Isolated SecureStore read: if Android KeyStore throws (e.g., after a system
+  // update invalidates keys), we clean up the entry and generate a new key.
+  // NOTE: existing vault files encrypted with the old key will become unreadable,
+  // but the app will continue to function and new files will be encrypted correctly.
+  try {
+    key = await SecureStore.getItemAsync(MASTER_KEY_STORAGE_KEY);
+  } catch (e) {
+    console.error('[VAULT] KeyStore error reading master key — generating new key. Old vault files are now inaccessible:', e);
+    try { await SecureStore.deleteItemAsync(MASTER_KEY_STORAGE_KEY); } catch (_) {}
+  }
+
   if (!key) {
     // Generate a cryptographically secure 32-byte key
     const randomValues = new Uint8Array(32);
     cryptography_engine.getRandomValues(randomValues);
-    
-    // Convert to hex string for storage
     key = Array.from(randomValues)
       .map(b => b.toString(16).padStart(2, '0'))
       .join('');
-      
-    await SecureStore.setItemAsync(MASTER_KEY_STORAGE_KEY, key);
+    try {
+      await SecureStore.setItemAsync(MASTER_KEY_STORAGE_KEY, key);
+    } catch (e) {
+      console.error('[VAULT] Could not persist new master key to SecureStore:', e);
+    }
   }
   return key;
 }
@@ -62,11 +75,24 @@ async function getCryptoKey(hexKey: string): Promise<CryptoKey> {
 
 export async function setVaultPin(pin: string): Promise<void> {
   const hashedPin = await digestSHA256(pin);
-  await SecureStore.setItemAsync(PIN_KEY, hashedPin);
+  try {
+    await SecureStore.setItemAsync(PIN_KEY, hashedPin);
+  } catch (e) {
+    console.error('[VAULT] Could not save PIN to SecureStore:', e);
+    throw e; // Re-throw: caller must know the PIN was NOT persisted
+  }
 }
 
 export async function getVaultPin(): Promise<string | null> {
-  return await SecureStore.getItemAsync(PIN_KEY);
+  try {
+    return await SecureStore.getItemAsync(PIN_KEY);
+  } catch (e) {
+    // KeyStore error: return null so hasVaultPin() returns false
+    // and the user is prompted to set a new PIN instead of being locked out.
+    console.error('[VAULT] KeyStore error reading PIN — clearing corrupted entry:', e);
+    try { await SecureStore.deleteItemAsync(PIN_KEY); } catch (_) {}
+    return null;
+  }
 }
 
 export async function verifyVaultPin(pin: string): Promise<boolean> {

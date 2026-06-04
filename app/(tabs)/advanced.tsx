@@ -113,14 +113,22 @@ export default function AdvancedScreen() {
   useEffect(() => {
     let isMounted = true;
     const loadSettings = async () => {
+      // --- Layer 1: SecureStore (isolated, fault-tolerant) ---
+      // If Android KeyStore throws (e.g., KeyPermanentlyInvalidatedException after a system
+      // update), we catch it here, clean up the corrupted entry, and continue loading.
+      let secureKey: string | null = null;
       try {
-        const secureKey = await SecureStore.getItemAsync('brave_search_api_key');
-        if (secureKey && secureKey.trim()) {
-          if (isMounted) {
-            setIsApiStored(true);
-          }
+        secureKey = await SecureStore.getItemAsync('brave_search_api_key');
+        if (secureKey && secureKey.trim() && isMounted) {
+          setIsApiStored(true);
         }
+      } catch (e) {
+        console.warn('[SecureStore] KeyStore error reading Brave API key — clearing corrupted entry:', e);
+        try { await SecureStore.deleteItemAsync('brave_search_api_key'); } catch (_) {}
+      }
 
+      // --- Layer 2: app_settings.json (always runs, even if SecureStore failed above) ---
+      try {
         const settingsPath = `${FileSystem.documentDirectory}app_settings.json`;
         const info = await FileSystem.getInfoAsync(settingsPath);
         if (info.exists) {
@@ -133,21 +141,23 @@ export default function AdvancedScreen() {
             if (settings.useCloudTTS) setUseCloudTTS(true);
             if (settings.preferredModel) setPreferredModel(settings.preferredModel);
             if (settings.manualEcoMode) setManualEcoMode(true);
-            
-            // Migration fallback
+
+            // Migration fallback: move Brave key from plaintext JSON to SecureStore
             if (settings.braveApiKey && settings.braveApiKey.trim()) {
               if (!secureKey) {
-                await SecureStore.setItemAsync('brave_search_api_key', settings.braveApiKey.trim());
-                setIsApiStored(true);
+                try {
+                  await SecureStore.setItemAsync('brave_search_api_key', settings.braveApiKey.trim());
+                  if (isMounted) setIsApiStored(true);
+                } catch (e) {
+                  console.warn('[SecureStore] Could not migrate Brave API key to SecureStore:', e);
+                }
               }
-              // Clear plaintext settings key
-              setTimeout(() => {
-                saveSettings({ braveApiKey: undefined });
-              }, 100);
+              // Clear plaintext key regardless of migration outcome
+              setTimeout(() => { saveSettings({ braveApiKey: undefined }); }, 100);
             }
           }
         }
-      } catch (e) { console.log('Error loading settings', e); }
+      } catch (e) { console.error('[Settings] Error loading app_settings.json:', e); }
     };
     loadSettings();
     return () => { isMounted = false; };

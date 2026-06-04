@@ -28,3 +28,6 @@
 -dontwarn com.tom_roush.pdfbox.**
 -keep class com.tom_roush.pdfbox.** { *; }
 -keep class org.apache.fontbox.** { *; }
+
+# Prevent R8 from stripping expo-secure-store native module (prevents silent null returns in release)
+-keep class expo.modules.securestore.** { *; }
