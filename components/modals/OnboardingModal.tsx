@@ -1,8 +1,9 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, TextInput, StyleSheet, Platform } from 'react-native';
+import { View, Text, TouchableOpacity, TextInput, StyleSheet, Platform, Image } from 'react-native';
 import { IconSymbol } from '../ui/icon-symbol';
 import { PSY_QUESTIONS, PsyProfile } from './PsyTestModal';
 import { UserProfile } from '../../lib/PromptService';
+import { getTotalRAMValue } from '../../lib/MemoryManager';
 
 interface OnboardingModalProps {
   visible: boolean;
@@ -45,39 +46,168 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
 
   return (
     <View style={[styles.statusOverlay, { backgroundColor: colors.surfaceSecondary, borderColor: colors.primary, zIndex: 999 }]}>
-      <IconSymbol name="lock.shield.fill" size={48} color={colors.primary} />
-      <Text style={[styles.statusText, { color: colors.textPrimary, marginTop: 15, fontSize: 18 }]}>
+      <Image 
+        source={require('../../assets/images/icon.png')} 
+        style={{ width: 64, height: 64, borderRadius: 12, marginBottom: 5 }} 
+      />
+      <Text style={[styles.statusText, { color: colors.textPrimary, marginTop: 10, fontSize: 18 }]}>
         {lang === 'es' ? 'Iniciando AI Diary' : 'AI Diary Initialization'}
       </Text>
 
-      {onboardingStep === 0 && (
-        <View style={{ width: '100%', marginTop: 20, alignItems: 'center' }}>
-          <View style={{ flexDirection: 'row', marginBottom: 25, borderWidth: 1, borderColor: colors.border, borderRadius: 8, overflow: 'hidden' }}>
+      {onboardingStep === 0 && (() => {
+        const ramMB = getTotalRAMValue();
+        const ramGB = Math.round(ramMB / 1024);
+        const isLowRam = ramGB < 4;
+
+        let ramDetectionText = '';
+        if (ramGB < 4) {
+          ramDetectionText = lang === 'es'
+            ? `Tu teléfono tiene ${ramGB} GB de RAM, tu teléfono no es capaz de ejecutar esta APP.`
+            : `Your phone has ${ramGB} GB in RAM, your phone is not able to run this APP.`;
+        } else if (ramGB < 6) {
+          ramDetectionText = lang === 'es'
+            ? `Tu teléfono tiene ${ramGB} GB de RAM, puedes ejecutar AI Light Core`
+            : `Your phone has ${ramGB} GB in RAM you can run AI Light Core`;
+        } else if (ramGB < 8) {
+          ramDetectionText = lang === 'es'
+            ? `Tu teléfono tiene ${ramGB} GB de RAM, puedes ejecutar AI Light Core & AI Balanced Core`
+            : `Your phone has ${ramGB} GB in RAM you can run AI Light Core & AI Balanced Core`;
+        } else {
+          ramDetectionText = lang === 'es'
+            ? `Tu teléfono tiene ${ramGB} GB de RAM, puedes ejecutar cualquiera de nuestros modelos.`
+            : `Your phone has ${ramGB} GB in RAM you can run any of our models.`;
+        }
+
+        return (
+          <View style={{ width: '100%', marginTop: 20, alignItems: 'center' }}>
+            <View style={{ flexDirection: 'row', marginBottom: 20, borderWidth: 1, borderColor: colors.border, borderRadius: 8, overflow: 'hidden' }}>
+              <TouchableOpacity 
+                style={{ paddingVertical: 10, paddingHorizontal: 20, backgroundColor: lang === 'en' ? colors.primary : 'transparent' }} 
+                onPress={() => setLang('en')}
+              >
+                <Text style={{ color: lang === 'en' ? '#FFF' : colors.textPrimary, fontWeight: 'bold' }}>ENGLISH</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={{ paddingVertical: 10, paddingHorizontal: 20, backgroundColor: lang === 'es' ? colors.primary : 'transparent' }} 
+                onPress={() => setLang('es')}
+              >
+                <Text style={{ color: lang === 'es' ? '#FFF' : colors.textPrimary, fontWeight: 'bold' }}>ESPAÑOL</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Banner */}
+            <Text style={{ 
+              color: colors.secondary, 
+              fontWeight: 'bold', 
+              marginBottom: 15, 
+              textAlign: 'center',
+              fontSize: 12,
+              fontFamily: Platform.select({ ios: 'Courier', android: 'monospace' })
+            }}>
+              {lang === 'es'
+                ? '[ AI Diary 100% privado, ningún dato, chat o perfil saldrá de este dispositivo ]'
+                : '[ AI Diary 100% private, no data, chat or profile will ever leave the device ]'}
+            </Text>
+
+            {/* Requirements Box */}
+            <View style={{ 
+              width: '100%', 
+              padding: 12, 
+              backgroundColor: colors.surface, 
+              borderRadius: 8, 
+              borderWidth: 1, 
+              borderColor: colors.border, 
+              marginBottom: 12 
+            }}>
+              <Text style={{ 
+                color: colors.textSecondary, 
+                fontSize: 11, 
+                fontFamily: Platform.select({ ios: 'Courier', android: 'monospace' }),
+                marginBottom: 4 
+              }}>
+                {lang === 'es'
+                  ? 'AI Light Core requiere 4GB en RAM (solo texto y voz)'
+                  : 'AI Light Core requires 4GB in RAM (only text and voice)'}
+              </Text>
+              <Text style={{ 
+                color: colors.textSecondary, 
+                fontSize: 11, 
+                fontFamily: Platform.select({ ios: 'Courier', android: 'monospace' }),
+                marginBottom: 4 
+              }}>
+                {lang === 'es'
+                  ? 'AI Balanced Core requiere 6GB en RAM (multimedia)'
+                  : 'AI Balanced Core requires 6GB in RAM (multimedia)'}
+              </Text>
+              <Text style={{ 
+                color: colors.textSecondary, 
+                fontSize: 11, 
+                fontFamily: Platform.select({ ios: 'Courier', android: 'monospace' })
+              }}>
+                {lang === 'es'
+                  ? 'AI Deepmind Core requiere 8GB en RAM (multimedia)'
+                  : 'AI Deepmind Core requires 8GB in RAM (multimedia)'}
+              </Text>
+            </View>
+
+            {/* Dynamic RAM Status */}
+            <View style={{ 
+              width: '100%', 
+              padding: 10, 
+              borderRadius: 8, 
+              borderWidth: 1, 
+              borderColor: isLowRam ? '#EF4444' : colors.primary, 
+              backgroundColor: isLowRam ? 'rgba(239, 68, 68, 0.1)' : 'rgba(0, 255, 0, 0.05)', 
+              marginBottom: 12,
+              alignItems: 'center'
+            }}>
+              <Text style={{ 
+                color: isLowRam ? '#EF4444' : colors.primary, 
+                fontWeight: 'bold', 
+                fontSize: 11, 
+                textAlign: 'center',
+                fontFamily: Platform.select({ ios: 'Courier', android: 'monospace' })
+              }}>
+                {ramDetectionText}
+              </Text>
+            </View>
+
+            {/* Free Tier Note */}
+            <Text style={{ 
+              color: colors.textSecondary, 
+              fontSize: 10, 
+              textAlign: 'center', 
+              marginBottom: 15, 
+              lineHeight: 14,
+              fontStyle: 'italic'
+            }}>
+              {lang === 'es'
+                ? 'Nota: El nivel gratuito es solo AI Light Core y un nivel de Pruebas Psicológicas, pero eso es básicamente el 100% de cómo puedes usar esta aplicación como Diario, memoria de todos los registros y salida de los mismos. ¡Disfruta!'
+                : 'Note: Free tier is only AI Light Core and one tier of Psychological Tests but that basically is 100% of how you can use this app as a Diary, memory of all records and output of them. Enjoy!'}
+            </Text>
+
+            {/* Action Button */}
             <TouchableOpacity 
-              style={{ paddingVertical: 10, paddingHorizontal: 20, backgroundColor: lang === 'en' ? colors.primary : 'transparent' }} 
-              onPress={() => setLang('en')}
+              disabled={isLowRam}
+              style={[
+                styles.actionBtn, 
+                { 
+                  backgroundColor: isLowRam ? colors.surface : colors.primary, 
+                  borderColor: isLowRam ? colors.border : colors.primary, 
+                  paddingHorizontal: 40, 
+                  borderRadius: 24,
+                  opacity: isLowRam ? 0.5 : 1
+                }
+              ]} 
+              onPress={() => setOnboardingStep(1)}
             >
-              <Text style={{ color: lang === 'en' ? '#FFF' : colors.textPrimary, fontWeight: 'bold' }}>ENGLISH</Text>
-            </TouchableOpacity>
-            <TouchableOpacity 
-              style={{ paddingVertical: 10, paddingHorizontal: 20, backgroundColor: lang === 'es' ? colors.primary : 'transparent' }} 
-              onPress={() => setLang('es')}
-            >
-              <Text style={{ color: lang === 'es' ? '#FFF' : colors.textPrimary, fontWeight: 'bold' }}>ESPAÑOL</Text>
+              <Text style={{ color: isLowRam ? colors.textSecondary : '#FFF', fontWeight: 'bold' }}>
+                {lang === 'es' ? 'Empecemos' : "Let's Begin"}
+              </Text>
             </TouchableOpacity>
           </View>
-
-          <Text style={{ color: colors.secondary, fontWeight: 'bold', marginBottom: 10 }}>[ PRIVATE & SECURE ]</Text>
-          <Text style={{ color: colors.textSecondary, textAlign: 'center', marginBottom: 20, lineHeight: 20 }}>
-            {lang === 'es' 
-              ? 'Bienvenido a tu espacio seguro. AI Diary opera 100% offline. Ningún dato, chat o perfil saldrá de este dispositivo. No hay servidores en la nube.'
-              : 'Welcome to your safe space. AI Diary operates 100% offline. No data, chat, or profile will ever leave this device. There are no cloud servers.'}
-          </Text>
-          <TouchableOpacity style={[styles.actionBtn, { backgroundColor: colors.primary, borderColor: colors.primary, paddingHorizontal: 30, borderRadius: 24 }]} onPress={() => setOnboardingStep(1)}>
-            <Text style={{ color: '#FFF', fontWeight: 'bold' }}>{lang === 'es' ? 'Empecemos' : "Let's Begin"}</Text>
-          </TouchableOpacity>
-        </View>
-      )}
+        );
+      })()}
 
       {onboardingStep === 1 && (
         <View style={{ width: '100%', marginTop: 20 }}>

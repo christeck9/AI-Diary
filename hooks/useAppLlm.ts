@@ -954,8 +954,12 @@ const clearResumeState = async (filename: string) => {
         repeat_penalty: targetRepeatPenalty,
         repeat_last_n: 128,
         stop: isLlama 
-          ? ["<|eot_id|>", "<|eom_id|>", "<|begin_of_text|>"] 
-          : ["<eos>", "<end_of_turn>", "<|im_end|>", "<|eot_id|>"],
+          ? ["<|eot_id|>", "<|eom_id|>", "<|begin_of_text|>"]
+          : isGemma3
+            // Gemma 3 4B: standard end-of-turn token + safety fallbacks
+            ? ["<eos>", "<end_of_turn>", "<|endoftext|>"]
+            // Gemma 4 E2B: includes |turn| boundary token unique to its chat template
+            : ["<eos>", "<end_of_turn>", "<|turn|>", "<|im_end|>", "<|eot_id|>"],
         cache_prompt: true,
         slot_id: 0,
         prompt: adjustedMessages ? undefined : adjustedPrompt,

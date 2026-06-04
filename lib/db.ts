@@ -67,14 +67,27 @@ export async function initializeDatabase(db: SQLiteDatabase) {
     await db.execAsync(`CREATE VIRTUAL TABLE IF NOT EXISTS memory_fts USING fts5(id UNINDEXED, role UNINDEXED, text);`);
 
     // 3. Legacy Migrations (for older versions)
-    try { await db.runAsync('ALTER TABLE messages ADD COLUMN thoughts TEXT'); } catch (e) {}
-    try { await db.runAsync('ALTER TABLE messages ADD COLUMN tool_query TEXT'); } catch (e) {}
-    try { await db.runAsync('ALTER TABLE user_profile ADD COLUMN values_tags TEXT'); } catch (e) {}
-    try { await db.runAsync('ALTER TABLE user_profile ADD COLUMN short_term_goal TEXT'); } catch (e) {}
-    try { await db.runAsync('ALTER TABLE user_profile ADD COLUMN long_term_goal TEXT'); } catch (e) {}
-    try { await db.runAsync('ALTER TABLE user_profile ADD COLUMN response_style_tags TEXT'); } catch (e) {}
-    try { await db.runAsync('ALTER TABLE psy_profile ADD COLUMN mood_balance REAL DEFAULT 0'); } catch (e) {}
-    try { await db.runAsync('ALTER TABLE psy_profile ADD COLUMN mbti_type TEXT DEFAULT ""'); } catch (e) {}
+    const safeAddColumn = async (tableName: string, columnName: string, columnDef: string) => {
+      try {
+        const columns = await db.getAllAsync<{ name: string }>(`PRAGMA table_info(${tableName});`);
+        const exists = columns.some(col => col.name === columnName);
+        if (!exists) {
+          await db.runAsync(`ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${columnDef};`);
+          console.log(`[DATABASE] Migrated: added column ${columnName} to ${tableName}`);
+        }
+      } catch (err) {
+        console.warn(`[DATABASE] Failed to check or add column ${columnName} to ${tableName}:`, err);
+      }
+    };
+
+    await safeAddColumn('messages', 'thoughts', 'TEXT');
+    await safeAddColumn('messages', 'tool_query', 'TEXT');
+    await safeAddColumn('user_profile', 'values_tags', 'TEXT');
+    await safeAddColumn('user_profile', 'short_term_goal', 'TEXT');
+    await safeAddColumn('user_profile', 'long_term_goal', 'TEXT');
+    await safeAddColumn('user_profile', 'response_style_tags', 'TEXT');
+    await safeAddColumn('psy_profile', 'mood_balance', 'REAL DEFAULT 0');
+    await safeAddColumn('psy_profile', 'mbti_type', 'TEXT DEFAULT ""');
 
     // Initialize Syntactic Memory Sanctuary Infrastructure
     try {

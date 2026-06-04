@@ -125,6 +125,12 @@ class UnifiedMicService {
           // Fix #4: Shorten initialPrompt — long prompts can delay the model's
           // "lock-on" to the start of the audio stream, causing the first slice to arrive late.
           initialPrompt: "Dictado de voz.",
+          audioStreamConfig: {
+            // Android emulator safety: Use a smaller, standard audio buffer size (4096 bytes)
+            // instead of the default 16384 bytes, which exhausts the virtual HAL buffer
+            // on modern Android (14/15) virtual devices, causing 'releaseBuffer: mUnreleased out of range' SIGABRT crash.
+            bufferSize: 4096,
+          },
           transcribeOptions: {
             language: options.language,
             maxThreads: options.maxThreads,

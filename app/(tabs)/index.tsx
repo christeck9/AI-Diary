@@ -790,10 +790,32 @@ export default function NeuralLinkScreen() {
       };
       setMessages(prev => [...prev, doneMsg]);
     } catch (e: any) {
+      const errorStr = String(e?.message || e);
+      let friendlyMessage = '';
+
+      if (
+        errorStr.toLowerCase().includes('abort') ||
+        errorStr.toLowerCase().includes('connection') ||
+        errorStr.toLowerCase().includes('network') ||
+        errorStr.toLowerCase().includes('timeout')
+      ) {
+        friendlyMessage = lang === 'es'
+          ? 'La descarga se pausó temporalmente (por inactividad o cambio de red). No te preocupes, puedes reanudarla tocando el botón de descarga nuevamente.'
+          : 'The download was temporarily paused (due to inactivity or network change). Do not worry, you can resume it by tapping the download button again.';
+      } else if (errorStr.toLowerCase().includes('space') || errorStr.toLowerCase().includes('disk')) {
+        friendlyMessage = lang === 'es'
+          ? 'Espacio de almacenamiento insuficiente. Por favor, libera algo de espacio en tu dispositivo e inténtalo de nuevo.'
+          : 'Insufficient storage space. Please free up some space on your device and try again.';
+      } else {
+        friendlyMessage = lang === 'es'
+          ? `La descarga se interrumpió: ${errorStr}. Puedes intentar reanudarla.`
+          : `The download was interrupted: ${errorStr}. You can try to resume it.`;
+      }
+
       const errorMsg: Message = {
         id: (Date.now() + 1).toString(),
         role: 'ai',
-        text: `${t('model.system')}: ❌ Error — ${e.message}`,
+        text: `${t('model.system')}: ⚠️ ${friendlyMessage}`,
         created_at: Date.now() + 1
       };
       setMessages(prev => [...prev, errorMsg]);

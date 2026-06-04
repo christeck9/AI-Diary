@@ -1124,7 +1124,30 @@ export default function AdvancedScreen() {
                                           lang === 'es' ? 'Modelo actualizado correctamente.' : 'Model updated successfully.'
                                         );
                                       } catch (e: any) {
-                                        Alert.alert('Error', e.message || String(e));
+                                        const errorStr = String(e?.message || e);
+                                        let friendlyMessage = '';
+
+                                        if (
+                                          errorStr.toLowerCase().includes('abort') ||
+                                          errorStr.toLowerCase().includes('connection') ||
+                                          errorStr.toLowerCase().includes('network') ||
+                                          errorStr.toLowerCase().includes('timeout')
+                                        ) {
+                                          friendlyMessage = lang === 'es'
+                                            ? 'La descarga se pausó temporalmente (por inactividad o cambio de red). Puedes reanudarla tocando el botón de descarga nuevamente.'
+                                            : 'The download was temporarily paused (due to inactivity or network change). You can resume it by tapping the download button again.';
+                                        } else if (errorStr.toLowerCase().includes('space') || errorStr.toLowerCase().includes('disk')) {
+                                          friendlyMessage = lang === 'es'
+                                            ? 'Espacio de almacenamiento insuficiente. Por favor, libera algo de espacio en tu dispositivo e inténtalo de nuevo.'
+                                            : 'Insufficient storage space. Please free up some space on your device and try again.';
+                                        } else {
+                                          friendlyMessage = errorStr;
+                                        }
+
+                                        Alert.alert(
+                                          lang === 'es' ? 'Aviso de Descarga' : 'Download Notice',
+                                          friendlyMessage
+                                        );
                                       }
                                     }
                                   }

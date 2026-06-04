@@ -215,7 +215,7 @@ export const useAgentEngine = (
       goal: (userProfile as any).longTermGoal,
       date: currentDate,
       year: "2026",
-      identity: "AI Diary CORE"
+      identity: "AI Balance CORE"
     };
 
     const arch = getSanctuaryArchitecture();

@@ -70,9 +70,8 @@ C:\AI_Diary\Rules for APK creation.md
 
 
 
-## 🚨🚨🚨 DIRECTIVA SUPREMA: GEMMA 3 & 4 (MOBILE AI DIARY) 🚨🚨🚨
+## 🚨🚨🚨 DIRECTIVA: Nuestros Modelos actuales de IA son Gemma3:4b, Gemma4:e2b y Llama 3.2:1b.
 
-> **ESTE PROYECTO SE LIMITA ESTRICTAMENTE A GEMMA 3 (4B) Y GEMMA 4 (E2B).**
 > **PROTOCOLOS DE BLINDAJE:**
 > 1. **Gemma 3 (4B):** Arquitectura de 128k. Dialecto: `<start_of_turn>` + Role-Swapping.
 > 2. **Gemma 4 (E2B):** Motor de 2B optimizado con PLE. Dialecto: `<|turn|>` + Tool Response.
@@ -81,6 +80,61 @@ C:\AI_Diary\Rules for APK creation.md
 > 5. Para saaber como funnciona Gemma 3 y 4 leer: C:\AI-Diary\SanctuaryAIsArchitecture.md
 Gemma4:e2b tiene mas comandos que pudieran llegar a ser utiles si los analizas.
 > 6. **Desactivación de Servidores MCP de Inferencia:** El servidor MCP `Gemma-31b (y posiblemente toda la familia Gemma, de seguro Gemma-26b tambien),` y todas sus herramientas de visión/análisis (como `gemini-analyze-image`) han sido desactivadas de forma definitiva o indefinida por Google. Queda estrictamente prohibido intentar invocar estas herramientas de la nube, debiendo realizar cualquier análisis visual o diagnóstico de archivos gráficos mediante scripts locales en Python (con la librería Pillow) o mediante el agente del navegador (`browser_subagent`).
+
+Aprender de este error (6/4/2026) de como hay que hablar con las IAs
+Forensic Report v2 - AI Diary Token Corruption Bug
+
+La pantalla muestra que Gemma3:4b devuelve tokens crudos del vocabulario como [multimodal], unused12, unused14, pad en lugar de texto coherente. Esto ocurre en Round 2 del ciclo Sentinel (tras una busqueda web).
+
+BUG CRITICO #1 — Stop Tokens incorrectos / Tokens crudos en Gemma 3
+Archivo: useAppLlm.ts lineas 956-958
+
+El codigo actual usa el mismo array de stop para Gemma 3 y Gemma 4:
+
+
+stop: isLlama 
+  ? ["<|eot_id|>", "<|eom_id|>", "<|begin_of_text|>"] 
+  : ["<eos>", "<end_of_turn>", "<|im_end|>", "<|eot_id|>"],
+Los tokens unused12, pad, [multimodal] son tokens de posicion del tile de imagen del mmproj de Gemma 3. Aparecen cuando:
+
+El modelo cargo el multimodal projector (mmproj)
+La conversacion NO tiene imagen adjunta
+Sentinel aborta Round 1 e inyecta un Handshake en Round 2
+El Handshake reinicia el slot de generacion sin limpiar el estado del mmproj
+Por que "Mexico" funciona pero "USA" falla:
+
+"Mexico" se respondio en Round 1 sin trigger Sentinel
+"USA" activo FACTUAL_FORCE_REGEX → Sentinel busco → abort → Round 2 con Handshake
+En Round 2, el slot multimodal sigue activo y empieza a emitir tokens de imagen
+BUG CRITICO #2 — Stop Token faltante para Gemma 4
+Gemma 4 usa token de turno diferente. Falta en la lista de stop:
+
+Gemma 4: necesita "<|turn|>" ademas de los otros
+BUG #3 — Llama 1B y Brave
+El usuario confirma que Llama 1B podia buscar en internet antes. El sistema SanctuarySearchOrchestrator es independiente del modelo. El problema actual puede ser:
+
+Llama 1B responde directamente con conocimiento parametrico sin emitir trigger
+PROACTIVE_CURRENCY_CHECK no se activa si el modelo ya genero texto antes de que Sentinel escanee
+La inyeccion handshake para Llama usa rol "ipython" que puede no ser reconocido
+BUG #4 — Tokens crudos no filtrados en SentinelService.filterUI
+filterUI no elimina tokens del vocabulario multimedia. Necesita agregar:
+
+[multimodal], unused12..., pad, bos, eos como patron de limpieza
+PLAN DE CORRECCION
+Fix 1 — useAppLlm.ts linea 956-958
+Separar stop tokens por arquitectura:
+
+isLlama: ["<|eot_id|>", "<|eom_id|>", "<|begin_of_text|>"]
+isGemma3: ["", "<end_of_turn>", "<|endoftext|>"]
+isGemma4: ["", "<end_of_turn>", "<|turn|>", "<|im_end|>", "<|eot_id|>"]
+Fix 2 — SentinelService.ts filterUI
+Agregar limpieza de tokens de vocabulario crudo multimedia
+
+Fix 3 — Llama 1B Sentinel trigger
+Asegurar que PROACTIVE_CURRENCY_CHECK se active correctamente para preguntas factuales con Llama
+
+Tabla de Bugs por Modelo
+Bug | Gemma 3 4B | Gemma 4 E2B | Llama 1B Tokens crudos unused | CRITICO | No afectado | No afectado Stop token turn faltante | No aplica | MEDIO | No aplica Brave funciona | OK Round 1 | OK | Verificar Sentinel funciona | Round 1 OK | OK | Verificar
 
 
 > ### 🛡️ SHIELD DE DIALECTO Y CALIBRACIÓN DE TOKENS (v1.9.0)
@@ -94,18 +148,11 @@ Gemma4:e2b tiene mas comandos que pudieran llegar a ser utiles si los analizas.
 
 ---
 
-## 🧠 PROTOCOLO DE BLINDAJE ARQUITECTÓNICO (ANTI-DERIVACIÓN)
-1. **Blindaje Arquitectónico:** Regla de Arquitectura Estricta: El runtime de la app y sus inferencias internas (dentro del código) DEBEN derivar exclusivamente de los pesos locales de Gemma 3 (4B) o Gemma 4 (E2B). Gravity en este caso actua como desarrollador externo.
-2. **Muro de Trabajo:** Los proyectos de OpenGravityBot (escritorio/investigación) y AI Diary (Aplicación móvil) son silos estancos. No existe acoplamiento de dependencias entre ellos.
-
----
-
----
 
 ## 🛡️ PROTOCOLO DE GOBERNANZA Y CONTROL DE CALIDAD (IA-HUMANO)
 *Fecha de Registro: 2026-05-18*
 
-Para prevenir la deriva conductual, la acumulación de "AI Slop" y garantizar la máxima eficiencia en el consumo de tokens y recursos, se establecen las siguientes reglas operativas obligatorias para cualquier Agente que trabaje en este repositorio:
+
 
 ### 1. Clasificación por Tiers de Complejidad
 Cualquier tarea técnica debe ser clasificada dentro de uno de los siguientes tres niveles antes de su ejecución para medir el nivel de riesgo y la capacidad lógica requerida:

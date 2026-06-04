@@ -19,8 +19,8 @@ export interface ModelDefinition {
 export const MODEL_LIST: ModelDefinition[] = [
   {
     id: 'gemma3-4b-q4',
-    labelEs: 'AI Diary Core',
-    labelEn: 'AI Diary Core',
+    labelEs: 'AI Balance Core',
+    labelEn: 'AI Balance Core',
     sizeMB: 2374,
     mmprojSizeMB: 812,
     descEs: 'Núcleo Diario — Veloz y estable.',

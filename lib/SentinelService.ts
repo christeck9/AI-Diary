@@ -200,6 +200,16 @@ export const filterUI = (text: string, arch: 'gemma3' | 'gemma4' | 'llama' = 'ge
   if (!text) return '';
 
   let filtered = text
+    // ── Vocabulary bleed-through guard ──────────────────────────────────────
+    // Gemma 3 multimodal projector can emit raw tile tokens ([multimodal],
+    // <unused12>, <pad>, etc.) during Round 2 when mmproj is initialized but
+    // no image is attached. Strip these before any other processing.
+    .replace(/\[multimodal\]/gi, '')
+    .replace(/<unused\d+>/gi, '')
+    .replace(/<pad>/gi, '')
+    .replace(/<bos>/gi, '')
+    .replace(/<eos>/gi, '')
+    // ────────────────────────────────────────────────────────────────────────
     // Llama 3: strip header markers, EOT/EOM boundaries, and raw formatting
     .replace(/<\|begin_of_text\|>/gi, '')
     .replace(/<\|start_header_id\|>\s*(?:system|user|assistant|ipython)\s*<\|end_header_id\|>\s*\n?/gi, '')

@@ -5,11 +5,9 @@
 node_modules/
 
 # Local builds and caches (extremely heavy)
-android/app/build/
-android/build/
-android/.gradle/
-android/.cxx/
-ios/build/
+**/.gradle/
+**/build/
+**/.cxx/
 dist/
 
 # iOS
