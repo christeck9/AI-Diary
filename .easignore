@@ -1,0 +1,54 @@
+# EAS Build ignore file
+# Prevents uploading heavy or unnecessary files to the Expo build servers
+
+# Dependency directories
+node_modules/
+
+# Local builds and caches (extremely heavy)
+android/app/build/
+android/build/
+android/.gradle/
+android/.cxx/
+ios/build/
+dist/
+
+# iOS
+ios/
+ios/build/
+ios/Pods/
+ios/.symlinks/
+*.ipa
+*.app
+*.xcarchive
+
+
+# Editor and IDE configurations
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Expo cache
+.expo/
+
+# Custom backup directories (contains copies of projects)
+BACKUPS/
+DOCS/
+website/
+venv/
+.aider*/
+
+# Audio and compressed files
+sonido.zip
+*.zip
+*.tar.gz
+
+# Machine Learning models (Gemma, Whisper, ONNX)
+*.gguf
+*.bin
+!assets/ggml-tiny.bin
+*.onnx
+*.model

@@ -1,0 +1,87 @@
+/**
+ * TextUtils.ts - Unified Text Processing Utilities
+ * Consolidates all text cleaning, sanitization, and query processing
+ * FIXED: Eliminates redundant purifyQuery functions scattered across codebase
+ */
+
+/**
+ * Purifies query text by removing AI artifacts, system tags, and meta-dialogue.
+ * Simplifies the query to its core intent for better search results.
+ */
+export function purifyQuery(query: string): string {
+  if (!query) return '';
+  
+  return query
+    .replace(/<[^>]*>/g, '') // Remove XML/HTML tags
+    .replace(/\[[^\]]*\]/g, '') // Remove system brackets
+    .replace(/^(?:hi|hello|hola|please|por favor|hey|hey there|escucha|dime|buscame|encuentra)\s*,?\s*/gi, '') // Remove leading conversational fluff
+    .replace(/(?:the user asked|user asked|searching for|looking up|i need to find|verifying|attempting to|therefore i have to).*?:?/gi, '') // Remove meta-dialogue
+    .replace(/[{}()]/g, '') // Remove structural characters but keep quotes for phrase searching
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/**
+ * Sanitizes web-scraped text for safe transmission.
+ * Decodes basic HTML entities and removes tags.
+ */
+export function sanitizeWebText(text: string): string {
+  if (!text) return "";
+  
+  const entities: Record<string, string> = {
+    '&nbsp;': ' ', '&': '&', '"': '"', "'": "'", '<': '<', '>': '>'
+  };
+  
+  let sanitized = text;
+  for (const [entity, value] of Object.entries(entities)) {
+    sanitized = sanitized.split(entity).join(value);
+  }
+  
+  return sanitized
+    .replace(/<\/?[^>]+(>|$)/g, "")
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/**
+ * Extracts the most relevant sentences from long text based on query keywords
+ * Used for fact distillation in search results
+ */
+export function distillContext(rawText: string, query: string, maxChars: number = 350): string {
+  if (!rawText) return "";
+
+  const keywords = query.toLowerCase()
+    .replace(/[?¿!¡.,;]/g, '')
+    .split(/\s+/)
+    .filter(word => word.length > 3);
+
+  const cleanText = rawText.replace(/\[\d+\]/g, '').replace(/\s+/g, ' ');
+  const sentences = cleanText.split(/[.!?]+\s+/).filter(s => s.length > 20);
+  
+  const scoredSentences = sentences.map(s => {
+    const sLower = s.toLowerCase();
+    let score = 0;
+    keywords.forEach(kw => { if (sLower.includes(kw)) score += 5; });
+    const identityMarkers = ['is', 'was', 'named', 'president', 'born', 'elected', 'es', 'fue', 'nombrado', 'actual'];
+    identityMarkers.forEach(mark => { if (sLower.includes(mark)) score += 3; });
+    if (/[A-Z][a-z]+ [A-Z][a-z]+/.test(s)) score += 2;
+    return { text: s, score };
+  });
+
+  const bestSentences = scoredSentences
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 3)
+    .map(s => s.text.trim());
+
+  if (bestSentences.length === 0) return "";
+
+  let result = bestSentences.join('. ');
+  if (!result.endsWith('.')) result += '.';
+  
+  if (result.length > maxChars) {
+    result = result.substring(0, maxChars).trim() + "...";
+  }
+  
+  return result;
+}
+

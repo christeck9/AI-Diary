@@ -1,0 +1,63 @@
+{
+  "expo": {
+    "name": "AI Diary",
+    "slug": "ai-sanctuary",
+    "version": "1.9.5",
+    "scheme": "sanctuary",
+    "icon": "./assets/images/icon.png",
+    "splash": {
+      "image": "./assets/images/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "android": {
+      "package": "com.christeck.aidiary",
+      "launchMode": "singleTask",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/icon_adaptive_foreground.png",
+        "backgroundColor": "#ffffff"
+      }
+    },
+    "ios": {
+      "bundleIdentifier": "com.christeck.aidiary",
+      "appleTeamId": "5BSRSHBRR6",
+      "supportsTablet": true,
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    },
+    "extra": {
+      "eas": {
+        "projectId": "85232bcf-6feb-4642-aeab-e7272a16f836"
+      }
+    },
+    "owner": "christeck-services",
+    "plugins": [
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "newArchEnabled": true
+          },
+          "ios": {
+            "newArchEnabled": true
+          }
+        }
+      ],
+      "./plugins/withIosCxxStandard",
+      "./plugins/withIosEntitlements",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/images/splash-icon.png",
+          "imageWidth": 200,
+          "resizeMode": "contain",
+          "backgroundColor": "#ffffff",
+          "dark": {
+            "backgroundColor": "#050505"
+          }
+        }
+      ]
+    ]
+  }
+}

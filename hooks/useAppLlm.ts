@@ -1,0 +1,1090 @@
+import { useState, useEffect, useRef } from 'react';
+import { Platform, AppState, AppStateStatus } from 'react-native';
+import { getCurrentTier, MemoryTier } from '../lib/MemoryManager';
+import * as FileSystem from 'expo-file-system';
+import { initLlama, releaseAllLlama } from 'llama.rn';
+import { getHardwareConfig, getDeviceTemperature, getTotalRAM } from '../lib/hardware';
+import { MODEL_CONFIG, getDynamicEngineConfig, MODEL_LIST, ModelDefinition } from '../src/config/ModelConfig';
+import { cpuSemaphore } from '../lib/CPUSemaphore';
+import { settingsService } from '../lib/SettingsService';
+
+export interface ModelInfo extends ModelDefinition {
+  label: string;
+  description: string;
+}
+
+// Concurrency control interface and queue for Llama context
+interface QueuedTask {
+  params: any;
+  callback: any;
+  resolve: (value: any) => void;
+  reject: (reason: any) => void;
+  isBackground: boolean;
+}
+
+let activeCompletionPromise: Promise<any> | null = null;
+let currentTaskType: 'main' | 'background' | null = null;
+let backgroundQueue: QueuedTask[] = [];
+let isProcessingQueue = false;
+let activeContext: any = null;
+let isModelLoading = false;
+
+
+const clearCompletionQueue = () => {
+  console.log('[CONCURRENCY] Clearing Llama completion queue.');
+  backgroundQueue.forEach(t => t.reject(new Error('Model released or changed')));
+  backgroundQueue = [];
+  activeCompletionPromise = null;
+  currentTaskType = null;
+  activeContext = null;
+};
+
+const wrappedCompletion = async (context: any, params: any, callback: any): Promise<any> => {
+  const isBackground = !!params.isBackground;
+  // Extract and clean the isBackground flag to avoid sending it to the native C++ library
+  const { isBackground: _, ...cleanParams } = params;
+
+  if (context !== activeContext) {
+    throw new Error('Model released or changed');
+  }
+
+  return new Promise((resolve, reject) => {
+    const task: QueuedTask = {
+      params: cleanParams,
+      callback,
+      resolve,
+      reject,
+      isBackground
+    };
+
+    if (isBackground) {
+      backgroundQueue.push(task);
+      processNextTasks(context);
+    } else {
+      handleMainTask(context, task);
+    }
+  });
+};
+
+const handleMainTask = async (context: any, task: QueuedTask) => {
+  if (context !== activeContext) {
+    task.reject(new Error('Model released or changed'));
+    return;
+  }
+
+  if (activeCompletionPromise) {
+    if (currentTaskType === 'background') {
+      console.log('[CONCURRENCY] ⚡ Preempting background task for main query...');
+      try {
+        await context.stopCompletion();
+      } catch (err) {
+        console.warn('[CONCURRENCY] Error calling stopCompletion on background task:', err);
+      }
+      try {
+        await activeCompletionPromise;
+      } catch (e) {
+        // Ignore cancellation errors
+      }
+    } else {
+      console.log('[CONCURRENCY] ⚡ Cancelling active main task for new query...');
+      try {
+        await context.stopCompletion();
+      } catch (err) { }
+      try {
+        await activeCompletionPromise;
+      } catch (e) { }
+    }
+  }
+
+  currentTaskType = 'main';
+  activeCompletionPromise = (async () => {
+    try {
+      const res = await context._originalCompletion(task.params, task.callback);
+      if (context !== activeContext) {
+        task.reject(new Error('Model released or changed'));
+        return;
+      }
+      task.resolve(res);
+    } catch (err) {
+      task.reject(err);
+    } finally {
+      if (context === activeContext) {
+        activeCompletionPromise = null;
+        currentTaskType = null;
+        processNextTasks(context);
+      }
+    }
+  })();
+};
+
+const processNextTasks = async (context: any) => {
+  if (context !== activeContext) return;
+  if (isProcessingQueue) return;
+  isProcessingQueue = true;
+
+  try {
+    while (backgroundQueue.length > 0) {
+      if (context !== activeContext) break;
+      if (currentTaskType === 'main' || activeCompletionPromise) {
+        break;
+      }
+
+      const nextTask = backgroundQueue.shift();
+      if (!nextTask) continue;
+
+      currentTaskType = 'background';
+      activeCompletionPromise = (async () => {
+        try {
+          const res = await context._originalCompletion(nextTask.params, nextTask.callback);
+          if (context !== activeContext) {
+            nextTask.reject(new Error('Model released or changed'));
+            return;
+          }
+          nextTask.resolve(res);
+        } catch (err) {
+          nextTask.reject(err);
+        } finally {
+          if (context === activeContext) {
+            activeCompletionPromise = null;
+            currentTaskType = null;
+          }
+        }
+      })();
+
+      try {
+        await activeCompletionPromise;
+      } catch (err) {
+        // Ignore cancellations
+      }
+    }
+  } finally {
+    isProcessingQueue = false;
+  }
+};
+
+
+export function useAppLlm(lang: string = 'es') {
+  const AVAILABLE_MODELS = MODEL_LIST.map(m => ({
+    ...m,
+    label: lang === 'es' ? m.labelEs : m.labelEn,
+    description: lang === 'es' ? m.descEs : m.descEn,
+  }));
+  const [status, setStatus] = useState<'idle' | 'downloading' | 'loading' | 'ready'>('idle');
+  const [isDownloading, setIsDownloading] = useState(false);
+  const [downloadingModel, setDownloadingModel] = useState<ModelDefinition | null>(null);
+  const [activeModel, setActiveModel] = useState<ModelInfo>(AVAILABLE_MODELS[0]);
+  const [currentContextSize, setCurrentContextSize] = useState(4096);
+  const [downloadedMB, setDownloadedMB] = useState(0);
+  const [downloadSpeed, setDownloadSpeed] = useState(0);
+  const [downloadPercent, setDownloadPercent] = useState(0);
+  const [tokensUsed, setTokensUsed] = useState(0);
+
+  const llamaContextRef = useRef<any>(null);
+  const tokenCounterRef = useRef<number>(0);
+  const startTimeRef = useRef<number>(0);
+  const downloadResumableRef = useRef<FileSystem.DownloadResumable | null>(null);
+
+  const isSettingsLoadedRef = useRef(false);
+
+  // Resume state helpers
+  const getResumeStatePath = (filename: string) =>
+    `${FileSystem.documentDirectory?.replace(/\/+$/, '')}/llm_models/download_resume_${filename}.json`;
+
+const clearResumeState = async (filename: string) => {
+    try {
+      const path = getResumeStatePath(filename);
+      const info = await FileSystem.getInfoAsync(path);
+      if (info.exists) {
+        await FileSystem.deleteAsync(path, { idempotent: true });
+      }
+    } catch (e) { console.warn('Error clearing resume state:', e); }
+  };
+
+  // Model persistence and version checking
+  const getModelLocalPath = (model: ModelDefinition) =>
+    `${FileSystem.documentDirectory?.replace(/\/+$/, '')}/llm_models/${model.fileName}`;
+
+  const getModelLocalSize = async (model: ModelDefinition): Promise<number | null> => {
+    try {
+      const path = getModelLocalPath(model);
+      const info = await FileSystem.getInfoAsync(path);
+      if (info.exists) {
+        return (info as any).size;
+      }
+    } catch (e) { console.warn('Error getting model size:', e); }
+    return null;
+  };
+
+  const getModelRemoteSize = async (model: ModelDefinition): Promise<number | null> => {
+    try {
+      const response = await fetch(model.url, { method: 'HEAD' });
+      const contentLength = response.headers.get('content-length');
+      if (contentLength) {
+        return parseInt(contentLength, 10);
+      }
+    } catch (e) { console.warn('Error fetching remote model size:', e); }
+    return null;
+  };
+
+  const checkModelVersion = async (model: ModelDefinition): Promise<'missing' | 'outdated' | 'current'> => {
+    const localSize = await getModelLocalSize(model);
+    if (!localSize) return 'missing';
+
+    const remoteSize = await getModelRemoteSize(model);
+    if (!remoteSize) return 'current'; // Assume current if can't check
+
+    // Allow 1% tolerance for size comparison
+    const tolerance = remoteSize * 0.01;
+    if (Math.abs(localSize - remoteSize) > tolerance) {
+      return 'outdated';
+    }
+    return 'current';
+  };
+
+  // Model integrity verification - uses file size + stored fingerprint
+  // Note: Full SHA-256 on 2-3GB files would take 10-30 minutes, so we use a lightweight approach
+  const getModelFingerprintPath = (model: ModelDefinition) =>
+    `${FileSystem.documentDirectory?.replace(/\/+$/, '')}/llm_models/.${model.fileName}.fingerprint`;
+
+  const saveModelFingerprint = async (model: ModelDefinition, size: number, downloadDate: string) => {
+    try {
+      const fingerprintPath = getModelFingerprintPath(model);
+      const fingerprint = {
+        size,
+        downloadDate,
+        modelId: model.id,
+        fileName: model.fileName
+      };
+      await FileSystem.writeAsStringAsync(fingerprintPath, JSON.stringify(fingerprint));
+    } catch (e) {
+      console.warn('Error saving model fingerprint:', e);
+    }
+  };
+
+  const getSavedModelFingerprint = async (model: ModelDefinition): Promise<{ size: number, downloadDate: string, modelId: string, fileName: string } | null> => {
+    try {
+      const fingerprintPath = getModelFingerprintPath(model);
+      const info = await FileSystem.getInfoAsync(fingerprintPath);
+      if (info.exists) {
+        const content = await FileSystem.readAsStringAsync(fingerprintPath);
+        return JSON.parse(content);
+      }
+    } catch (e) {
+      console.warn('Error reading saved model fingerprint:', e);
+    }
+    return null;
+  };
+
+  const verifyModelIntegrity = async (model: ModelDefinition): Promise<boolean> => {
+    const localSize = await getModelLocalSize(model);
+    if (!localSize) return false;
+
+    const savedFingerprint = await getSavedModelFingerprint(model);
+    if (savedFingerprint) {
+      // Verify size matches (within 1% tolerance)
+      const tolerance = savedFingerprint.size * 0.01;
+      if (Math.abs(localSize - savedFingerprint.size) > tolerance) {
+        return false;
+      }
+      return true;
+    }
+
+    // No fingerprint exists - create one for this model
+    const newFingerprint = {
+      size: localSize,
+      downloadDate: new Date().toISOString(),
+      modelId: model.id,
+      fileName: model.fileName
+    };
+    await saveModelFingerprint(model, localSize, newFingerprint.downloadDate);
+    return true;
+  };
+
+  const getModelStatus = async (model: ModelDefinition): Promise<{ status: 'missing' | 'outdated' | 'current', localSizeMB: number, remoteSizeMB: number, integrity: boolean }> => {
+    const localSize = await getModelLocalSize(model);
+    const remoteSize = await getModelRemoteSize(model);
+    const status = await checkModelVersion(model);
+    const integrity = await verifyModelIntegrity(model);
+    return {
+      status,
+      localSizeMB: localSize ? Math.round(localSize / (1024 * 1024)) : 0,
+      remoteSizeMB: remoteSize ? Math.round(remoteSize / (1024 * 1024)) : model.sizeMB,
+      integrity
+    };
+  };
+
+  const saveModelActiveState = async (active: boolean, preferredModelId?: string) => {
+    try {
+      const updates: Record<string, any> = { wasModelActive: active };
+      if (preferredModelId) updates.preferredModel = preferredModelId;
+      await settingsService.set(updates);
+      console.log(`[LLM] Saved wasModelActive: ${active}, preferredModel: ${preferredModelId}`);
+    } catch (e) {
+      console.log('[LLM] Save model active state failed', e);
+    }
+  };
+
+  useEffect(() => {
+    if (!isDownloading) {
+      setDownloadSpeed(0);
+      if (status === 'idle') {
+        setDownloadPercent(0);
+      }
+    }
+  }, [isDownloading, status]);
+
+  const [deviceRAM, setDeviceRAM] = useState<number>(8192); // Default optimistic
+
+  useEffect(() => {
+    const loadPreferredModel = async () => {
+      if (isSettingsLoadedRef.current) return;
+      try {
+        const totalRam = await getTotalRAM();
+        setDeviceRAM(totalRam);
+        
+        const settings = await settingsService.get();
+        let modelToUse = activeModel;
+        
+        if (settings.preferredModel) {
+          const model = AVAILABLE_MODELS.find(m => m.id === settings.preferredModel);
+          if (model) {
+            // Verify if the preferred model is allowed by RAM
+            if (model.id === 'gemma4-e2b-q3' && totalRam < 8000) {
+              // Downgrade if not enough RAM
+              modelToUse = AVAILABLE_MODELS.find(m => m.id === 'gemma3-4b-q4') || model;
+              if (modelToUse.id === 'gemma3-4b-q4' && totalRam < 6000) {
+                modelToUse = AVAILABLE_MODELS.find(m => m.id === 'llama3.2-1b-q4') || model;
+              }
+            } else if (model.id === 'gemma3-4b-q4' && totalRam < 6000) {
+              modelToUse = AVAILABLE_MODELS.find(m => m.id === 'llama3.2-1b-q4') || model;
+            } else {
+              modelToUse = model;
+            }
+          }
+        } else {
+          // Hardware analyzer: no preferred model yet. 
+          // Default to Llama 3.2 1B to be safe on all devices. 
+          // Future: Insert monetization rules here (e.g. Free Tier always gets Llama).
+          console.log(`[LLM] Hardware Analyzer: Total RAM = ${totalRam} MB. Defaulting to Llama 3.2.`);
+          const lightModel = AVAILABLE_MODELS.find(m => m.id === 'llama3.2-1b-q4');
+          if (lightModel) {
+            modelToUse = lightModel;
+          }
+        }
+        
+        if (modelToUse.id !== activeModel.id) {
+          setActiveModel(modelToUse);
+        }
+
+        if (settings.wasModelActive === true) {
+          console.log(`[LLM] Auto-loading active model on startup: ${modelToUse.id}`);
+          loadModel(modelToUse).catch(e => {
+            console.error('[LLM] Auto-load model failed on startup:', e);
+          });
+        }
+      } catch (e) { console.log('[LLM] Error loading preferred model setting:', e); }
+      finally { isSettingsLoadedRef.current = true; }
+    };
+    if (status === 'idle') loadPreferredModel();
+  }, [status]);
+
+  // Auto-resume incomplete downloads on app start
+  useEffect(() => {
+    if (status === 'idle') {
+      console.log('[LLM] Checking for incomplete downloads to resume...');
+      resumeIncompleteDownloads().catch(e => {
+        console.warn('[LLM] Auto-resume check failed:', e);
+      });
+    }
+  }, [status]);
+
+  const selectModel = (model: ModelInfo) => {
+    setActiveModel(model);
+    setStatus('idle');
+    setDownloadedMB(0);
+    saveModelActiveState(false, model.id);
+  };
+
+  // Robust download with reliable resume using file size as checkpoint
+  const getDownloadedBytes = async (filePath: string): Promise<number> => {
+    try {
+      const info = await FileSystem.getInfoAsync(filePath);
+      if (info.exists) {
+        return (info as any).size;
+      }
+    } catch (e) {
+      console.warn('[LLM] Error getting downloaded bytes:', e);
+    }
+    return 0;
+  };
+
+  const downloadFileResumable = async (
+    url: string,
+    filePath: string,
+    model: ModelDefinition,
+    isMmproj = false
+  ) => {
+    const filename = isMmproj ? model.mmprojFileName! : model.fileName;
+    const resumeStatePath = getResumeStatePath(filename);
+
+    // Get existing downloaded bytes for reliable resume
+    const existingBytes = await getDownloadedBytes(filePath);
+    let resumeData: string | undefined;
+    
+    if (existingBytes > 0) {
+      // Use file size as resume point - this is more reliable than expo's resumeData
+      resumeData = String(existingBytes);
+      console.log(`[LLM] Resuming download from ${existingBytes} bytes for ${filename}`);
+    }
+
+    // Using a ref to track the last calculated speed to avoid state-stale values in the callback
+    let lastBytes = existingBytes;
+    let lastTime = Date.now();
+
+    const task = FileSystem.createDownloadResumable(
+      url,
+      filePath,
+      { headers: { 'User-Agent': 'Mozilla/5.0 (Linux; Android 10; K)' } },
+      (progress) => {
+        const { totalBytesWritten } = progress;
+        const globalTotalBytes = (model.sizeMB + (model.mmprojSizeMB || 0)) * 1024 * 1024;
+        const totalBytesDownloaded = isMmproj
+          ? (model.sizeMB * 1024 * 1024) + totalBytesWritten
+          : totalBytesWritten;
+
+        if (globalTotalBytes > 0) {
+          const pct = Math.min(100, Math.round((totalBytesDownloaded / globalTotalBytes) * 100));
+          setDownloadPercent(pct);
+        }
+        setDownloadedMB(Math.round(totalBytesDownloaded / (1024 * 1024) * 10) / 10);
+
+        // Calculate speed manually
+        const now = Date.now();
+        const diffMs = now - lastTime;
+        if (diffMs > 1000) {
+          const bytesDiff = totalBytesWritten - lastBytes;
+          if (bytesDiff > 0) {
+            const speedMBps = (bytesDiff / (1024 * 1024)) / (diffMs / 1000);
+            setDownloadSpeed(Math.round(speedMBps * 10) / 10);
+          }
+          lastBytes = totalBytesWritten;
+          lastTime = now;
+        }
+      },
+      resumeData
+    );
+
+    try {
+      downloadResumableRef.current = task;
+      await task.downloadAsync();
+      downloadResumableRef.current = null;
+      await clearResumeState(filename);
+    } catch (e: any) {
+      downloadResumableRef.current = null;
+      
+      // Always save resume state on error - use file size as reliable checkpoint
+      if (Platform.OS === 'android') {
+        try {
+          const fileInfo = await FileSystem.getInfoAsync(filePath);
+          if (fileInfo.exists && (fileInfo as any).size > 0) {
+            // Save both the expo resumeData AND the file size for double reliability
+            const manualState = {
+              url,
+              fileUri: `file://${filePath}`,
+              options: { headers: { 'User-Agent': 'Mozilla/5.0 (Linux; Android 10; K)' } },
+              resumeData: String((fileInfo as any).size),
+              downloadedBytes: (fileInfo as any).size,
+              timestamp: Date.now()
+            };
+            await FileSystem.writeAsStringAsync(resumeStatePath, JSON.stringify(manualState));
+            console.log(`[LLM] Saved resume state for ${filename} at ${(fileInfo as any).size} bytes`);
+          }
+        } catch (writeErr) {
+          console.warn('[LLM] Failed to save resume state:', writeErr);
+        }
+      }
+      throw e;
+    }
+  };
+
+  const fetchContentLength = async (url: string): Promise<number | null> => {
+    try {
+      const response = await fetch(url, {
+        method: 'HEAD',
+        headers: { 'User-Agent': 'Mozilla/5.0 (Linux; Android 10; K)' }
+      });
+      const contentLength = response.headers.get('content-length');
+      if (contentLength) {
+        return parseInt(contentLength, 10);
+      }
+    } catch (e) {
+      console.warn(`[LLM] Failed to fetch Content-Length for ${url}:`, e);
+    }
+    return null;
+  };
+
+  const downloadModel = async (model: ModelDefinition) => {
+    try {
+      setDownloadingModel(model);
+      setIsDownloading(true);
+      setStatus(curr => curr !== 'ready' ? 'downloading' : curr);
+
+      const baseDir = FileSystem.documentDirectory?.replace(/\/+$/, '') + '/llm_models';
+      const dirInfo = await FileSystem.getInfoAsync(baseDir);
+      if (!dirInfo.exists) {
+        await FileSystem.makeDirectoryAsync(baseDir, { intermediates: true });
+      }
+
+      // Query real sizes from Hugging Face before starting
+      let realSizeMB = model.sizeMB;
+      let realMmprojSizeMB = model.mmprojSizeMB || 0;
+
+      console.log(`[LLM] Querying Hugging Face HEAD for real file size of ${model.id}...`);
+      try {
+        const mainLength = await fetchContentLength(model.url);
+        if (mainLength) {
+          realSizeMB = Math.round((mainLength / (1024 * 1024)) * 10) / 10;
+          console.log(`[LLM] Dynamically resolved main model size: ${realSizeMB} MB`);
+        }
+      } catch (err) {
+        console.warn('[LLM] Error resolving main model size:', err);
+      }
+
+      if (model.mmprojUrl) {
+        try {
+          const mmprojLength = await fetchContentLength(model.mmprojUrl);
+          if (mmprojLength) {
+            realMmprojSizeMB = Math.round((mmprojLength / (1024 * 1024)) * 10) / 10;
+            console.log(`[LLM] Dynamically resolved mmproj size: ${realMmprojSizeMB} MB`);
+          }
+        } catch (err) {
+          console.warn('[LLM] Error resolving mmproj size:', err);
+        }
+      }
+
+      const resolvedModel = {
+        ...model,
+        sizeMB: realSizeMB,
+        mmprojSizeMB: realMmprojSizeMB
+      };
+
+      // Download primary model file
+      await downloadFileResumable(resolvedModel.url, `${baseDir}/${resolvedModel.fileName}`, resolvedModel);
+
+      // Download mmproj if applicable
+      if (resolvedModel.mmprojUrl && resolvedModel.mmprojFileName) {
+        await downloadFileResumable(resolvedModel.mmprojUrl, `${baseDir}/${resolvedModel.mmprojFileName}`, resolvedModel, true);
+      }
+
+      // Save fingerprint for integrity verification
+      const finalModelSize = (await getModelLocalSize(resolvedModel)) || 0;
+      await saveModelFingerprint(resolvedModel, finalModelSize, new Date().toISOString());
+
+      setIsDownloading(false);
+      setDownloadingModel(null);
+      setStatus(curr => curr === 'downloading' ? 'idle' : curr);
+    } catch (e: any) {
+      // If error is related to network, we can resume it later. Do not clean up partial files.
+      // If it's a fatal error like disk space, clean it up.
+      const isFatalError = e?.message?.toLowerCase().includes('disk') || e?.message?.toLowerCase().includes('space') || e?.message?.toLowerCase().includes('no space left on device');
+
+      if (isFatalError) {
+        try {
+          const baseDir = FileSystem.documentDirectory?.replace(/\/+$/, '') + '/llm_models';
+          const modelPath = `${baseDir}/${model.fileName}`;
+          const modelInfo = await FileSystem.getInfoAsync(modelPath);
+          if (modelInfo.exists) {
+            await FileSystem.deleteAsync(modelPath, { idempotent: true });
+          }
+          await clearResumeState(model.fileName);
+          if (model.mmprojFileName) {
+            const mmprojPath = `${baseDir}/${model.mmprojFileName}`;
+            const mmprojInfo = await FileSystem.getInfoAsync(mmprojPath);
+            if (mmprojInfo.exists) {
+              await FileSystem.deleteAsync(mmprojPath, { idempotent: true });
+            }
+            await clearResumeState(model.mmprojFileName);
+          }
+        } catch (cleanupError) {
+          console.error('[LLM] Error cleaning up partial download:', cleanupError);
+        }
+      } else {
+        console.warn('[LLM] Network or other resumable error occurred during download:', e.message);
+      }
+
+      setIsDownloading(false);
+      setDownloadingModel(null);
+      setStatus(curr => curr === 'downloading' ? 'idle' : curr);
+      throw e;
+    }
+  };
+
+  const pauseDownload = async () => {
+    if (!downloadResumableRef.current || !downloadingModel) return;
+    try {
+      const state = await downloadResumableRef.current.pauseAsync();
+      const filename = state.url === downloadingModel.url ? downloadingModel.fileName : (downloadingModel.mmprojFileName || downloadingModel.fileName);
+      const resumeStatePath = getResumeStatePath(filename);
+      await FileSystem.writeAsStringAsync(resumeStatePath, JSON.stringify(state));
+      setIsDownloading(false);
+      setStatus(curr => curr === 'downloading' ? 'idle' : curr);
+    } catch (e) {
+      console.error('[LLM] Error pausing download:', e);
+    }
+  };
+
+  useEffect(() => {
+    const handleAppStateChange = async (nextAppState: AppStateStatus) => {
+      if (nextAppState === 'background' || nextAppState === 'inactive') {
+        cpuSemaphore.pause('background');
+        if (downloadResumableRef.current && isDownloading) {
+          console.log('[LLM] App state changed to', nextAppState, '- automatically pausing download.');
+          await pauseDownload();
+        }
+      } else if (nextAppState === 'active') {
+        cpuSemaphore.resume('background');
+      }
+    };
+
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
+    return () => {
+      subscription.remove();
+    };
+  }, [isDownloading, downloadingModel]);
+
+
+  const loadModel = async (
+    modelOrOptions?: ModelDefinition | { n_threads?: number },
+    options?: { n_threads?: number }
+  ) => {
+    if (isModelLoading) {
+      console.log('[LLM] 🛡️ Model is already loading. Bypassing parallel load.');
+      return;
+    }
+    isModelLoading = true;
+    try {
+      setStatus('loading');
+      let modelToLoad: ModelInfo = activeModel;
+      let loadOptions = options;
+      if (modelOrOptions) {
+        if ('id' in modelOrOptions && 'fileName' in modelOrOptions) {
+          modelToLoad = AVAILABLE_MODELS.find(m => m.id === modelOrOptions.id) || (modelOrOptions as ModelInfo);
+        } else {
+          loadOptions = modelOrOptions as { n_threads?: number };
+        }
+      }
+
+      const baseDirRaw = FileSystem.documentDirectory?.replace(/\/+$/, '').replace(/^file:\/\//, '');
+      const modelPath = `${baseDirRaw}/llm_models/${modelToLoad.fileName}`;
+      const modelUri = `file://${modelPath}`;
+      const mmprojPath = modelToLoad.mmprojFileName ? `${baseDirRaw}/llm_models/${modelToLoad.mmprojFileName}` : undefined;
+
+      await releaseAllLlama();
+      llamaContextRef.current = null; // 🛡️ Prevent stale context calls during load
+      clearCompletionQueue();
+      const hw = await getHardwareConfig();
+      const temp = await getDeviceTemperature();
+      const totalRam = await getTotalRAM();
+
+      // Load experimentalTurbo setting via SettingsService
+      let useTurbo = false;
+      try {
+        const settings = await settingsService.get();
+        if (settings.experimentalTurbo) useTurbo = true;
+      } catch (e) { console.log('[LLM] Error reading turbo setting', e); }
+
+      const dynamicConfig = getDynamicEngineConfig(
+        temp,
+        hw.threads,
+        hw.isEmulator,
+        useTurbo,
+        Platform.OS === 'ios',
+        hw.architecture,
+        totalRam
+      );
+      let dyn_threads = loadOptions?.n_threads ?? dynamicConfig.threads;
+      let dyn_gpu_layers = dynamicConfig.gpu_layers;
+
+      let dyn_ctx = 4096;
+      let dyn_batch = 512;
+
+      const tier = getCurrentTier();
+      const tierConfigs: Record<MemoryTier, { batch: number, ctx: number }> = {
+        [MemoryTier.TITAN]: { batch: 2048, ctx: 32768 },
+        [MemoryTier.ELITE]: { batch: 2048, ctx: 24576 },
+        [MemoryTier.AVANZADO]: { batch: 1024, ctx: 16384 },
+        [MemoryTier.ESTANDAR_PRO]: { batch: 1024, ctx: 8192 },
+        [MemoryTier.ESTANDAR]: { batch: 512, ctx: 4096 },
+        [MemoryTier.ENTRADA]: { batch: 512, ctx: 3072 },
+      };
+      const config = tierConfigs[tier];
+      dyn_batch = config.batch;
+      dyn_ctx = config.ctx;
+
+      const cacheType = totalRam < 12000 ? 'q4_0' : 'q8_0';
+
+      console.log(`[LLM] Loading model from ${modelUri} with ${dyn_threads} threads, ${dyn_gpu_layers} GPU layers, context ${dyn_ctx}`);
+
+      const context = await initLlama({
+        model: modelUri,
+        use_mlock: Platform.OS === 'ios', // 🛡️ Avoid ulimit -l trap on Android 14+
+        n_ctx: dyn_ctx,
+        n_batch: dyn_batch,
+        n_ubatch: 256, // 🌡️ Thermally controlled Chunked Prefill
+        n_threads: dyn_threads,
+        n_gpu_layers: dyn_gpu_layers,
+        cache_type_k: cacheType,
+        cache_type_v: cacheType,
+        flash_attn_type: 'on', // 🚀 Flash Attention to accelerate and cool decoding
+      });
+
+      (context as any)._originalCompletion = context.completion;
+      context.completion = (params: any, callback: any) => wrappedCompletion(context, params, callback);
+
+      if (mmprojPath) {
+        const mmprojUri = `file://${mmprojPath}`;
+        const mmprojInfo = await FileSystem.getInfoAsync(mmprojUri);
+        if (mmprojInfo.exists) {
+          const useGpuForVision = dyn_gpu_layers > 0;
+          // Optimize visual token budget for mobile CPU/GPU
+          // Setting image_max_tokens (typically 512 for fast processing, or 768 for high-end RAM)
+          // reduces the CPU Vision Transformer evaluation from 9 tiles down to 1-2 tiles, speeding up CPU vision 3x-6x.
+          const imageMaxTokens = totalRam >= 8000 ? 1024 : 896;
+          console.log(`[LLM] 📸 Initializing multimodal projector from: ${mmprojPath} (use_gpu: ${useGpuForVision}, image_max_tokens: ${imageMaxTokens})`);
+          await context.initMultimodal({
+            path: mmprojPath,
+            use_gpu: useGpuForVision,
+            image_max_tokens: imageMaxTokens
+          });
+        } else {
+          console.log(`[LLM] 📸 Multimodal projector file not found at: ${mmprojPath}`);
+        }
+      }
+
+      llamaContextRef.current = context;
+      activeContext = context;
+      setCurrentContextSize(dyn_ctx);
+      if (modelToLoad.id !== activeModel.id) {
+        setActiveModel(modelToLoad);
+      }
+      setStatus('ready');
+      console.log('[LLM] Model loaded successfully!');
+      await saveModelActiveState(true, modelToLoad.id);
+    } catch (e: any) {
+      console.error('[LLM] Error loading model:', e);
+      setStatus('idle');
+      await saveModelActiveState(false);
+      throw e;
+    } finally {
+      isModelLoading = false;
+    }
+  };
+
+  const detectComplexity = (prompt: string | null, hasAttachment: boolean = false): 'ZEN' | 'BALANCE' | 'NORMAL' | 'PROFUNDO' => {
+    if (hasAttachment) return 'PROFUNDO';
+    if (!prompt) return 'BALANCE';
+
+    const userPart = prompt.split('<start_of_turn>user').pop() || prompt.split('<|turn|>user').pop() || '';
+    const relevantContent = userPart.toLowerCase();
+
+    const KEYWORDS = {
+      search: ['president', 'presidente', 'who is', 'quién es', 'quien es', 'actual', 'now', 'ahora', 'noticias', 'news', 'hoy', 'today'],
+      deep: ['arquitectura', 'lógica', 'audit', 'deep', 'analiza', 'crea', 'diseña', 'sistema', 'reason', 'architecture', 'design', 'código', 'code'],
+      normal: ['explica', 'cómo', 'por qué', 'dime más', 'ayúdame', 'how', 'why', 'explain', 'lista', 'resume']
+    };
+
+    if (KEYWORDS.search.some(k => relevantContent.includes(k))) return 'BALANCE';
+    if (userPart.length < 30 && !KEYWORDS.deep.some(k => relevantContent.includes(k))) return 'ZEN';
+    if (KEYWORDS.deep.some(k => relevantContent.includes(k))) return 'PROFUNDO';
+    if (KEYWORDS.normal.some(k => relevantContent.includes(k)) || userPart.length > 300) return 'NORMAL';
+
+    return 'BALANCE';
+  };
+
+  const prefillContextLlm = async (
+    prompt: string | null,
+    messages?: any[]
+  ) => {
+    if (!llamaContextRef.current) return;
+    try {
+      const completionOptions: any = {
+        n_predict: 0,
+        cache_prompt: true,
+        slot_id: 0,
+        prompt: messages ? undefined : prompt,
+        messages: messages ? messages : undefined,
+      };
+
+      // Execute silently, no awaiting to prevent blocking
+      llamaContextRef.current.completion(completionOptions, () => {}).catch((e: any) => {
+         console.warn("[LLM] Prefill silent error:", e);
+      });
+    } catch (e) {
+      console.warn("[LLM] Error in prefillContextLlm:", e);
+    }
+  };
+
+  const generateStreamingResponse = async (
+    prompt: string | null,
+    onTokenReceived: (text: string) => void,
+    onError: (error: string) => void,
+    imagePath?: string | string[],
+    multimodalMessages?: any[],
+    binaryBuffer?: Uint8Array,
+    consciousnessLevel: number = 2,
+    forceHighTemperature: boolean = false,
+    forceDeterminism: boolean = false
+  ) => {
+    try {
+      if (!llamaContextRef.current) {
+        throw new Error(lang === 'es' ? 'El modelo no está cargado o listo' : 'Model is not loaded or ready');
+      }
+      const hasAttachment = (multimodalMessages && multimodalMessages.length > 0) || !!imagePath || !!binaryBuffer;
+      const level = detectComplexity(prompt, hasAttachment);
+
+      let adjustedPrompt = prompt;
+      let adjustedMessages = multimodalMessages ? [...multimodalMessages] : null;
+
+      const isLlama = activeModel?.id.includes('llama');
+      const isGemma3 = !isLlama && activeModel?.id.includes('gemma3');
+      const modelConfig = isLlama ? MODEL_CONFIG.llama3_2 : (isGemma3 ? MODEL_CONFIG.gemma3 : MODEL_CONFIG.gemma4);
+
+      // 🛡️ Safeproof Switch: Dynamic temperature limits to prevent hallucination
+      // and behavioral drift. LLMs in long sessions hallucinate at high temps.
+      let targetTemp = modelConfig.temperature;
+      let targetMinP = modelConfig.min_p || 0.05;
+      let targetRepeatPenalty = modelConfig.repeat_penalty;
+      let targetTopP = forceDeterminism ? 0.90 : modelConfig.top_p;
+
+      if (isLlama) {
+        // Llama 3.2 1B Instruct optimal parameters
+        targetTemp = forceDeterminism ? 0.15 : (forceHighTemperature ? 1.15 : 0.85);
+        targetMinP = 0.08;
+        targetTopP = 1.0; // Disabled to let min_p work cleanly
+        targetRepeatPenalty = 1.15;
+      } else if (isGemma3) {
+        // Gemma 3 4B requires higher temperature for stable outputs and to prevent loops/refusals
+        targetTemp = forceDeterminism ? 0.15 : (forceHighTemperature ? 0.85 : (
+          consciousnessLevel === 1 ? 0.30 // Highly deterministic (Forensic)
+            : consciousnessLevel === 2 ? modelConfig.temperature // Balanced but grounded (Default)
+              : consciousnessLevel === 3 ? 0.85 // Creative but safe
+                : 0.90
+        ));
+      } else {
+        // Gemma 4 strict low-temperature mode to prevent reasoning verbosity
+        targetTemp = forceDeterminism ? 0.15 : (forceHighTemperature ? 0.60 : (
+          consciousnessLevel === 1 ? 0.20
+            : consciousnessLevel === 2 ? modelConfig.temperature
+              : consciousnessLevel === 3 ? 0.55
+                : 0.60
+        ));
+      }
+
+      const directives = {
+        'ZEN': "\n[[RULE: No thinking. No preamble. Respond in one sentence.]]" ,
+        'BALANCE': "\n[[RULE: Keep your Thinking Process brief (maximum 2 paragraphs).]]",
+        'NORMAL': "\n[[RULE: Keep your Thinking Process concise (maximum 4 paragraphs).]]",
+        'PROFUNDO': ""
+      };
+
+      // Only apply directives to Gemma architectures (they have reasoning blocks)
+      const directive = isLlama ? "" : directives[level];
+      if (directive) {
+        if (adjustedMessages && adjustedMessages.length > 0) {
+          const lastIdx = adjustedMessages.length - 1;
+          const lastMsg = { ...adjustedMessages[lastIdx] };
+
+          if (Array.isArray(lastMsg.content) && lastMsg.content.length > 0) {
+            const firstContent = lastMsg.content[0];
+            if (firstContent && typeof firstContent === 'object' && 'text' in firstContent) {
+              lastMsg.content = [{ ...firstContent, text: firstContent.text + directive }];
+            }
+          }
+          adjustedMessages[lastIdx] = lastMsg;
+        } else if (adjustedPrompt) {
+          adjustedPrompt += directive;
+        }
+      }
+
+      tokenCounterRef.current = 0;
+      startTimeRef.current = Date.now();
+      let fullResponse = "";
+
+      console.log(`[LLM] Generating response with model: ${activeModel.id}, temp: ${targetTemp}, min_p: ${targetMinP}, penalty: ${targetRepeatPenalty}, top_p: ${targetTopP}`);
+
+      // ⚡ Opt. 3: Dynamic n_predict by consciousness level.
+      // Zen=256 (safety cap), Balance=512, Deep/Philosophic=1024.
+      // n_predict doesn't speed up per-token generation, but acts as a
+      // hard ceiling that prevents thought-tag overflow from bloating the output.
+      const nPredictByLevel: Record<number, number> = {
+        1: 256,   // Zen: single sentence, fast cap
+        2: 512,   // Balance
+        3: 1024,  // Deep
+        4: 1024,  // Philosophic
+      };
+      const dynamicNPredict = nPredictByLevel[consciousnessLevel] ?? 512;
+
+      const completionOptions: any = {
+        n_predict: dynamicNPredict,
+        temperature: targetTemp,
+        top_p: targetTopP,
+        min_p: targetMinP,
+        repeat_penalty: targetRepeatPenalty,
+        repeat_last_n: 128,
+        stop: isLlama 
+          ? ["<|eot_id|>", "<|eom_id|>", "<|begin_of_text|>"] 
+          : ["<eos>", "<end_of_turn>", "<|im_end|>", "<|eot_id|>"],
+        cache_prompt: true,
+        slot_id: 0,
+        prompt: adjustedMessages ? undefined : adjustedPrompt,
+        messages: adjustedMessages ? adjustedMessages : undefined,
+      };
+
+      if (imagePath && llamaContextRef.current) {
+        let isMultimodal = false;
+        try {
+          if (typeof llamaContextRef.current.isMultimodalEnabled === 'function') {
+            isMultimodal = await llamaContextRef.current.isMultimodalEnabled();
+          }
+        } catch (e) {
+          console.warn('[LLM] Error checking if multimodal is enabled:', e);
+        }
+
+        if (isMultimodal) {
+          const paths = Array.isArray(imagePath) ? imagePath : [imagePath];
+          completionOptions.media_paths = paths.map(p => {
+            let cleanPath = p;
+            if (cleanPath.startsWith('file://')) {
+              cleanPath = cleanPath.slice(7);
+            }
+            return cleanPath;
+          });
+        } else {
+          console.warn('[LLM] 📸 Image path was provided, but multimodal projector is not initialized. Skipping image parameter to prevent crash.');
+        }
+      }
+
+      const result = await llamaContextRef.current.completion(completionOptions, async (data: any) => {
+        await cpuSemaphore.waitIfPaused();
+        if (tokenCounterRef.current === 0) console.log(`[Sanctuary] TTFT: ${Date.now() - startTimeRef.current}ms`);
+        tokenCounterRef.current++;
+        fullResponse += data.token;
+        onTokenReceived(data.token);
+      });
+
+      if (result && result.tokens_cached) {
+        setTokensUsed(result.tokens_cached);
+      }
+
+      return fullResponse;
+    } catch (e: any) {
+      onError(`[NATIVE ERROR] Sanctuary Reasoning Loop failed: ${e?.message || e}`);
+      return "";
+    }
+  };
+
+  const abortGeneration = async () => {
+    try {
+      if (llamaContextRef.current) await llamaContextRef.current.stopCompletion();
+    } catch (e) { console.error("[LLM] Error aborting:", e); }
+  };
+
+  const resetToHome = async () => {
+    try {
+      await releaseAllLlama();
+      llamaContextRef.current = null;
+      clearCompletionQueue();
+    } catch (e) { }
+    setStatus('idle');
+    await saveModelActiveState(false);
+  };
+
+  const cancelDownload = async () => {
+    if (downloadResumableRef.current) {
+      try {
+        await downloadResumableRef.current.cancelAsync();
+      } catch (e) { console.error('[LLM] Error canceling download:', e); }
+    }
+
+    // We intentionally don't delete the partial file here so it can be resumed later.
+    // If we wanted to delete it, we would add the deletion logic here.
+    setIsDownloading(false);
+    setStatus(curr => curr === 'downloading' ? 'idle' : curr);
+  };
+
+  // Resume incomplete downloads on app start
+  const resumeIncompleteDownloads = async () => {
+    if (isDownloading) return;
+    
+    const baseDir = FileSystem.documentDirectory?.replace(/\/+$/, '') + '/llm_models';
+    const dirInfo = await FileSystem.getInfoAsync(baseDir);
+    if (!dirInfo.exists) return;
+
+    for (const model of AVAILABLE_MODELS) {
+      // Check main model
+      const modelPath = `${baseDir}/${model.fileName}`;
+      const modelInfo = await FileSystem.getInfoAsync(modelPath);
+      
+      if (modelInfo.exists && (modelInfo as any).size > 0) {
+        const remoteSize = await getModelRemoteSize(model);
+        if (remoteSize && (modelInfo as any).size < remoteSize * 0.99) {
+          console.log(`[LLM] Found incomplete download for ${model.id}, resuming...`);
+          try {
+            await downloadModel(model);
+            return; // Resume one at a time
+          } catch (e) {
+            console.warn(`[LLM] Failed to resume ${model.id}:`, e);
+          }
+        }
+      }
+
+      // Check mmproj
+      if (model.mmprojFileName) {
+        const mmprojPath = `${baseDir}/${model.mmprojFileName}`;
+        const mmprojInfo = await FileSystem.getInfoAsync(mmprojPath);
+        
+        if (mmprojInfo.exists && (mmprojInfo as any).size > 0) {
+          const remoteMmprojSize = await getModelRemoteSize({ ...model, fileName: model.mmprojFileName, url: model.mmprojUrl! } as ModelDefinition);
+          if (remoteMmprojSize && (mmprojInfo as any).size < remoteMmprojSize * 0.99) {
+            console.log(`[LLM] Found incomplete mmproj download for ${model.id}, resuming...`);
+            try {
+              await downloadModel(model);
+              return;
+            } catch (e) {
+              console.warn(`[LLM] Failed to resume mmproj ${model.id}:`, e);
+            }
+          }
+        }
+      }
+    }
+  };
+
+return { 
+    deviceRAM,
+    status, 
+    isDownloading, 
+    downloadingModel, 
+    activeModel, 
+    selectModel, 
+    downloadModel, 
+    pauseDownload, 
+    cancelDownload, 
+    loadModel, 
+    resetToHome, 
+    llamaContextRef, 
+    generateStreamingResponse, 
+    prefillContextLlm, 
+    abortGeneration, 
+    AVAILABLE_MODELS, 
+    downloadedMB, 
+    downloadSpeed, 
+    downloadPercent, 
+    currentContextSize, 
+    tokensUsed,
+    // Model persistence functions
+    getModelStatus,
+    checkModelVersion,
+    resumeIncompleteDownloads,
+  };
+}
+

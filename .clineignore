@@ -1,0 +1,86 @@
+# --- CLIN-SPECIFIC IGNORE (Optimized for AI Sanctuary) ---
+
+# Dependency directories
+node_modules/
+bun.lockb
+package-lock.json
+yarn.lock
+
+# Native Build Artifacts (Heavy & irrelevant for logic audits)
+android/
+ios/
+bin/
+obj/
+*.apk
+*.ipa
+*.app
+android/app/build/
+android/build/
+android/.gradle/
+android/.cxx/
+ios/build/
+
+
+# iOS
+ios/
+ios/build/
+ios/Pods/
+ios/.symlinks/
+*.ipa
+*.app
+*.xcarchive
+
+
+# Expo specific
+.expo/
+dist/
+web-build/
+*.jks
+*.keystore
+
+# Machine Learning & Large Binaries (Crucial for VRAM/Context protection)
+*.gguf
+*.bin
+*.onnx
+*.model
+*.tflite
+*.weights
+
+# Multimedia (Prevent AI from trying to "read" binary data)
+*.zip
+*.tar.gz
+*.rar
+*.7z
+*.mp3
+*.wav
+*.mp4
+*.mov
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.svg
+sonido.zip
+
+# Logs and Caches
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.eslintcache
+.stylelintcache
+
+# Editor and Temporary files
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+.DS_Store
+Thumbs.db
+
+# Custom backup/Doc directories
+BACKUPS/
+DOCS/

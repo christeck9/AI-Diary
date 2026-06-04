@@ -1,0 +1,297 @@
+# AI Diary: Diary Tab Optimization Report
+
+**Date:** 2026-05-27
+**Focus:** Pestaña Diary (`app/(tabs)/index.tsx`) and associated Voice/AI systems.
+
+## Executive Summary
+
+This report identifies key areas for improvement within the Diary tab, focusing on performance, user experience, code maintainability, and robustness of the integrated voice and AI systems. The core logic is sound, but several targeted enhancements can significantly elevate the application's quality and efficiency.
+
+## Key Findings & Recommendations
+
+### 1. Voice System Robustness & User Experience
+
+#### **Issue: Voice Note Modal State Handling**
+- **Location:** `index.tsx` lines `380`, `590-603`
+- **Problem:** The `showVoiceNoteModal` state controls the dictation modal. If the app backgrounds while this modal is open, the state can become desynchronized with the actual audio session. Upon restoration, the modal might show "Listening..." while no active session exists, or vice-versa.
+- **Impact:** Confusing user experience, potential for unresponsive UI or incorrect state indicators.
+- **Recommendation:**
+  ```typescript
+  // In useEffect for AppState changes
+  useEffect(() => {
+    const handleAppStateChange = (nextAppState: string) => {
+      if (nextAppState === 'active') {
+        // When app comes to foreground, re-sync modal state with actual voice service state
+        if (showVoiceNoteModal && !dictation.isListening && !dictation.isInitializing) {
+          console.log('[SYNC] Closing stale Voice Note Modal on app foreground.');
+          setShowVoiceNoteModal(false);
+        }
+      }
+    };
+    const sub = AppState.addEventListener('change', handleAppStateChange);
+    return () => sub.remove();
+  }, [showVoiceNoteModal, dictation.isListening, dictation.isInitializing]);
+
+  // Modify handlePickDocument to ensure clean state transition
+  const handlePickDocument = async () => {
+    // ... existing stop logic ...
+    setShowVoiceNoteModal(false); // Explicitly close modal
+    await pickDocument();
+  };
+  ```
+
+#### **Issue: Mic Phase Feedback Lag**
+- **Location:** `index.tsx` lines `381`, `634-642`
+- **Problem:** The `micPhase` state ('idle', 'permission', 'init', 'ready') updates `setMicPhase` within `startListening`. For slow devices or initial model loading, the UI might not update immediately, leaving the user in an ambiguous state ("Initializing..." might persist longer than expected).
+- **Impact:** User uncertainty about the progress of voice activation.
+- **Recommendation:**
+  ```typescript
+  // In the onProgress callback of startListening
+  const handleStartListening = async () => {
+    setMicPhase('permission');
+    // ...
+    const success = await micService.startListening(..., (text, isCapturing, lang, sliceIndex) => {
+      // ...
+    }, (phase) => { // onProgress callback
+      setMicPhase(phase);
+      if (phase === 'ready') {
+        // Optional: Show a brief "Ready!" message before clearing
+        setTimeout(() => setMicPhase('ready'), 500);
+      }
+    });
+    // ...
+  };
+
+  // Ensure micPhase is reset appropriately when stopping dictation
+  const stopDictation = useCallback(async () => {
+    await micService.stopListening('USE_VOICE_HOOK');
+    setMicPhase('idle');
+    setTranscript('');
+  }, []);
+  ```
+
+#### **Issue: Transcript Display & Clarity**
+- **Location:** `index.tsx` lines `380`, `transcript` from `dictation`
+- **Problem:** The visual feedback for live transcription during dictation could be clearer. It currently appears in the input area, but users might miss it or find its placement unintuitive.
+- **Impact:** Reduced clarity during voice input.
+- **Recommendation:** Enhance the UI for the voice note modal to clearly display the live transcript.
+  ```typescript
+  // Inside VoiceOverlay component or dictation modal UI
+  {isRecordingLocal && (
+    <View style={styles.transcriptContainer}>
+      <Text style={styles.transcriptLabel}>Escuchando:</Text>
+      <Text selectable={true} style={styles.liveTranscript}>
+        {dictation.transcript || "..."}
+      </Text>
+    </View>
+  )}
+  ```
+
+### 2. Performance & Resource Management
+
+#### **Issue: Scroll Performance with Large Message Lists**
+- **Location:** `index.tsx` lines `354-364`, `FlashList` usage
+- **Problem:** While `FlashList` is excellent for large lists, the `scrollToBottom` logic involves a `setTimeout` and a try-catch. This can sometimes lead to jank or missed scrolls if messages are added very rapidly.
+- **Impact:** Slightly less smooth scrolling in very active chats.
+- **Recommendation:** Optimize the scroll trigger and consider using Reanimated for smoother scrolling.
+  ```typescript
+  const scrollToBottom = useCallback((animated = true) => {
+    if (flashListRef.current) {
+      // Use requestAnimationFrame for smoother scroll
+      requestAnimationFrame(() => {
+        try {
+          flashListRef.current?.scrollToEnd({ animated, viewPosition: 'end' });
+        } catch (e) {
+          console.warn('[SCROLL] FlashList scroll error:', e);
+        }
+      });
+    }
+  }, []);
+
+  // Consider using onContentSizeChange or onLayout of FlashList
+  // to trigger scroll more predictably
+  ```
+
+#### **Issue: Unnecessary Re-renders in MessageItem**
+- **Location:** `index.tsx` lines `177-298`
+- **Problem:** `MessageItem` is well memoized, but the `colors` prop is passed from the parent. If the theme context changes, all messages re-render. While typically fine, for very long lists this could be a minor performance hit.
+- **Impact:** Potential for minor UI lag during theme changes.
+- **Recommendation:** Further isolate `MessageItem` from theme changes if necessary, or ensure `colors` from `useAppTheme()` are stable.
+  ```typescript
+  // In MessageItem component
+  const MemoizedMessageItem = React.memo((props) => {
+    // ... component logic
+  }, (prevProps, nextProps) => {
+    // Custom comparison to prevent re-renders on non-critical prop changes
+    return (
+      prevProps.item.id === nextProps.item.id &&
+      prevProps.item.text === nextProps.item.text &&
+      prevProps.item.role === nextProps.item.role &&
+      // Add other critical props
+      prevProps.isLatest === nextProps.isLatest
+    );
+  });
+  ```
+
+### 3. Code Structure & Maintainability
+
+#### **Issue: Callback Hell in `handleSend`**
+- **Location:** `index.tsx` lines `990+` (assuming continuation)
+- **Problem:** The `handleSend` function, if it involves processing the input text, calling `processMessage`, handling file attachments, and updating the UI, can become nested and hard to follow.
+- **Impact:** Reduced code readability and maintainability.
+- **Recommendation:** Break down `handleSend` into smaller, focused async functions.
+  ```typescript
+  const handleSend = useCallback(async () => {
+    if (isTypingRef.current || isSendingRef.current || !inputText.trim()) return;
+    isSendingRef.current = true;
+    Keyboard.dismiss();
+    clearSpeechQueue();
+
+    const userMessageText = inputText.trim();
+    setInputText('');
+
+    try {
+      const userMsgId = `msg-${Date.now()}`;
+      // Optimistic UI update
+      const newMessage: Message = { id: userMsgId, role: 'user', text: userMessageText, created_at: Date.now(), status: 'sent' };
+      setMessages(prev => [...prev, newMessage]);
+
+      // Parallel DB inserts
+      await Promise.all([
+        db.runAsync('INSERT INTO messages (id, role, text, created_at) VALUES (?, ?, ?, ?)', [userMsgId, 'user', userMessageText, Date.now()]),
+        db.runAsync('INSERT INTO memory_fts (id, role, text) VALUES (?, ?, ?)', [userMsgId, 'user', userMessageText])
+      ]);
+
+      // Process with AI
+      await processMessage(userMessageText, userMsgId, setMessages, undefined, false, consciousnessLevel);
+
+    } catch (error) {
+      console.error('[HANDLE_SEND] Error:', error);
+      addSystemMessage(`Error sending message: ${error.message}`);
+    } finally {
+      isSendingRef.current = false;
+    }
+  }, [inputText, processMessage, consciousnessLevel, db, clearSpeechQueue]);
+  ```
+
+#### **Issue: Complex Conditional Logic in `loadMessages`**
+- **Location:** `index.tsx` lines `446-470`
+- **Problem:** The `loadMessages` function handles both regular loading and FTS5 filtering. The logic is functional but could be clearer.
+- **Impact:** Minor difficulty in understanding data loading flow.
+- **Recommendation:** Extract FTS5 logic into a separate helper function.
+  ```typescript
+  // Helper function
+  const searchMessagesByKeyword = useCallback(async (query: string): Promise<Message[]> => {
+    if (!db) return [];
+    try {
+      return await db.getAllAsync<Message>(
+        'SELECT * FROM messages WHERE id IN (SELECT id FROM memory_fts WHERE text MATCH ?) ORDER BY created_at ASC',
+        [`"${query}"*`]
+      );
+    } catch (e) {
+      console.error('[SEARCH_MESSAGES] FTS5 error:', e);
+      return [];
+    }
+  }, [db]);
+
+  // Simplified loadMessages
+  const loadMessages = useCallback(async (query: string = '') => {
+    if (!db) return;
+    try {
+      let results: Message[] = [];
+      if (query.trim()) {
+        setIsFiltering(true);
+        results = await searchMessagesByKeyword(query);
+      } else {
+        setIsFiltering(false);
+        results = await db.getAllAsync<Message>('SELECT * FROM messages ORDER BY created_at ASC');
+      }
+      setMessages(results.length > 0 ? results : [{ id: `welcome-${Date.now()}`, role: 'ai', text: t('chat.welcome'), created_at: Date.now() }]);
+    } catch (e) {
+      console.error('[LOAD_MESSAGES] Error:', e);
+    }
+  }, [db, t, searchMessagesByKeyword]);
+  ```
+
+### 4. AI & Voice Integration Enhancements
+
+#### **Issue: Granular Feedback for LLM Processing**
+- **Location:** `index.tsx` lines `810-825` (heartbeat), `useAgentEngine`
+- **Problem:** The `isTyping` state and a generic heartbeat animation are used to indicate AI processing. For longer tasks, this provides little feedback.
+- **Impact:** User lacks insight into AI's progress step-by-step.
+- **Recommendation:** Integrate more detailed status messages from `useAgentEngine` (e.g., "Thinking...", "Searching web...", "Generating response...").
+  ```typescript
+  // In useAgentEngine hook or a new status context
+  const [currentAiStep, setCurrentAiStep] = useState<string>('');
+
+  // In processMessage or related functions
+  const updateStatus = (step: string) => {
+    setCurrentAiStep(step);
+    // Optionally add system messages for major steps
+    // addSystemMessage(step);
+  };
+
+  // In index.tsx UI
+  {isTyping && (
+    <View style={styles.aiStatusContainer}>
+      <ActivityIndicator size="small" color={colors.secondary} />
+      <Text style={styles.aiStatusText}>{currentAiStep || 'AI is thinking...'}</Text>
+    </View>
+  )}
+  ```
+
+#### **Issue: File Attachment Processing State**
+- **Location:** `index.tsx` lines `335`, `isFileProcessing`
+- **Problem:** The `isFileProcessing` state from `useFileAttachment` correctly indicates when a document is being processed. However, there's no visual feedback for the user *during* this processing phase before the AI sees it.
+- **Impact:** User might be unsure if the file was successfully uploaded and is being processed.
+- **Recommendation:** Show a temporary indicator when a file is attached and being processed.
+  ```typescript
+  // In input area or near attachment button
+  {isFileProcessing && (
+    <View style={styles.fileProcessingIndicator}>
+      <ActivityIndicator size="small" />
+      <Text style={styles.fileProcessingText}>Processing file...</Text>
+    </View>
+  )}
+  // Clear this indicator when attachedFile changes or processing completes
+  ```
+
+### 5. Minor UI/UX Polish
+
+#### **Issue: Voice Button Accessibility Labels**
+- **Location:** `SanctuaryHeader.tsx`, `IconSymbol` mappings
+- **Problem:** Voice buttons use symbols. While icons are standard, adding accessibility labels or hints for screen readers would improve inclusivity.
+- **Impact:** Reduced accessibility for visually impaired users.
+- **Recommendation:**
+  ```jsx
+  <TouchableOpacity
+    accessibilityLabel={isMuted ? "Voice unmuted" : "Voice muted"}
+    accessibilityHint="Tap to toggle voice output"
+    onPress={toggleMute}
+    style={styles.voiceButton}
+  >
+    <IconSymbol name={isMuted ? 'voice.muted' : 'voice.active'} size={24} color={colors.primary} />
+  </TouchableOpacity>
+  ```
+
+#### **Issue: Empty State for Search**
+- **Location:** `index.tsx` lines `446-470`
+- **Problem:** When a search query yields no results, the UI might just show an empty list or the welcome message.
+- **Impact:** User might not know if the search yielded no results or if there's an error.
+- **Recommendation:** Show a specific "No results found" message.
+  ```typescript
+  // Inside loadMessages or render logic
+  if (isFiltering && results.length === 0 && searchQuery) {
+    return (
+      <View style={styles.emptyStateContainer}>
+        <Text style={styles.emptyStateText}>No messages found for "{searchQuery}"</Text>
+      </View>
+    );
+  }
+  ```
+
+## Conclusion
+
+The Diary tab is a robust and feature-rich interface. The suggested improvements are primarily focused on enhancing user experience through better state management, clearer feedback, and improved performance. Addressing these points will make the application feel more polished, responsive, and professional, especially in its handling of voice interactions and AI responses.
+
+The voice system architecture (`UnifiedMicService`, `useVoice`, `useInteractiveVoice`) is well-designed for segregation of concerns. The recommendations here build upon that strong foundation to further refine the user experience.

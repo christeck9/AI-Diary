@@ -1,0 +1,14 @@
+# GBNF Grammar for Sanctuary Sovereign Truth
+# Forces the model to start with either a Thinking Process or a Tool Call.
+
+root ::= response
+
+response ::= (thought | tool_call) rest_of_response
+
+thought ::= "<think>" [^<]+ "</think>"
+
+tool_call ::= "<start_function_call>call:hybrid_search{query:<escape>" query_text "<escape>}"
+
+query_text ::= [^<]+
+
+rest_of_response ::= [^\0]+
