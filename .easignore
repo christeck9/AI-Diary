@@ -52,3 +52,12 @@ sonido.zip
 !assets/ggml-tiny.bin
 *.onnx
 *.model
+
+# Local Android properties
+local.properties
+android/local.properties
+
+# Scratch/temp files
+scratch/
+
+
