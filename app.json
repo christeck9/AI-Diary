@@ -12,7 +12,7 @@
     },
     "android": {
       "package": "com.christeck.aidiary",
-      "versionCode": 11,
+      "versionCode": 12,
       "launchMode": "singleTask",
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/icon_adaptive_foreground.png",

@@ -66,6 +66,11 @@ export function useInteractiveVoice(
   const isPlayingQueueRef = useRef<boolean>(false);
   const isGeneratingRef = useRef<boolean>(false);
 
+  const lastQueueActivityRef = useRef<number>(Date.now());
+  const isFirstSentenceRef = useRef<boolean>(true);
+  const sessionStartTimeRef = useRef<number>(0);
+  const watchdogIdRef = useRef<any>(null);
+
   // Live transcript for real-time display
   const [liveTranscript, setLiveTranscript] = useSafeState('');
   const liveTranscriptRef = useRef('');
@@ -117,6 +122,10 @@ export function useInteractiveVoice(
     sentenceQueueRef.current = [];
     isPlayingQueueRef.current = false;
     isGeneratingRef.current = false;
+    if (watchdogIdRef.current) {
+      clearTimeout(watchdogIdRef.current);
+      watchdogIdRef.current = null;
+    }
   }, []);
 
   // Function to release microphone resources after Walkie-Talkie cycle completes
@@ -141,7 +150,16 @@ export function useInteractiveVoice(
     }
 
     if (isPlayingQueueRef.current) {
-      return;
+      // 🛡️ Stale lock recovery: if the queue has been "playing" for >10s
+      // with no activity, the TTS onDone callback likely failed silently.
+      const staleDuration = Date.now() - lastQueueActivityRef.current;
+      if (staleDuration > 10000) {
+        console.warn(`[SPEECH_QUEUE] ⚠️ Stale lock detected (${staleDuration}ms). Force-resetting.`);
+        isPlayingQueueRef.current = false;
+        // Fall through to process next sentence
+      } else {
+        return;
+      }
     }
 
     if (sentenceQueueRef.current.length === 0) {
@@ -165,10 +183,38 @@ export function useInteractiveVoice(
         setVoiceState('SPEAKING');
       }
 
-      const preloadedUri = preloadedMapRef.current[nextSentence] || null;
+      // Skip preload lookup for first sentence — speak immediately to minimize TTFS
+      const preloadedUri = isFirstSentenceRef.current
+        ? null
+        : (preloadedMapRef.current[nextSentence] || null);
+
       delete preloadedMapRef.current[nextSentence];
 
+      // Diagnostic Timing Metrics
+      if (isFirstSentenceRef.current && sessionStartTimeRef.current > 0) {
+        console.log(`[SPEECH_METRICS] ⏱️ TTFS: ${Date.now() - sessionStartTimeRef.current}ms | Words: ${nextSentence.split(/\s+/).length}`);
+      }
+      isFirstSentenceRef.current = false;
+
+      lastQueueActivityRef.current = Date.now();
+
+      // 🛡️ Watchdog: if TTS onDone doesn't fire within expected time, force-recover
+      const watchdogMs = Math.max(5000, nextSentence.split(/\s+/).length * 700 + 3000);
+      watchdogIdRef.current = setTimeout(() => {
+        if (isPlayingQueueRef.current) {
+          console.warn(`[SPEECH_QUEUE] ⚠️ Watchdog fired after ${watchdogMs}ms. Force-recovering.`);
+          isPlayingQueueRef.current = false;
+          lastQueueActivityRef.current = Date.now();
+          setTimeout(() => { processSpeechQueue(); }, 0);
+        }
+      }, watchdogMs);
+
       voice.speak(nextSentence, psyProfileRef.current, () => {
+        if (watchdogIdRef.current) {
+          clearTimeout(watchdogIdRef.current);
+          watchdogIdRef.current = null;
+        }
+        lastQueueActivityRef.current = Date.now();
         isPlayingQueueRef.current = false;
         setTimeout(() => { processSpeechQueue(); }, 0);
       }, preloadedUri);
@@ -322,6 +368,9 @@ export function useInteractiveVoice(
       // Send to LLM
       resetSpeechQueue();
       isGeneratingRef.current = true;
+      isFirstSentenceRef.current = true;
+      sessionStartTimeRef.current = Date.now();
+      lastQueueActivityRef.current = Date.now();
 
       sendMessageToLlm(
         liveTranscriptRef.current,
@@ -463,6 +512,9 @@ export function useInteractiveVoice(
   const startSpeechSession = useCallback(() => {
     resetSpeechQueue();
     isGeneratingRef.current = true;
+    isFirstSentenceRef.current = true;
+    sessionStartTimeRef.current = Date.now();
+    lastQueueActivityRef.current = Date.now();
   }, [resetSpeechQueue]);
 
   const endSpeechSession = useCallback(() => {

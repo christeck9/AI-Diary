@@ -60,11 +60,13 @@ export function getGemmaSystemPrompt(
 - Tu conocimiento principal llega hasta mediados de 2024.
 - Si te preguntan algo de conocimiento general (historia, ciencia, filosofía) o que ya sabes, RESPOND DIRECTAMENTE usando tu conocimiento interno. No busques en internet.
 - SÓLO para eventos recientes (después de 2024) o noticias actuales de los que NO tengas constancia segura, responde estrictamente con: [SEARCH: "consulta de búsqueda"] y nada más.
+- EXCEPCIÓN DE INVESTIGACIÓN: Si el usuario te pide explícitamente "investigar", "buscar en internet" o "hacer un query", tu directiva de no buscar se anula. DEBES analizar su situación, formular la mejor consulta de búsqueda posible y responder EXCLUSIVAMENTE con: [SEARCH: "tu consulta de búsqueda optimizada"].
 - Sé sumamente breve y directo. Máximo 2 párrafos cortos.`
       : `Rules for today (${currentDate}):
 - Your primary knowledge extends up to mid-2024.
 - If asked about general knowledge (history, science, philosophy) or something you already know, RESPOND DIRECTLY using your internal knowledge. Do not search the internet.
 - ONLY for recent events (after 2024) or current news of which you have NO secure knowledge, respond strictly with: [SEARCH: "search query"] and nothing else.
+- INVESTIGATION EXCEPTION: If the user explicitly asks you to "investigate", "search the internet", or "research", the no-search directive is overridden. You MUST analyze their context, formulate the best possible search query, and respond EXCLUSIVELY with: [SEARCH: "your optimized search query"].
 - Be extremely brief and direct. Maximum of 2 short paragraphs.`;
 
     const prompt = `${baseIdentity}\n\n${dynamicRules}\n\n[USER_CONTEXT]:\n${userContext}\n`;
@@ -111,7 +113,7 @@ export function getGemmaSystemPrompt(
     prompt = `${baseIdentity}
 Today is ${currentDate}. Your knowledge goes up to mid-2024.
 Answer directly and concisely. Never repeat information.
-For recent events after mid-2024, output exactly: [SEARCH: "query"]
+For recent events after mid-2024, OR if the user explicitly asks you to research or investigate a topic, you MUST formulate the best search query and output exactly: [SEARCH: "your optimized query"]
 ${thoughtDirective}
 
 [USER_CONTEXT]:
@@ -128,15 +130,15 @@ Knowledge cutoff: early-2025. Current date: ${currentDate}.
 [USER_CONTEXT]:
 ${userContext}
 
-To search for current information, news, or events after early 2025, you MUST output exactly: <|tool_call|>search{query:"query"}</|tool_call|>
+To search for current information, OR if the user explicitly asks you to research or investigate a topic, you MUST formulate the best search query and output exactly: <|tool_call|>search{query:"your optimized query"}</|tool_call|>
 Do NOT generate any <thought> or reasoning blocks. Respond immediately with a single sentence. No preamble, no headers, no markdown lists.
 `;
   } else if (complexity === PromptComplexity.MEDIUM) {
     prompt = `${baseIdentity}
 Today is ${currentDate}. Your reliable training data ends in early 2025.
 Answer as a well-informed person from early 2025 speaking to someone today.
-To search for current information, news, or events after early 2025, you MUST output exactly: <|tool_call|>search{query:"query"}</|tool_call|>
 For science, logic, math, and general knowledge, use your own expertise directly.
+HOWEVER, to search for current information, OR if the user explicitly asks you to research or investigate a topic, you MUST override the direct-answer rule, formulate the best search query, and output exactly: <|tool_call|>search{query:"your optimized query"}</|tool_call|>
 
 [USER_CONTEXT]:
 ${userContext}
@@ -148,10 +150,10 @@ ${complexityDirective}
 Today is ${currentDate}. Training data ends early 2025.
 Answer as a well-informed person from early 2025 speaking to someone today.
 
-Available tools:
-- To search for current information, news, or events after early 2025, you MUST output exactly: <|tool_call|>search{query:"query"}</|tool_call|>
-
 For timeless knowledge (science, math, logic, philosophy, history before 2025), answer directly.
+
+Available tools:
+- To search for current information, OR if the user explicitly asks you to research or investigate a topic, you MUST override the direct-answer rule, formulate the best search query for their needs, and output exactly: <|tool_call|>search{query:"your optimized query"}</|tool_call|>
 
 [USER_CONTEXT]:
 ${userContext}

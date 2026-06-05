@@ -125,12 +125,12 @@ export const useAgentEngine = (
           role: row.role,
           text: row.text,
         }));
-      } catch (e) {}
+      } catch (e) { }
     }
 
     const formattedPrompt = PromptService.formatFullPrompt(
       activeModel,
-      PromptService.getSystemPrompt(lang as 'en'|'es', userProfile, psyProfile, psyCompleted, '', undefined, 'gemma4'),
+      PromptService.getSystemPrompt(lang as 'en' | 'es', userProfile, psyProfile, psyCompleted, '', undefined, 'gemma4'),
       history,
       userText,
       lang as any,
@@ -155,6 +155,14 @@ export const useAgentEngine = (
     if (isTypingRef.current) return;
     isTypingRef.current = true;
     setIsProcessing(true);
+
+    let sentenceWasEmitted = false;
+    const activeOnSentenceGenerated = onSentenceGenerated
+      ? (sentence: string) => {
+        sentenceWasEmitted = true;
+        onSentenceGenerated(sentence);
+      }
+      : undefined;
     setProcessingPhase(attachedFile ? 'reading_file' : 'indexing');
     tokenCountRef.current = 0;
 
@@ -219,6 +227,38 @@ export const useAgentEngine = (
     };
 
     const arch = getSanctuaryArchitecture();
+
+    // ═══ Speech Pipelining Configuration ═══ Do not modify this withoug expressed permission from Chris. Chris 6/4/26
+    const FIRST_CHUNK_MIN_WORDS = 5;   // Minimum words before first TTS dispatch
+    const FIRST_CHUNK_MAX_WORDS = 8;   // Hard cap — force flush even without delimiter
+    const FLUSH_TIMEOUT_MS = 2500;     // Max silence: flush accumulated text after 2.5s
+    const MIN_FLUSH_LENGTH = 15;       // Minimum chars to justify a timeout flush
+
+    let isFirstSpeechChunk = true;
+    let lastSentenceEmitTime = Date.now();
+    let flushTimerId: any = null;
+    let globalSentenceOffset = 0;
+    let previousRoundsCleanText = '';
+    let roundResponse = '';
+
+    const resetFlushTimer = () => {
+      if (flushTimerId) clearTimeout(flushTimerId);
+      if (!activeOnSentenceGenerated) return;
+      flushTimerId = setTimeout(() => {
+        const roundClean = SentinelService.filterUI(roundResponse, arch);
+        const fullClean = previousRoundsCleanText + roundClean;
+        const remaining = fullClean.substring(globalSentenceOffset).trim();
+        if (remaining.length >= MIN_FLUSH_LENGTH) {
+          console.log(`[SPEECH_PIPELINE] ⏰ Timeout flush (${FLUSH_TIMEOUT_MS}ms): "${remaining.substring(0, 40)}..."`);
+          activeOnSentenceGenerated(remaining);
+          globalSentenceOffset = fullClean.length;
+          isFirstSpeechChunk = false;
+          lastSentenceEmitTime = Date.now();
+          resetFlushTimer(); // Re-arm for next gap
+        }
+      }, FLUSH_TIMEOUT_MS);
+    };
+
     // FIX BUG-07: Correct parameter order is (lang, userContext, complexity, arch)
     const contextDataStr = `nick:${contextData.nickname}, goal:${contextData.goal}, date:${contextData.date}`;
     const complexityMap: Record<number, PromptComplexity> = {
@@ -320,17 +360,18 @@ export const useAgentEngine = (
 
       // Fix #5: Persist sentence offset across tool rounds to prevent sentence
       // duplication/skipping when Sentinel triggers a second generation round.
-      let globalSentenceOffset = 0;
-      let previousRoundsCleanText = '';
+      globalSentenceOffset = 0;
+      previousRoundsCleanText = '';
 
       while (toolRounds < MAX_TOOL_ROUNDS) {
         let roundSearchTriggered = false;
         let hasAborted = false;
-        let roundResponse = '';
+        roundResponse = '';
 
         console.log(`[AGENT_ENGINE] 🔫 Round ${toolRounds + 1} started.`);
 
         setProcessingPhase('generating');
+        resetFlushTimer();
         await generateStreamingResponse(
           currentPrompt,
           async (partial: string) => {
@@ -391,33 +432,68 @@ export const useAgentEngine = (
             }
 
             // Sentence splitting logic for real-time speech (pipelining)
-            // Fix #5: Use globalSentenceOffset (not local lastSentIndex) to correctly
-            // reference the full accumulated clean text position.
-            if (onSentenceGenerated && !roundSearchTriggered) {
+            if (activeOnSentenceGenerated && !roundSearchTriggered) {
               const roundClean = SentinelService.filterUI(roundResponse, arch);
-              // Rebuild the full clean accumulated text for this round
               const cleanText = previousRoundsCleanText + roundClean;
-              const delimiters = ['.', '?', '!', '\n', ',', ':'];
-              let idx = globalSentenceOffset;
-              while (idx < cleanText.length) {
-                const char = cleanText[idx];
+              const pending = cleanText.substring(globalSentenceOffset);
 
-                // Heuristics: skip decimal points (e.g. 3.14) or number separators (e.g. 1,000)
-                const isNumberSeparator = (char === '.' || char === ',') &&
-                  idx > 0 && /\d/.test(cleanText[idx - 1]) &&
-                  idx + 1 < cleanText.length && /\d/.test(cleanText[idx + 1]);
-
-                // Heuristics: skip ellipsis (...) in progress
-                const isEllipsisInProgress = char === '.' && idx + 1 < cleanText.length && cleanText[idx + 1] === '.';
-
-                if (delimiters.includes(char) && !isNumberSeparator && !isEllipsisInProgress) {
-                  const sentence = cleanText.substring(globalSentenceOffset, idx + 1).trim();
-                  if (sentence.length > 0) {
-                    onSentenceGenerated(sentence);
+              if (isFirstSpeechChunk) {
+                // ═══ MODE A: Word-Count Trigger (first chunk only) ═══
+                const words = pending.split(/\s+/).filter(w => w.length > 0);
+                if (words.length >= FIRST_CHUNK_MIN_WORDS) {
+                  let splitAt = -1;
+                  for (let i = 0; i < pending.length; i++) {
+                    const c = pending[i];
+                    if ([',', '.', '!', '?', ':', '\n'].includes(c)) {
+                      const beforeBreak = pending.substring(0, i + 1).trim();
+                      const beforeWords = beforeBreak.split(/\s+/).filter(w => w.length > 0);
+                      if (beforeWords.length >= FIRST_CHUNK_MIN_WORDS) {
+                        splitAt = globalSentenceOffset + i + 1;
+                        break;
+                      }
+                    }
                   }
-                  globalSentenceOffset = idx + 1;
+
+                  if (splitAt < 0 && words.length >= FIRST_CHUNK_MAX_WORDS) {
+                    const match = pending.match(new RegExp("^(\\s*\\S+){" + FIRST_CHUNK_MAX_WORDS + "}"));
+                    if (match) {
+                      splitAt = globalSentenceOffset + match[0].length;
+                    }
+                  }
+
+                  if (splitAt > globalSentenceOffset) {
+                    const chunk = cleanText.substring(globalSentenceOffset, splitAt).trim();
+                    if (chunk.length > 0) {
+                      activeOnSentenceGenerated(chunk);
+                      globalSentenceOffset = splitAt;
+                      isFirstSpeechChunk = false;
+                      lastSentenceEmitTime = Date.now();
+                      resetFlushTimer();
+                    }
+                  }
                 }
-                idx++;
+              } else {
+                // ═══ MODE B: Clause-Based Trigger (all subsequent chunks) ═══
+                const delimiters = ['.', '?', '!', '\n', ',', ':'];
+                let idx = globalSentenceOffset;
+                while (idx < cleanText.length) {
+                  const char = cleanText[idx];
+                  const isNumberSeparator = (char === '.' || char === ',') &&
+                    idx > 0 && /\d/.test(cleanText[idx - 1]) &&
+                    idx + 1 < cleanText.length && /\d/.test(cleanText[idx + 1]);
+                  const isEllipsisInProgress = char === '.' && idx + 1 < cleanText.length && cleanText[idx + 1] === '.';
+
+                  if (delimiters.includes(char) && !isNumberSeparator && !isEllipsisInProgress) {
+                    const sentence = cleanText.substring(globalSentenceOffset, idx + 1).trim();
+                    if (sentence.length > 0) {
+                      activeOnSentenceGenerated(sentence);
+                      lastSentenceEmitTime = Date.now();
+                      resetFlushTimer();
+                    }
+                    globalSentenceOffset = idx + 1;
+                  }
+                  idx++;
+                }
               }
             }
 
@@ -520,15 +596,20 @@ export const useAgentEngine = (
           toolRounds > 0 // forceDeterminism
         );
 
+        if (flushTimerId) {
+          clearTimeout(flushTimerId);
+          flushTimerId = null;
+        }
+
         // At the end of the round, flush any remaining un-sent text fragment.
         // Fix #5: Use globalSentenceOffset (not local lastSentIndex) to correctly
         // reference the full accumulated clean text position.
-        if (!roundSearchTriggered && onSentenceGenerated) {
+        if (!roundSearchTriggered && activeOnSentenceGenerated) {
           const roundClean = SentinelService.filterUI(roundResponse, arch);
           const fullClean = previousRoundsCleanText + roundClean;
           const remaining = fullClean.substring(globalSentenceOffset).trim();
           if (remaining.length > 0) {
-            onSentenceGenerated(remaining);
+            activeOnSentenceGenerated(remaining);
             globalSentenceOffset = fullClean.length;
           }
         }
@@ -599,6 +680,12 @@ export const useAgentEngine = (
         setIsThinking(false);
       }
 
+      // Clean up flush timer at end of generation round
+      if (flushTimerId) {
+        clearTimeout(flushTimerId);
+        flushTimerId = null;
+      }
+
       let finalText = '';
       if (db && fullResponse.length > 0) {
         try {
@@ -638,7 +725,7 @@ export const useAgentEngine = (
       // Fix #1: Dispatch TTS concurrently with DB write — do NOT wait for the
       // await db.runAsync() before speaking. This prevents the perceptible gap
       // where the user sees the full text on screen before the voice starts.
-      if (voiceState === 'IDLE' && finalText && !onSentenceGenerated) {
+      if (voiceState === 'IDLE' && finalText && !onSentenceGenerated && !sentenceWasEmitted) {
         console.log('[AGENT_ENGINE] 🔊 TTS dispatched concurrently (before DB write).');
         speak(finalText, psyProfile);
       }

@@ -13,9 +13,6 @@ import { PermissionsAndroid, Platform } from 'react-native';
 import { getHardwareConfig } from '../lib/hardware';
 import { micService } from '../lib/UnifiedMicService';
 import { Asset } from 'expo-asset';
-import { sherpaSpeechService } from '../lib/SherpaSpeechService';
-import { ModelCategory, isModelDownloadedByCategory } from 'react-native-sherpa-onnx/download';
-import { convertAudioToWav16k } from 'react-native-sherpa-onnx/audio';
 import { SpeechFilter } from '../lib/SpeechFilter';
 import { settingsService } from '../lib/SettingsService';
 
@@ -65,15 +62,15 @@ export function useVoice(lang: string = 'en', psyProfile?: { O: number, C: numbe
   const [selectedVoiceId, setSelectedVoiceId] = useSafeState<string | null>(null);
   const [selectedOfflineVoiceId, setSelectedOfflineVoiceId] = useSafeState<string | null>('default');
   const [selectedOfflineSpeakerId, setSelectedOfflineSpeakerId] = useSafeState<number>(0);
-  const [isRecordingLocal, setIsRecordingLocal] = useSafeState(false);
-
   const whisperContextRef = useRef<any>(null);
   const stopFnRef = useRef<(() => void) | null>(null);
-  const recordingRef = useRef<Audio.Recording | null>(null);
   const soundRef = useRef<Audio.Sound | null>(null);
 
-  const isSherpaSTTActiveRef = useRef(false);
-  
+  // ── Mutex & Debounce Refs for VAD Sensitivity Changes ──
+  const vadDebounceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const isRestartingVadRef = useRef<boolean>(false);
+  const pendingVadLevelRef = useRef<number | null>(null);
+
   // ── Dictation Callbacks Refs for Safe Restart ──
   const dictationCallbacksRef = useRef<{
     onSpeechStart?: () => void;
@@ -308,6 +305,30 @@ export function useVoice(lang: string = 'en', psyProfile?: { O: number, C: numbe
     }
 
     const performSpeak = async () => {
+      const playAudio = async (uri: string) => {
+        try {
+          if (soundRef.current) {
+            const soundToUnload = soundRef.current;
+            soundRef.current = null;
+            try {
+              await soundToUnload.unloadAsync();
+            } catch (e) {
+              console.warn('[VOICE] playAudio unloadAsync error:', e);
+            }
+          }
+          const { sound } = await Audio.Sound.createAsync({ uri }, { shouldPlay: true });
+          soundRef.current = sound;
+          sound.setOnPlaybackStatusUpdate((status: any) => {
+            if (status.didJustFinish) {
+              safeOnDone();
+            }
+          });
+        } catch (err) {
+          console.error('[VOICE] playAudio creation error:', err);
+          safeOnDone();
+        }
+      };
+
       if (preloadedUri) {
         try {
           await playAudio(preloadedUri);
@@ -393,56 +414,7 @@ export function useVoice(lang: string = 'en', psyProfile?: { O: number, C: numbe
         return;
       }
 
-      // Resolve offline model to use (Piper/ONNX)
-      let offlineModelToUse: string | null = null;
-      let offlineSid = selectedOfflineSpeakerId;
-
-      // 1. Check if the selected model matches the active language
-      if (selectedOfflineVoiceId && selectedOfflineVoiceId !== 'default') {
-        const modelLang = (selectedOfflineVoiceId.includes('es_') || selectedOfflineVoiceId.includes('supertonic') || selectedOfflineVoiceId.includes('spanish')) ? 'es' : 'en';
-        if (modelLang === lang) {
-          offlineModelToUse = selectedOfflineVoiceId;
-        } else {
-          console.log(`[VOICE] Selected offline model ${selectedOfflineVoiceId} is for ${modelLang}, but current language is ${lang}.`);
-        }
-      }
-
-      // 2. If no matching model is selected, but they didn't explicitly select 'default', check if any matching model is downloaded
-      if (!offlineModelToUse && selectedOfflineVoiceId !== 'default') {
-        const list = lang === 'es'
-          ? ['sherpa-onnx-supertonic-3-tts-int8-2026-05-11', 'vits-piper-es_ES-sharvard-medium-int8', 'vits-piper-es_MX-ald-medium-int8']
-          : ['vits-piper-en_US-arctic-medium', 'vits-piper-en_US-amy-medium-int8', 'vits-piper-en_GB-jenny_dioco-medium-int8'];
-        for (const mId of list) {
-          try {
-            const isDownloaded = await isModelDownloadedByCategory(ModelCategory.Tts, mId);
-            if (isDownloaded) {
-              offlineModelToUse = mId;
-              offlineSid = mId.includes('supertonic-3') || mId.includes('arctic-medium') ? 4 : 0;
-              console.log(`[VOICE] Auto-selected downloaded offline model: ${mId}`);
-              break;
-            }
-          } catch (e) { }
-        }
-      }
-
-      // 3. If we have a matching offline model, attempt to synthesize it
-      if (offlineModelToUse) {
-        try {
-          const isDownloaded = await isModelDownloadedByCategory(ModelCategory.Tts, offlineModelToUse);
-          if (isDownloaded) {
-            console.log(`[VOICE] Attempting offline TTS synthesis using model: ${offlineModelToUse}, sid: ${offlineSid}`);
-            const langCode = (offlineModelToUse.includes('es_') || offlineModelToUse.includes('supertonic') || offlineModelToUse.includes('spanish')) ? 'es' : 'en';
-            await sherpaSpeechService.initializeTTS(langCode, offlineModelToUse);
-            const ttsUri = await sherpaSpeechService.speakOffline(cleanText, offlineSid);
-            await playAudio(ttsUri);
-            return;
-          }
-        } catch (offlineErr: any) {
-          console.warn('[VOICE] Offline TTS failed, falling back to native TTS:', offlineErr);
-        }
-      } else {
-        console.log('[VOICE] Offline voice is default or not available. Using native TTS.');
-      }
+      console.log('[VOICE] Using native TTS.');
 
       const speechOptions: Speech.SpeechOptions = {
         language: lang === 'es' ? 'es-MX' : 'en-US',
@@ -481,30 +453,6 @@ export function useVoice(lang: string = 'en', psyProfile?: { O: number, C: numbe
       }
     };
 
-    const playAudio = async (uri: string) => {
-      try {
-        if (soundRef.current) {
-          const soundToUnload = soundRef.current;
-          soundRef.current = null;
-          try {
-            await soundToUnload.unloadAsync();
-          } catch (e) {
-            console.warn('[VOICE] playAudio unloadAsync error:', e);
-          }
-        }
-        const { sound } = await Audio.Sound.createAsync({ uri }, { shouldPlay: true });
-        soundRef.current = sound;
-        sound.setOnPlaybackStatusUpdate((status: any) => {
-          if (status.didJustFinish) {
-            safeOnDone();
-          }
-        });
-      } catch (err) {
-        console.error('[VOICE] playAudio creation error:', err);
-        safeOnDone();
-      }
-    };
-
     performSpeak();
   }, [lang, ttsEnabled, psyProfile, selectedVoiceId, isMuted, selectedOfflineVoiceId, selectedOfflineSpeakerId]);
 
@@ -538,36 +486,7 @@ export function useVoice(lang: string = 'en', psyProfile?: { O: number, C: numbe
     }
   }, [isSpeaking]);
 
-  // ── Initialize Whisper model (download if needed) ──
   const initModels = async (): Promise<boolean> => {
-    // Check if Sherpa STT is preferred
-    let useSherpa = false;
-    try {
-      const settings = await getSettings();
-      useSherpa = !!settings.useSherpaSTT;
-    } catch (e) { }
-
-    if (useSherpa) {
-      if (isSherpaSTTActiveRef.current) return true;
-      setIsInitializing(true);
-      try {
-        const isDownloaded = await isModelDownloadedByCategory(ModelCategory.Stt, 'sherpa-onnx-whisper-tiny');
-        if (isDownloaded) {
-          await sherpaSpeechService.initializeSTT('sherpa-onnx-whisper-tiny');
-          isSherpaSTTActiveRef.current = true;
-          setIsInitializing(false);
-          return true;
-        } else {
-          console.warn('[VOICE] Sherpa STT model not downloaded. Falling back to Whisper.rn.');
-        }
-      } catch (err) {
-        console.warn('[VOICE] Sherpa STT initialization failed, falling back to Whisper.rn:', err);
-      }
-      isSherpaSTTActiveRef.current = false;
-    } else {
-      isSherpaSTTActiveRef.current = false;
-    }
-
     if (whisperContextRef.current) return true;
 
     setIsInitializing(true);
@@ -639,7 +558,7 @@ export function useVoice(lang: string = 'en', psyProfile?: { O: number, C: numbe
   const warmupModels = useCallback(async (): Promise<void> => {
     try {
       await initModels();
-      console.log('[VOICE] warmupModels: Whisper/Sherpa pre-loaded in background.');
+      console.log('[VOICE] warmupModels: Whisper pre-loaded in background.');
     } catch (e) {
       console.log('[VOICE] warmupModels: silent fail, will retry on demand.', e);
     }
@@ -770,19 +689,49 @@ export function useVoice(lang: string = 'en', psyProfile?: { O: number, C: numbe
     setIsListening(false);
   }, []);
 
-  const changeVadLevel = useCallback(async (level: number) => {
+  const changeVadLevel = useCallback((level: number) => {
     setVadLevel(level);
+
     if (isListening) {
-      setIsInitializing(true);
-      await stopListening();
-      // Ensure native audio session fully unbinds
-      await new Promise(resolve => setTimeout(resolve, 300));
-      await startListening(
-        dictationCallbacksRef.current.onSpeechStart,
-        dictationCallbacksRef.current.onSpeechEnd,
-        dictationCallbacksRef.current.onProgress
-      );
-      setIsInitializing(false);
+      if (vadDebounceTimeoutRef.current) {
+        clearTimeout(vadDebounceTimeoutRef.current);
+      }
+
+      vadDebounceTimeoutRef.current = setTimeout(async () => {
+        if (isRestartingVadRef.current) {
+          // Mutex: If a hardware restart is already in progress, just save the latest requested level
+          pendingVadLevelRef.current = level;
+          return;
+        }
+
+        // Mutex Loop: Safely process the hardware restart and apply any pending levels that came in during the restart
+        let currentLevelToApply = level;
+
+        while (true) {
+          isRestartingVadRef.current = true;
+          pendingVadLevelRef.current = null; // Clear pending state before starting the cycle
+
+          setIsInitializing(true);
+          await stopListening();
+          // Ensure native audio session fully unbinds
+          await new Promise(resolve => setTimeout(resolve, 300));
+          await startListening(
+            dictationCallbacksRef.current.onSpeechStart,
+            dictationCallbacksRef.current.onSpeechEnd,
+            dictationCallbacksRef.current.onProgress
+          );
+          setIsInitializing(false);
+
+          if (pendingVadLevelRef.current !== null) {
+            // Another change arrived while we were restarting. Repeat the cycle with the new level.
+            currentLevelToApply = pendingVadLevelRef.current;
+          } else {
+            // Clean exit, release the lock
+            isRestartingVadRef.current = false;
+            break;
+          }
+        }
+      }, 800); // 800ms debounce
     }
   }, [isListening, stopListening, startListening, setVadLevel, setIsInitializing]);
 
@@ -809,15 +758,6 @@ export function useVoice(lang: string = 'en', psyProfile?: { O: number, C: numbe
     micService.unregisterSession('WALKIE_TALKIE');
     micService.unregisterSession('USE_VOICE_HOOK');
 
-    if (isSherpaSTTActiveRef.current) {
-      try {
-        await sherpaSpeechService.releaseAll();
-      } catch (e) {
-        console.error('[VOICE] Error releasing Sherpa speech service:', e);
-      }
-      isSherpaSTTActiveRef.current = false;
-    }
-
     try {
       if (whisperContextRef.current) {
         await whisperContextRef.current.release();
@@ -837,14 +777,6 @@ export function useVoice(lang: string = 'en', psyProfile?: { O: number, C: numbe
       console.error('[VOICE] Error releasing Sound:', e);
     }
 
-    try {
-      if (recordingRef.current) {
-        await recordingRef.current.stopAndUnloadAsync().catch(() => { });
-        recordingRef.current = null;
-      }
-    } catch (e) {
-      console.error('[VOICE] Error releasing Recording:', e);
-    }
   }, []);
 
   const transcribeFile = useCallback(async (uri: string): Promise<string> => {
@@ -859,202 +791,6 @@ export function useVoice(lang: string = 'en', psyProfile?: { O: number, C: numbe
     const result = await promise;
     return result.text;
   }, [lang]);
-
-  const startRecording = useCallback(async () => {
-    Speech.stop();
-    setIsSpeaking(false);
-    setVoiceError('');
-    setTranscript('');
-
-    const hasPermission = await micService.requestMicPermission(lang);
-    if (!hasPermission) {
-      const err = lang === 'es' ? '🎙️ Permiso de micrófono denegado.' : '🎙️ Mic permission denied.';
-      setVoiceError(err);
-      throw new Error(err);
-    }
-
-    try {
-      // Register this session in UnifiedMicService to preempt any active dictation
-      await micService.registerSession('WALKIE_TALKIE', async () => {
-        console.log('[UnifiedMicService] Force-stopping Walkie-Talkie recording session');
-        if (recordingRef.current) {
-          const rec = recordingRef.current;
-          recordingRef.current = null;
-          try {
-            await rec.stopAndUnloadAsync();
-            const uri = rec.getURI();
-            if (uri) {
-              await FileSystem.deleteAsync(uri, { idempotent: true });
-            }
-          } catch (err) {
-            console.warn('[VOICE] stopAndUnloadAsync or delete failed in force stop:', err);
-          }
-        }
-        setIsRecordingLocal(false);
-      });
-
-      if (recordingRef.current) {
-        try {
-          await recordingRef.current.stopAndUnloadAsync();
-        } catch (_) { }
-        recordingRef.current = null;
-      }
-
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: true,
-        playsInSilentModeIOS: true,
-        staysActiveInBackground: false,
-        shouldDuckAndroid: true,
-        interruptionModeAndroid: InterruptionModeAndroid.DuckOthers,
-        interruptionModeIOS: InterruptionModeIOS.DuckOthers,
-        playThroughEarpieceAndroid: false,
-      });
-
-      const recordingOptions = {
-        android: {
-          extension: '.m4a',
-          outputFormat: Audio.AndroidOutputFormat.MPEG_4,
-          audioEncoder: Audio.AndroidAudioEncoder.AAC,
-          sampleRate: 44100,
-          numberOfChannels: 1,
-          bitRate: 128000,
-        },
-        ios: {
-          extension: '.m4a',
-          outputFormat: Audio.IOSOutputFormat.MPEG4AAC,
-          audioQuality: Audio.IOSAudioQuality.HIGH,
-          sampleRate: 44100,
-          numberOfChannels: 1,
-          bitRate: 128000,
-          linearPCMBitDepth: 16,
-          linearPCMIsBigEndian: false,
-          linearPCMIsFloat: false,
-        },
-        web: {},
-      };
-
-      const { recording: newRecording } = await Audio.Recording.createAsync(recordingOptions);
-      recordingRef.current = newRecording;
-      setIsRecordingLocal(true);
-      console.log('[VOICE] Local Walkie-Talkie recording started.');
-    } catch (e: any) {
-      console.error('[VOICE] startRecording failed:', e);
-      setVoiceError(lang === 'es' ? '🎙️ Error al iniciar grabación.' : '🎙️ Failed to start recording.');
-      setIsRecordingLocal(false);
-      throw e;
-    }
-  }, [lang]);
-
-  const stopAndTranscribe = useCallback(async (): Promise<string> => {
-    if (!recordingRef.current) return '';
-    setIsRecordingLocal(false);
-
-    // Unregister session from UnifiedMicService
-    micService.unregisterSession('WALKIE_TALKIE');
-
-    try {
-      const recording = recordingRef.current;
-      await recording.stopAndUnloadAsync();
-
-      // Clean Microphone Resource Release
-      try {
-        await Audio.setAudioModeAsync({
-          allowsRecordingIOS: false,
-          playsInSilentModeIOS: true,
-          staysActiveInBackground: false,
-          shouldDuckAndroid: true,
-          interruptionModeAndroid: InterruptionModeAndroid.DuckOthers,
-          interruptionModeIOS: InterruptionModeIOS.DuckOthers,
-          playThroughEarpieceAndroid: false,
-        });
-      } catch (e) {
-        console.warn('[VOICE] setAudioModeAsync failure on stop:', e);
-      }
-
-      const uri = recording.getURI();
-      recordingRef.current = null;
-
-      if (!uri) return '';
-
-      const tempWavUri = `${FileSystem.cacheDirectory}temp_voice_transcribe_${Date.now()}.wav`;
-
-      await convertAudioToWav16k(uri.replace(/^file:\/\//, ''), tempWavUri.replace(/^file:\/\//, ''));
-
-      let transcriptionText = '';
-      if (isSherpaSTTActiveRef.current) {
-        console.log('[VOICE] Transcribing Walkie-Talkie with Sherpa-ONNX...');
-        transcriptionText = await sherpaSpeechService.transcribeOffline(tempWavUri);
-      } else {
-        console.log('[VOICE] Transcribing Walkie-Talkie with Whisper.rn...');
-        transcriptionText = await transcribeFile(tempWavUri);
-      }
-
-      console.log('[VOICE] Local Walkie-Talkie transcription result:', transcriptionText);
-      
-      // 🛡️ ENERGY CHECK: Check if audio file has sufficient content before processing
-      const isValid = await SpeechFilter.isAudioFileValid(tempWavUri);
-      if (!isValid) {
-        console.log(`[VOICE] stopAndTranscribe blocked: invalid/empty audio file`);
-        try {
-          await FileSystem.deleteAsync(uri, { idempotent: true });
-        } catch (_) { }
-        try {
-          await FileSystem.deleteAsync(tempWavUri, { idempotent: true });
-        } catch (_) { }
-        return '';
-      }
-
-      // Clean up audio files
-      try {
-        await FileSystem.deleteAsync(uri, { idempotent: true });
-      } catch (_) { }
-      try {
-        await FileSystem.deleteAsync(tempWavUri, { idempotent: true });
-      } catch (_) { }
-
-      // 🛡️ AGGRESSIVE NOISE FILTERING: Clean and validate transcription
-      let cleanedText = transcriptionText
-        .replace(/\[BLANK_AUDIO\]/gi, '')
-        .replace(/\[silence\]/gi, '')
-        .replace(/\[\s*SILENCE\s*\]/gi, '')
-        .replace(/\(silence\)/gi, '')
-        .replace(/\b(silence)\b/gi, '')
-        .replace(/\b(blank_audio)\b/gi, '')
-        .replace(/\s+/g, ' ')
-        .trim();
-
-      // Check for music/noise patterns
-      if (SpeechFilter.containsMusicOrNoise(cleanedText)) {
-        console.log(`[VOICE] stopAndTranscribe blocked music/noise: "${cleanedText}"`);
-        return '';
-      }
-
-      // Check for general noise/hallucination
-      if (SpeechFilter.isNoiseOrHallucination(cleanedText, lang)) {
-        console.log(`[VOICE] stopAndTranscribe blocked noise/hallucination: "${cleanedText}"`);
-        return '';
-      }
-
-      // Word count check - minimum 3 words, maximum 12 words
-      // This helps filter out music, far-away voices, and background noise
-      const wordCount = cleanedText.split(/\s+/).filter(w => w.length > 0).length;
-      if (wordCount < 3) {
-        console.log(`[VOICE] stopAndTranscribe blocked: too few words (${wordCount}), likely noise`);
-        return '';
-      }
-      if (wordCount > 12) {
-        const truncated = cleanedText.split(/\s+/).slice(0, 12).join(' ');
-        console.log(`[VOICE] stopAndTranscribe truncated to 12 words: "${truncated}"`);
-        return truncated;
-      }
-
-      return cleanedText;
-    } catch (e: any) {
-      console.error('[VOICE] stopAndTranscribe failed:', e);
-      setVoiceError(lang === 'es' ? '🎙️ Error al transcribir el audio.' : '🎙️ Failed to transcribe audio.');
-      return '';
-    }
-  }, [lang, transcribeFile]);
 
   return {
     isListening,
@@ -1082,9 +818,6 @@ export function useVoice(lang: string = 'en', psyProfile?: { O: number, C: numbe
     setSelectedOfflineVoiceId,
     selectedOfflineSpeakerId,
     setSelectedOfflineSpeakerId,
-    isRecordingLocal,
-    startRecording,
-    stopAndTranscribe,
     getLatestTranscript: () => transcriptRef.current,
     // Expose whisperContextRef for useInteractiveVoice
     whisperContextRef,

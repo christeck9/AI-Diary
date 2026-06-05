@@ -4,7 +4,6 @@ import Constants from 'expo-constants';
 
 LogBox.ignoreLogs([
   'transcribeRealtime', 
-  'SherpaOnnxModelList: Unsupported model espeak-ng-data',
   'Looks like you have configured linking in multiple places'
 ]);
 

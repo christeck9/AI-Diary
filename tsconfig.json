@@ -20,9 +20,6 @@
       "@/*": [
         "./*"
       ],
-      "react-native-sherpa-onnx/*": [
-        "node_modules/react-native-sherpa-onnx/lib/typescript/src/*"
-      ],
       "whisper.rn/*": [
         "node_modules/whisper.rn/lib/typescript/*"
       ],

@@ -18,8 +18,6 @@
 # Prevent R8 from stripping JNI bindings for local AI models
 -keep class com.rnwhisper.** { *; }
 -keep class com.rnllama.** { *; }
--keep class com.k2fsa.sherpa.onnx.** { *; }
--keep class com.sherpaonnx.** { *; }
 -keep class com.christeck.aidiary.** { *; }
 -keep class com.margelo.nitro.** { *; }
 

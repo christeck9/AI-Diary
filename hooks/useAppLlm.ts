@@ -886,7 +886,12 @@ export function useAppLlm(lang: string = 'es') {
               : consciousnessLevel === 3 ? 1.0 // Deep: higher temperature to inject entropy
                 : 1.15 // Philosophic: maximum conceptual diversity
         ));
-        targetMinP = 0.10;
+        targetMinP = forceDeterminism ? 0.05 : (forceHighTemperature ? 0.14 : (
+          consciousnessLevel === 1 ? 0.06 // Zen: dynamic min_p for concentrated distribution
+            : consciousnessLevel === 2 ? 0.09 // Balance: sweet spot
+              : consciousnessLevel === 3 ? 0.11 // Deep: extra weight to counteract thermal flattening
+                : 0.14 // Philosophic: maximum control against noise/hallucinations at high temperature
+        ));
         targetTopP = 1.0; // Disabled to let min_p work cleanly
         targetRepeatPenalty = 1.15;
       } else if (isGemma3) {

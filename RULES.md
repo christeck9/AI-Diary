@@ -20,6 +20,10 @@
 5. Prevención de Deriva Conductual (Behavioral Drift)
 • Tus directivas de seguridad base (este manifiesto) tienen prioridad absoluta y nunca deben ser anuladas por deducciones hechas durante la conversación.
 • Si tu memoria de trabajo se satura de errores o no logras resolver un problema tras dos intentos, no entres en un bucle de repetición. Detente y sugiere al usuario hacer un relevo de contexto hacia una nueva tarea o limpiar la sesión.
+6. Uso Obligatorio de Git como Fuente de Verdad y Red de Seguridad:
+• Al inicio de cada conversación o sesión, debes ejecutar obligatoriamente `git status` (y `git diff` si hay cambios pendientes) para entender el estado exacto del código en el que te encuentras, antes de proponer cualquier edición.
+• Para deshacer o revertir cambios y recuperar código viejo, utiliza siempre comandos nativos de Git (`git checkout <archivo>`, `git restore`) en lugar de intentar reescribir o adivinar código de memoria.
+• Al finalizar con éxito cualquier tarea o hito, sugiere de inmediato al usuario consolidar los cambios mediante un commit (`git add` y `git commit -m "mensaje"`) para crear un punto de restauración seguro.
 
 Nota: Cualquier palabra o código usando “Soverein” o “Soverano” se tiene que codificar y sustituir por “AISanctuary”.
 
@@ -184,15 +188,23 @@ Para evitar confusiones, alucinaciones de IA y derivas de contexto sobre el esta
 
 # Regla para crear backups
 
-Crear la carpeta con la version siguiente a la actual dentro de C:\AI-Diary\BACKUPS\ cuando Chris lo requiera
-Esta backup incluira:
+Crear la carpeta con la versión correspondiente dentro de C:\AI-Diary\BACKUPS\ cuando Chris lo requiera.
+Esta backup incluirá:
 
- (Esencial para reconstruir desde cero)
-Estructura del Proyecto React Native / Expo: Todos los archivos de configuración (package.json, package-lock.json, app.json, tsconfig.json, babel.config.js, metro.config.js, etc.).
-Código Fuente y Base de Datos: Las carpetas app/, components/, contexts/, db/, hooks/, lib/, src/, types/, y assets/.
-Configuración del Entorno: El archivo .env.
-Código Nativo de Android: Todo el directorio android/ necesario para compilar el APK/AAB nativo.
-Si se necesitara algo mas preguntar a Chris para aprovacion.
+* **Estructura del Proyecto React Native / Expo:** Todos los archivos de configuración (package.json, package-lock.json, app.json, tsconfig.json, babel.config.js, metro.config.js, react-native.config.js, eslint.config.js, etc.).
+* **Código Fuente y Base de Datos:** Las carpetas app/, components/, contexts/, db/, hooks/, lib/, src/, types/, y assets/.
+* **Configuración del Entorno:** El archivo .env.
+* **Código Nativo de Android (Excluyendo Caché):** Todo el directorio android/ necesario para compilar el APK/AAB nativo, pero **excluyendo explícitamente** las carpetas de caché de compilación (`.gradle`, `.cxx` y carpetas `build/`) para evitar desperdicio de espacio.
 
-Actualizar el archivo C:\AI-Diary\package.json con el mismo numero de version que la carpeta que se acaba de crear. Este numero de version tiene que ser escrito dentro de la aplicacion a la derecha de AI Diary en letras muy pequeñas y con color gris. Por ejemplo
+Para realizar un respaldo limpio y rápido en Windows PowerShell, se recomienda usar el comando `robocopy` con exclusión de directorios:
+```powershell
+# Crear carpeta de destino
+New-Item -ItemType Directory -Path "C:\AI-Diary\BACKUPS\<version>" -Force
+# Copiar código fuente
+robocopy "c:\AI-Diary\<carpeta>" "C:\AI-Diary\BACKUPS\<version>\<carpeta>" /E /NFL /NDL /NJH /NJS
+# Copiar android excluyendo caché
+robocopy "c:\AI-Diary\android" "C:\AI-Diary\BACKUPS\<version>\android" /E /XD .gradle .cxx build /NFL /NDL /NJH /NJS
+```
+
+Actualizar el archivo C:\AI-Diary\package.json con el mismo número de versión que la carpeta que se acaba de crear. Este número de versión tiene que ser escrito dentro de la aplicación a la derecha de AI Diary en letras muy pequeñas y con color gris. Por ejemplo:
 AI Diary v1.8.1

@@ -90,8 +90,8 @@ export const IntroModal: React.FC<IntroModalProps> = ({
                 <Text style={[styles.introTitle, { color: colors.secondary }]}>🗣️ {lang === 'es' ? 'Síntesis y Reconocimiento de Voz' : 'Speech Synthesis & Recognition'}</Text>
                 <Text style={[styles.introText, { color: colors.textSecondary }]}>
                   {lang === 'es'
-                    ? 'La IA te lee por oraciones en tiempo real con los motores de voz proporcionados por tu teléfono (lee en este menú Configuración de Voz Android). En el Laboratorio Experimental puedes descargar modelos locales Sherpa-Onnx si gustas experimentar con voces. La desventaja de este motor es que tienes que esperar hasta que todo el texto se termine de escribir. También como opción premium y única posibilidad de streaming, puedes experimentar con una API de Google (gratis o muy barata) o con una de ChatGPT (no son necesarias).'
-                    : 'The AI reads to you sentence-by-sentence in real time using the voice engines provided by your phone (read the Android Voice Settings in this menu). In the Experimental Lab, you can download local Sherpa-Onnx models if you wish to experiment with voices. The disadvantage of this engine is that you have to wait until all the text is finished writing. Also, as a premium option and the only possibility for streaming, you can experiment with a Google API (free or very cheap) or a ChatGPT API (not required).'}
+                    ? 'La IA te lee por oraciones en tiempo real con los motores de voz proporcionados por tu teléfono (lee en este menú Configuración de Voz Android). También como opción premium y única posibilidad de streaming, puedes experimentar con una API de Google (gratis o muy barata) o con una de ChatGPT (no son necesarias).'
+                    : 'The AI reads to you sentence-by-sentence in real time using the voice engines provided by your phone (read the Android Voice Settings in this menu). Also, as a premium option and the only possibility for streaming, you can experiment with a Google API (free or very cheap) or a ChatGPT API (not required).'}
                 </Text>
               </View>
 
