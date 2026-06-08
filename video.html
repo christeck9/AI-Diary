@@ -91,27 +91,7 @@
       margin-right: auto;
     }
 
-    .video-wrapper {
-      position: relative;
-      padding-bottom: 177.77%; /* 16:9 vertical aspect ratio (9/16 * 100) */
-      height: 0;
-      overflow: hidden;
-      border-radius: var(--radius-md);
-      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
-      border: 1px solid var(--border);
-      max-width: 340px;
-      margin: 0 auto 30px;
-    }
 
-    .video-wrapper video {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-      background: #000;
-    }
 
     .btn {
       display: inline-flex;
@@ -154,8 +134,8 @@
       Note: Starting with version 13 (v1.9.6), the foreground service and associated permissions have been completely deprecated and removed from the active codebase.
     </p>
 
-    <div class="video-wrapper">
-      <video controls autoplay loop muted playsinline>
+    <div style="max-width: 360px; margin: 0 auto 30px; border-radius: var(--radius-md); overflow: hidden; box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12); border: 1px solid var(--border);">
+      <video controls loop playsinline style="width: 100%; height: auto; display: block; background: #000;">
         <source src="demo.mp4" type="video/mp4">
         Your browser does not support the video tag.
       </video>
