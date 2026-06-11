@@ -18,6 +18,16 @@ export interface ModelDefinition {
 
 export const MODEL_LIST: ModelDefinition[] = [
   {
+    id: 'llama3.2-1b-q4',
+    labelEs: 'AI Light Core',
+    labelEn: 'AI Light Core',
+    sizeMB: 840,
+    descEs: 'Núcleo Ligero — Especial para teléfonos básicos. Sin soporte de imágenes.',
+    descEn: 'Light Core — Optimized for older phones. No image support.',
+    fileName: 'Llama-3.2-1B-Instruct-Q4_K_M.gguf',
+    url: 'https://huggingface.co/bartowski/Llama-3.2-1B-Instruct-GGUF/resolve/main/Llama-3.2-1B-Instruct-Q4_K_M.gguf',
+  },
+  {
     id: 'gemma3-4b-q4',
     labelEs: 'AI Balance Core',
     labelEn: 'AI Balance Core',
@@ -43,17 +53,18 @@ export const MODEL_LIST: ModelDefinition[] = [
     mmprojFileName: 'mmproj-google_gemma-4-E2B-it-f16.gguf',
     mmprojUrl: 'https://huggingface.co/bartowski/google_gemma-4-E2B-it-GGUF/resolve/main/mmproj-google_gemma-4-E2B-it-f16.gguf',
   },
-  {
-    id: 'llama3.2-1b-q4',
-    labelEs: 'AI Light Core',
-    labelEn: 'AI Light Core',
-    sizeMB: 840,
-    descEs: 'Núcleo Ligero — Especial para teléfonos básicos. Sin soporte de imágenes.',
-    descEn: 'Light Core — Optimized for older phones. No image support.',
-    fileName: 'Llama-3.2-1B-Instruct-Q4_K_M.gguf',
-    url: 'https://huggingface.co/bartowski/Llama-3.2-1B-Instruct-GGUF/resolve/main/Llama-3.2-1B-Instruct-Q4_K_M.gguf',
-  },
 ];
+
+export const EMBEDDING_MODEL: ModelDefinition = {
+  id: 'all-MiniLM-L6-v2',
+  labelEs: 'RAG Embedding Core',
+  labelEn: 'RAG Embedding Core',
+  sizeMB: 23,
+  descEs: 'Motor de memoria profunda para leer documentos largos. (Solo backend)',
+  descEn: 'Deep memory engine for reading long documents. (Backend only)',
+  fileName: 'all-MiniLM-L6-v2-ggml-model-q4_0.gguf',
+  url: 'https://huggingface.co/second-state/All-MiniLM-L6-v2-Embedding-GGUF/resolve/main/all-MiniLM-L6-v2-Q4_0.gguf',
+};
 
 export const MODEL_CONFIG = {
   gemma4: {

@@ -12,7 +12,9 @@ export function useDocumentProcessor(
   lang: string,
   generateStreamingResponse: Function,
   buildFileContext: Function,
-  extractTextInChunks: Function
+  extractTextInChunks: Function,
+  db?: any,
+  generateEmbeddings?: (texts: string[]) => Promise<number[][]>
 ) {
 
   const internalLLMCall = useCallback(async (prompt: string): Promise<string> => {
@@ -160,43 +162,100 @@ export function useDocumentProcessor(
     }
 
     const fullText = blocks.join('\n');
-    if (fullText.length < MEMORY_BUDGET) {
-      return { context: fullText, imageContent: null };
+    let immediateContext = '';
+
+    if (db && generateEmbeddings) {
+      try {
+        setMessages(prev => prev.map(m => 
+          m.role === 'ai' && (m.text === '')
+            ? { ...m, text: lang === 'es' ? `📄 [SÍNTESIS]: Vectorizando documento profundo...` : `📄 [SYNTHESIS]: Vectorizing deep document...` } 
+            : m
+        ));
+
+        const docId = file.uri.split('/').pop() || `doc_${Date.now()}`;
+        
+        const RAG_CHUNK_SIZE = 1000;
+        const ragChunks: string[] = [];
+        for (const bigBlock of blocks) {
+          for (let i = 0; i < bigBlock.length; i += RAG_CHUNK_SIZE) {
+            ragChunks.push(bigBlock.substring(i, i + RAG_CHUNK_SIZE));
+          }
+        }
+
+        console.log(`[DOC_PROCESSOR] Vectorizing ${ragChunks.length} chunks for ${docId}`);
+
+        // Vectorizar en lotes (batching) para no colapsar la RAM
+        const BATCH_SIZE = 10;
+        const allEmbeddings: number[][] = [];
+        for (let i = 0; i < ragChunks.length; i += BATCH_SIZE) {
+          const batch = ragChunks.slice(i, i + BATCH_SIZE);
+          const batchEmbeddings = await generateEmbeddings(batch);
+          allEmbeddings.push(...batchEmbeddings);
+        }
+
+        // Guardar en SQLite
+        await db.withTransactionAsync(async () => {
+          for (let i = 0; i < ragChunks.length; i++) {
+            await db.runAsync(
+              `INSERT INTO document_chunks (document_id, chunk_index, text, embedding) VALUES (?, ?, ?, ?)`,
+              [docId, i, ragChunks[i], JSON.stringify(allEmbeddings[i])]
+            );
+          }
+        });
+
+        console.log(`[DOC_PROCESSOR] Guardados ${ragChunks.length} fragmentos en SQLite.`);
+
+        if (fullText.length < MEMORY_BUDGET) {
+          immediateContext = fullText;
+        } else {
+          immediateContext = `[SISTEMA]: El documento "${file.name}" ha sido procesado y guardado en la Memoria Profunda RAG. Por favor, realiza búsquedas sobre él según lo solicite el usuario.`;
+        }
+      } catch (e) {
+        console.error('[DOC_PROCESSOR] Error en vectorización RAG:', e);
+        immediateContext = '';
+      }
     }
 
-    // --- SÍNTESIS DE MEMORIA (Map-Reduce Style) ---
-    let accumulatedSummary = "";
-    for (let i = 0; i < blocks.length; i++) {
-      const block = blocks[i] || "";
-      if (block.length < 5) continue;
-
-      // 🚀 v4.3: Optimized synthesis prompt for faster processing
-      const synthesisPrompt = accumulatedSummary
-        ? `[SYSTEM]: Integra el siguiente bloque al resumen existente, preservando nombres, fechas y valores numéricos clave. Resumen: "${accumulatedSummary}"\nBloque: "${block}"`
-        : `[SYSTEM]: Extrae los datos clave (nombres, fechas, valores) del siguiente contenido: "${block}"`;
-
-      const blockSummary = await internalLLMCall(synthesisPrompt);
-      
-      // 🛡️ Null Safety y Validación de Contenido
-      if (blockSummary && blockSummary.length > 0) {
-        accumulatedSummary = blockSummary;
+    if (!immediateContext) {
+      if (fullText.length < MEMORY_BUDGET) {
+        immediateContext = fullText;
       } else {
-        // Fallback: Si el modelo falla, guardamos un snippet crudo para no perder datos
-        accumulatedSummary += `\n[SNIPPET]: ${block.substring(0, 500)}...`;
-      }
+        // --- SÍNTESIS DE MEMORIA (Map-Reduce Style) ---
+        let accumulatedSummary = "";
+        for (let i = 0; i < blocks.length; i++) {
+          const block = blocks[i] || "";
+          if (block.length < 5) continue;
 
-      // Auto-Compresión si el resumen acumulado excede el presupuesto
-      if (accumulatedSummary.length > MEMORY_BUDGET) {
-        const compressPrompt = `[SYSTEM]: El resumen es muy largo. Comprímelo sin perder datos específicos:\n\n${accumulatedSummary}`;
-        accumulatedSummary = await internalLLMCall(compressPrompt);
+          // 🚀 v4.3: Optimized synthesis prompt for faster processing
+          const synthesisPrompt = accumulatedSummary
+            ? `[SYSTEM]: Integra el siguiente bloque al resumen existente, preservando nombres, fechas y valores numéricos clave. Resumen: "${accumulatedSummary}"\nBloque: "${block}"`
+            : `[SYSTEM]: Extrae los datos clave (nombres, fechas, valores) del siguiente contenido: "${block}"`;
+
+          const blockSummary = await internalLLMCall(synthesisPrompt);
+          
+          // 🛡️ Null Safety y Validación de Contenido
+          if (blockSummary && blockSummary.length > 0) {
+            accumulatedSummary = blockSummary;
+          } else {
+            // Fallback: Si el modelo falla, guardamos un snippet crudo para no perder datos
+            accumulatedSummary += `\n[SNIPPET]: ${block.substring(0, 500)}...`;
+          }
+
+          // Auto-Compresión si el resumen acumulado excede el presupuesto
+          if (accumulatedSummary.length > MEMORY_BUDGET) {
+            const compressPrompt = `[SYSTEM]: El resumen es muy largo. Comprímelo sin perder datos específicos:\n\n${accumulatedSummary}`;
+            accumulatedSummary = await internalLLMCall(compressPrompt);
+          }
+        }
+        immediateContext = accumulatedSummary;
       }
     }
 
     return { 
-      context: accumulatedSummary || await buildFileContext(file), 
+      context: immediateContext || await buildFileContext(file), 
       imageContent: null 
     };
-  }, [buildFileContext, extractTextInChunks, internalLLMCall, internalLLMVisionCall, lang]);
+  }, [buildFileContext, extractTextInChunks, internalLLMCall, internalLLMVisionCall, lang, db, generateEmbeddings]);
 
   return { processAttachments };
 }

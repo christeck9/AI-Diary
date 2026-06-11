@@ -10,6 +10,7 @@ import { factExtractionService } from '../lib/FactExtractionService';
 import { WisdomService } from '../lib/WisdomService';
 import { contextFoldingService } from '../lib/ContextFoldingService';
 import { createKnowledgeManager } from '../lib/KnowledgeManager';
+import { plantSeed, growFlora, updateTreeAttribute } from '../db/zenGardenSchema';
 import * as SQLite from 'expo-sqlite';
 
 import { SQLiteDatabase } from 'expo-sqlite';
@@ -66,13 +67,16 @@ export const useAgentEngine = (
   abortGeneration: () => Promise<void>,
   currentContextSize: number,
   llamaContextRef?: React.RefObject<any>,
-  prefillContextLlm?: (prompt: string) => Promise<void>
+  prefillContextLlm?: (prompt: string) => Promise<void>,
+  generateEmbeddings?: (texts: string[]) => Promise<number[][]>
 ) => {
   const { processAttachments } = useDocumentProcessor(
     lang,
     generateStreamingResponse,
     buildFileContext,
-    extractTextInChunks
+    extractTextInChunks,
+    db,
+    generateEmbeddings
   );
 
   const [isProcessing, setIsProcessing] = useState(false);
@@ -223,7 +227,7 @@ export const useAgentEngine = (
       goal: (userProfile as any).longTermGoal,
       date: currentDate,
       year: "2026",
-      identity: "AI Balance CORE"
+      identity: activeModel?.labelEs || "AI Balance CORE",
     };
 
     const arch = getSanctuaryArchitecture();
@@ -275,10 +279,12 @@ export const useAgentEngine = (
 
     let ragContext = '';
     if (!isZenMode && db) {
-      console.log('[AGENT_ENGINE] 🚀 Early Routing: BALANCE/DEEP active. Fetching Wisdom context (FTS5)...');
-      ragContext = await WisdomService.getWisdomContext(db, userText);
+      console.log('[AGENT_ENGINE] 🚀 Early Routing: BALANCE/DEEP active. Fetching Wisdom context (FTS5) and Semantic Context (RAG)...');
+      const ftsContext = await WisdomService.getWisdomContext(db, userText);
+      const semanticContext = await require('../lib/SemanticService').SemanticService.getSemanticContext(db, userText, generateEmbeddings);
+      ragContext = ftsContext + '\n' + semanticContext;
     } else {
-      console.log('[AGENT_ENGINE] ⚡ Early Routing: ZEN/Greeting active. Bypassing Wisdom context (FTS5).');
+      console.log('[AGENT_ENGINE] ⚡ Early Routing: ZEN/Greeting active. Bypassing Wisdom context.');
     }
 
     let history: Message[] = [];
@@ -351,12 +357,54 @@ export const useAgentEngine = (
     toolQueryRef.current = '';
     let searchResult: string | null = null;
 
+    // 🚀 Preemptive Search Trigger for ALL modes
+    const preemptiveCheck = SentinelService.processInbound("", userText);
+    if (preemptiveCheck.detected && preemptiveCheck.dialect === 'PROACTIVE_CURRENCY_CHECK') {
+      console.log(`[AGENT_ENGINE] 🚀 Preemptive Search Triggered: "${preemptiveCheck.query}"`);
+      toolQueryRef.current = preemptiveCheck.query;
+      setIsSearchingWeb(true);
+      setSearchingStep('searching');
+      try {
+        searchResult = await SanctuarySearchOrchestrator(preemptiveCheck.stream, preemptiveCheck.query, lang);
+      } catch (e) {
+        searchResult = "SENTINEL_NULL_DATA";
+      } finally {
+        setIsSearchingWeb(false);
+      }
 
+      if (db && searchResult && searchResult !== 'SENTINEL_NULL_DATA' && searchResult !== 'NO_DATA') {
+        try {
+          const km = createKnowledgeManager(db);
+          await km.saveFact({
+            category: 'Sabiduría',
+            fact: `[Búsqueda: ${toolQueryRef.current}]: ${searchResult.replace(/\s+/g, ' ').substring(0, 500)}`,
+            confidence: 0.9,
+            source: 'WebSearch'
+          });
+        } catch (e) {
+          console.warn('[AGENT_ENGINE] Error saving preemptive search semantic cache:', e);
+        }
+      }
 
-
+      const injectedContext = {
+        query: toolQueryRef.current,
+        liveData: searchResult || 'SENTINEL_NULL_DATA',
+        timestamp: new Date().toISOString().split('T')[0]
+      };
+      
+      pendingToolResponse = SentinelService.buildHandshakeInjection(injectedContext, userText, arch, lang);
+      toolRounds = 1;
+      searchResult = null; // Clear so it doesn't trigger the secondary check
+    }
 
     try {
-      let currentPrompt = pendingToolResponse ? pendingToolResponse : formattedPrompt;
+      let currentPrompt = formattedPrompt;
+      if (pendingToolResponse) {
+          const cleanPromptBase = formattedPrompt
+            .replace(/<(start_of_turn|\|turn\|)>model\n?$/i, '')
+            .replace(/<\|start_header_id\|>assistant<\|end_header_id\|>\n*\n*$/i, '');
+          currentPrompt = cleanPromptBase + pendingToolResponse;
+      }
 
       // Fix #5: Persist sentence offset across tool rounds to prevent sentence
       // duplication/skipping when Sentinel triggers a second generation round.
@@ -518,7 +566,7 @@ export const useAgentEngine = (
                   searchPromiseRef.current = (async () => {
                     try {
                       setIsSearchingWeb(true);
-                      const res = await SanctuarySearchOrchestrator(inbound.stream, inbound.query);
+                      const res = await SanctuarySearchOrchestrator(inbound.stream, inbound.query, lang);
                       searchResult = res;
                       return res;
                     } catch (e) {
@@ -696,7 +744,39 @@ export const useAgentEngine = (
             finalThoughts = SentinelService.purifyThoughts(fullResponse);
           }
 
+          // 🌿 Parse Zen Garden payload
+          let zenPayload: any = null;
+          const zenMatch = fullResponse.match(/<zen>([\s\S]*?)<\/zen>/i);
+          if (zenMatch) {
+            try {
+              zenPayload = JSON.parse(zenMatch[1].trim());
+            } catch(e) {
+              console.warn('[AGENT_ENGINE] Failed to parse Zen Garden JSON:', e);
+            }
+            // Strip the <zen> block from the fullResponse so it's completely hidden
+            fullResponse = fullResponse.replace(/<zen>[\s\S]*?<\/zen>/gi, '');
+          }
+
           finalText = SentinelService.filterUI(fullResponse, arch);
+
+          // 🌿 Persist Zen Garden state if payload exists
+          if (zenPayload && zenPayload.plant && zenPayload.plant !== 'none') {
+            try {
+               const cat = zenPayload.category || null;
+               const lbl = zenPayload.label || null;
+               if (zenPayload.plant === 'seed') {
+                  await plantSeed(db, modelResponseId, cat, lbl);
+               } else {
+                  await growFlora(db, zenPayload.plant, modelResponseId, cat, lbl);
+               }
+               if (zenPayload.attribute && typeof zenPayload.value === 'number') {
+                  await updateTreeAttribute(db, zenPayload.attribute, zenPayload.value);
+               }
+               console.log(`[AGENT_ENGINE] 🌿 Zen Garden Updated: ${zenPayload.plant} / ${zenPayload.attribute} +${zenPayload.value} (${cat}:${lbl})`);
+            } catch (e) {
+               console.error('[AGENT_ENGINE] Error saving Zen Garden state:', e);
+            }
+          }
 
           // FIX BUG: Push the final completed text to the UI to overwrite the typing stream!
           setMessagesUI((prev: any) => {

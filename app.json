@@ -2,7 +2,7 @@
   "expo": {
     "name": "AI Diary",
     "slug": "ai-sanctuary",
-    "version": "1.9.5",
+    "version": "1.9.6",
     "scheme": "sanctuary",
     "icon": "./assets/images/icon.png",
     "splash": {
@@ -12,7 +12,7 @@
     },
     "android": {
       "package": "com.christeck.aidiary",
-      "versionCode": 12,
+      "versionCode": 16,
       "launchMode": "singleTask",
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/icon_adaptive_foreground.png",

@@ -28,19 +28,21 @@ const DIALECTS: DialectDefinition[] = [
   { id: 'XML_PARTIAL', regex: /<call:[\w_]*/i, stream: 'DEEP_RESEARCH' },
   { id: 'XML_STRICT', regex: /<call:hybrid_search\{query:["']?([^"'>}]+)["']?\}?\/?>/i, stream: 'DEEP_RESEARCH' },
   { id: 'JSON_INTENT', regex: /\{query:["']?([^"'}]+)["']?\}/i, stream: 'DEEP_RESEARCH' },
-  // Se cambia a grupos de no captura (?:...) para forzar el uso de userQuery
-  { id: 'KNOWLEDGE_GAP', regex: /\b(?:knowledge cutoff|cannot provide|don't know|not sure|unsure|definitive answer|no internal information|no tengo información actualizada|frozen knowledge|parametric memory|beyond my training|training data cutoff|parametric knowledge|cutoff date|as of my training)\b/i, stream: 'FAST_FACT' },
+  // Se cambia a grupos de no captura (?:...) para forzar el uso de userQuery a todos los modelos
+  // { id: 'KNOWLEDGE_GAP', regex: /\b(?:knowledge cutoff|cannot provide|don't know|not sure|unsure|definitive answer|no internal information|no tengo información actualizada|frozen knowledge|parametric memory|beyond my training|training data cutoff|parametric knowledge|cutoff date|as of my training)\b/i, stream: 'FAST_FACT' },
   { id: 'PROTOCOL_TAG', regex: /(?:<start_function_call>|<tool_code>|!!SEARCH)\(?["']?([^"')]*)["']?\)?/i, stream: 'DEEP_RESEARCH' },
-  { id: 'SENTINEL_QUERY', regex: /\[SENTINEL_QUERY\]:?\s*(.+)/i, stream: 'DEEP_RESEARCH' },
-  // Se cambia a grupos de no captura (?:...) para forzar el uso de userQuery
-  { id: 'FACT_TRIGGER', regex: /\b(?:who is|what is|precio de|clima en|weather in|capital of|age of|born in|quien es|que es|donde esta)\b/i, stream: 'FAST_FACT' },
-  { id: 'BIBLIOGRAPHIC', regex: /\b(?:book|libro|tratado|treatise|author|autor|bibliography|bibliografia|codex)\b/i, stream: 'BIBLIOGRAPHIC' }
+  // { id: 'SENTINEL_QUERY', regex: /\[SENTINEL_QUERY\]:?\s*(.+)/i, stream: 'DEEP_RESEARCH' },
+  // Se cambia a grupos de no captura (?:...) para forzar el uso de userQuery a todos los modelos
+  // { id: 'FACT_TRIGGER', regex: /\b(?:who is|what is|precio de|clima en|weather in|capital of|age of|born in|quien es|que es|donde esta)\b/i, stream: 'FAST_FACT' },
+  // { id: 'BIBLIOGRAPHIC', regex: /\b(?:book|libro|tratado|treatise|author|autor|bibliography|bibliografia|codex)\b/i, stream: 'BIBLIOGRAPHIC' }
+  { id: 'SENTINEL_QUERY', regex: /\[SENTINEL_QUERY\]:?\s*(.+)/i, stream: 'DEEP_RESEARCH' }
 ];
 
 const currentYear = new Date().getFullYear();
-const POST_RECENT_REGEX = new RegExp(`\\b(actual|news|current|hoy|today|${currentYear - 2}|${currentYear - 1}|${currentYear}|${currentYear + 1}|precio|clima|weather|status|ahora|noticias|latest)\\b`, 'i');
-const FACTUAL_FORCE_REGEX = /\b(who is the current|what is the current|president of|prime minister of)\b/i;
+const POST_RECENT_REGEX = new RegExp(`\\b(actual|news|current|hoy|today|now|ahorita|${currentYear - 2}|${currentYear - 1}|${currentYear}|${currentYear + 1}|precio|clima|weather|status|ahora|noticias|latest)\\b`, 'i');
+const FACTUAL_FORCE_REGEX = /\b(who is the current|what is the current|president of|prime minister of|who is|quien es|quién es|president|presidente|prime minister|primer ministro)\b/i;
 const QUICK_FACT_REGEX = /\b(precio|clima|weather|age|born)\b/i;
+const EXPLICIT_SEARCH_REGEX = /\b(investiga|invest[ií]game|investigaci[oó]n|research|search for|busca|find out)\b/i;
 
 /**
  * processInbound - Detects intent across multiple dialects (v6.3 Cutoff-Aware)
@@ -48,30 +50,31 @@ const QUICK_FACT_REGEX = /\b(precio|clima|weather|age|born)\b/i;
 export const processInbound = (text: string, userQuery: string): InboundDetection => {
   // Fast pre-scan check: exit early if text contains no trigger characters or keywords,
   // bypassing expensive sequential regex matches on every token chunk.
-  const hasPossibleTrigger = 
-    text.includes('<') || 
-    text.includes('[') || 
-    text.includes('{') || 
-    text.includes('!') || 
+  const hasPossibleTrigger =
+    text.includes('<') ||
+    text.includes('[') ||
+    text.includes('{') ||
+    text.includes('!') ||
     /\b(cutoff|cannot|don't|not sure|unsure|definitive|no info|information|frozen|parametric|memory|data|born|quien|quién|que|qué|donde|dónde|who|what|where|precio|clima|weather|capital|age|book|libro|tratado|treatise|author|autor|bibliography|bibliografia|codex)\b/i.test(text);
 
   if (!hasPossibleTrigger) {
     const isFactualForce = FACTUAL_FORCE_REGEX.test(userQuery);
     const isCurrentEvent = POST_RECENT_REGEX.test(userQuery);
+    const isExplicitSearch = EXPLICIT_SEARCH_REGEX.test(userQuery);
 
-    if ((isCurrentEvent || isFactualForce) && !text.includes("!!SEARCH")) {
-      return { 
-        detected: true, 
-        query: purifyQuery(userQuery), 
-        dialect: 'PROACTIVE_CURRENCY_CHECK', 
-        stream: (isFactualForce || QUICK_FACT_REGEX.test(userQuery)) ? 'FAST_FACT' : 'DEEP_RESEARCH' 
+    if ((isCurrentEvent || isFactualForce || isExplicitSearch) && !text.includes("!!SEARCH")) {
+      return {
+        detected: true,
+        query: purifyQuery(userQuery),
+        dialect: 'PROACTIVE_CURRENCY_CHECK',
+        stream: (isFactualForce || QUICK_FACT_REGEX.test(userQuery)) ? 'FAST_FACT' : 'DEEP_RESEARCH'
       };
     }
     return { detected: false, query: '', dialect: 'NONE', stream: 'NONE' };
   }
 
   console.log(`[SENTINEL_SCAN] Analizando rastro (${text.length} chars)...`);
-  
+
   for (const d of DIALECTS) {
     const match = text.match(d.regex);
     if (match) {
@@ -82,13 +85,14 @@ export const processInbound = (text: string, userQuery: string): InboundDetectio
 
   const isFactualForce = FACTUAL_FORCE_REGEX.test(userQuery);
   const isCurrentEvent = POST_RECENT_REGEX.test(userQuery);
+  const isExplicitSearch = EXPLICIT_SEARCH_REGEX.test(userQuery);
 
-  if ((isCurrentEvent || isFactualForce) && !text.includes("!!SEARCH")) {
-    return { 
-      detected: true, 
-      query: purifyQuery(userQuery), 
-      dialect: 'PROACTIVE_CURRENCY_CHECK', 
-      stream: (isFactualForce || QUICK_FACT_REGEX.test(userQuery)) ? 'FAST_FACT' : 'DEEP_RESEARCH' 
+  if ((isCurrentEvent || isFactualForce || isExplicitSearch) && !text.includes("!!SEARCH")) {
+    return {
+      detected: true,
+      query: purifyQuery(userQuery),
+      dialect: 'PROACTIVE_CURRENCY_CHECK',
+      stream: (isFactualForce || QUICK_FACT_REGEX.test(userQuery)) ? 'FAST_FACT' : 'DEEP_RESEARCH'
     };
   }
 

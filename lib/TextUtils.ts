@@ -14,8 +14,9 @@ export function purifyQuery(query: string): string {
   return query
     .replace(/<[^>]*>/g, '') // Remove XML/HTML tags
     .replace(/\[[^\]]*\]/g, '') // Remove system brackets
-    .replace(/^(?:hi|hello|hola|please|por favor|hey|hey there|escucha|dime|buscame|encuentra)\s*,?\s*/gi, '') // Remove leading conversational fluff
+    .replace(/^(?:hi|hello|hola|please|por favor|hey|hey there|escucha|dime|buscame|encuentra|busca noticias de|investiga qu[eé] caracter[ií]sticas tiene|haz una investigaci[oó]n sobre|invest[ií]game|investiga|do a research on|research about|do some research on)\s*,?\s*/gi, '') // Remove leading conversational and research intent fluff
     .replace(/(?:the user asked|user asked|searching for|looking up|i need to find|verifying|attempting to|therefore i have to).*?:?/gi, '') // Remove meta-dialogue
+    .replace(/\s+(?:en internet|on the web|en la web)\s*$/gi, '') // Remove trailing location fluff
     .replace(/[{}()]/g, '') // Remove structural characters but keep quotes for phrase searching
     .replace(/\s+/g, ' ')
     .trim();

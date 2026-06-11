@@ -50,10 +50,7 @@ const translations: Record<AppLanguage, Record<string, string>> = {
      'manifesto.disclaimer.title': 'LEGAL DISCLAIMER:',
      'manifesto.disclaimer.body': 'The conversational features of this application are powered by 100% local, on-device AI. To guarantee user safety, the system integrates proactive safeguards preventing the generation of prohibited content (such as abuse, harassment, scams, or self-harm), alongside a reactive reporting mechanism that allows you to instantly flag and delete any inappropriate responses by swiping left. This Diary is a tool for personal reflection and does not substitute professional medical, psychological, or clinical advice. It is only for private self-reflection purposes, it doesn\'t have to be followed at any point as qualified advice for psychological, medical or technical information. Any words read here have to be always pondered under the best judgment of the person using it and verified if needed.',
      'manifesto.disclaimer.subtext': 'The use of natural voices requires external APIs subject to their own privacy policies.',
-     'manifesto.footer': 'AI DIARY v1.9.5 | AI BALANCE CORE | AI DIARY DEEP MIND CORE',
-    'inference.title': 'PHILOSOPHY INFERENCE',
-    'inference.reloadHint': '* Requires model reload to apply changes.',
-    'inference.reloadCore': 'RELOAD CORE',
+     'manifesto.footer': 'AI DIARY v1.9.6 | AI LIGHT CORE | AI BALANCE CORE | AI DEEP MIND CORE',
   },
   es: {
     // Sanctuary AI (Chat)
@@ -101,10 +98,7 @@ const translations: Record<AppLanguage, Record<string, string>> = {
     'manifesto.disclaimer.title': 'AVISO LEGAL:',
     'manifesto.disclaimer.body': 'Las funciones conversacionales de esta aplicación son impulsadas por inteligencia artificial de ejecución 100% local en tu dispositivo. Para garantizar la seguridad del usuario, el sistema integra salvaguardas proactivas que impiden la generación de contenido prohibido (como abuso, acoso, estafas o autolesión), junto con un mecanismo de reporte reactivo que te permite marcar y eliminar de inmediato cualquier respuesta inapropiada deslizando hacia la izquierda. Este Diario es una herramienta para la reflexión personal y no sustituye el asesoramiento o tratamiento profesional médico, psicológico o clínico. Es solo para propósitos de autorreflexión privada, no tiene que seguirse en ningún momento como asesoría cualificada para información psicológica, médica o técnica. Cualquier palabra leída aquí tiene que ser siempre ponderada bajo el mejor juicio de la persona que la usa y verificada si es necesario.',
     'manifesto.disclaimer.subtext': 'El uso de voces naturales requiere APIs externas sujetas a sus propias políticas de privacidad.',
-    'manifesto.footer': 'AI DIARY v1.9.5 | AI BALANCE CORE | AI DIARY DEEP MIND CORE',
-    'inference.title': 'INFERENCIA DE FILOSOFÍA',
-    'inference.reloadHint': '* Requiere recargar el núcleo para aplicar cambios.',
-    'inference.reloadCore': 'RECARGAR NÚCLEO',
+    'manifesto.footer': 'AI DIARY v1.9.6 | AI LIGHT CORE | AI BALANCE CORE | AI DEEP MIND CORE',
   }
 };
 

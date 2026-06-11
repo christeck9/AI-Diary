@@ -59,6 +59,12 @@ const MAPPING = {
   'play.circle.fill': 'play-circle-filled',
   'volume.up.circle.fill': 'volume-up',
   'spiral': 'cyclone',
+  'globe': 'public',
+  'leaf.fill': 'eco',
+  'wrench.fill': 'build',
+  'gearshape.fill': 'settings',
+  'pencil': 'edit',
+  'list.bullet.clipboard.fill': 'assignment',
 } as const;
 
 type IconSymbolName = keyof typeof MAPPING;

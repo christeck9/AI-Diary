@@ -24,7 +24,70 @@ Nota: Cualquier palabra o código usando “Soverein” o “Soverano” se tien
 > 
 > > Logcat/Netstat son herramientas que antes de usarse se tienen que anunciar o revelar su uso a Chris.
 ---
+Resumen del Proyecto AI Diary
+ Información General
+Nombre: AI Diary
+Versión: 1.9.6
+Lenguaje Principal: TypeScript
+Framework: React Native (Expo v51.0.0)
+Arquitectura: Nativo Android (Kotlin/Java) + JSI Bridge
 
+ Visión y Propósito
+AI Diary es una asistente móvil diseñado para conectar la inteligencia artificial con la empatía humana. Funciona como un companion psicológico seguro y privado, completamente offline, que reside directamente en el dispositivo del usuario.
+
+Identidad Central:
+Escuchador Empático: Asistente psicológico enfocado y mentor
+Traductor Vocal Global: Traducción en tiempo real de voz a texto
+Historiador Personal: Base de datos segura y local para evolucionar con el usuario
+ Arquitectura Técnica
+1. Núcleo de Inferencia (C++)
+Motor: llama.cpp portado a React Native vía JSI
+Formato: Modelos GGUF cuantizados (Turbo Quant, Q4_K_M)
+Modelos: Gemma 3 (4B) para interacción diaria, Gemma 4 (E2B) para razonamiento profundo
+Ventaja: Capacidad de ejecutar modelos de 2B-4B parámetros en RAM móvil
+2. Capa de Orquestación (TypeScript / React Native)
+Framework: Expo v51.0.0
+React: React 18.2.0 con Expo Router
+UI: Vanilla CSS con Reanimated 3 para animaciones fluidas
+Bilingüe: Interfaz en Inglés/Español
+3. Envoltura Nativa (Android)
+Lenguajes: Java/Kotlin
+Función: Gestión de permisos (micrófono, cámara, archivos) y ciclo de vida
+4. Infraestructura de Datos (SQLite)
+Motor: expo-sqlite (SQLite 3)
+Funciones:
+- Persistencia de perfiles
+- Bóveda cifrada
+
+- Memoria forense (FTS5)
+
+- Exportación de historiales clínicos
+
+5. Freedom Search (Búsqueda Externa)
+Nodos: Brave API, Wikipedia, Wikidata
+Propósito: Verificación contextual y datos atómicos
+ Dependencias Clave
+Categoría	Paquetes
+AI/ML	llama.rn (0.12.0-rc.9), whisper.rn (v0.5.5)
+Base Expo	expo (~51.0.0), expo-router (~3.5.0)
+Audio/Voice	expo-av (~14.0.5), expo-speech (~12.0.1)
+UI/Anima	react-native-reanimated (~3.10.1), lottie-react-native (6.7.0)
+Persistencia	expo-sqlite (~14.0.3), expo-secure-store (~13.0.1)
+Archivos	expo-file-system (~17.0.1), expo-pdf-text-extract (^1.1.0)
+Listas	@shopify/flash-list (1.6.4), @shopify/react-native-skia (1.2.3)
+ Temas Visuales
+Light - Minimalista
+Matrix - Inspirado en Zion (tech focus)
+Sanctuary - Verde sauge y crema cálido (glassmorphism)
+Lavender - Lila suave y azul océano (neumorfismo)
+ El tema 'Neon' fue eliminado por ser demasiado agresivo para una app de salud mental.
+
+ Directivas Principales
+Verdad Primero: Investigación rigurosa antes de asumir o proponer cambios
+Cero Alucinaciones: Validación de todas las dependencias y APIs
+Privacidad Absoluta: Todo los datos quedan localizados y cifrados
+Modo Parche: Ediciones mediante diffs, no reescritura completa
+Silos de Inferencia: AI Diary como entorno aislado
 
 # Project: AI Diary. General Walkthrough.
 
@@ -38,7 +101,7 @@ AI Diary is a mobile assistant designed to bridge the gap between artificial int
 - **Personal Historian:** Maintains a secure, local-first database to grow and learn with the user over time recursively.
 
 ## 🛠️ Technical Foundation
-- **AI Core:** (Gemma 3 4B + Gemma 4 E2B).
+- **AI Core:** (Gemma 3 4B + Gemma 4 E2B + Llama 1B).
 - **Multimodal Pipeline:** Native Audio-to-Audio and Vision-to-Text.
 - **Context:** Dynamic Scaling (3k - 32k) based on hardware tier.
 - **Connectivity:** Local-First (Sentinel Enabled).
@@ -53,37 +116,7 @@ AI Diary is a mobile assistant designed to bridge the gap between artificial int
    - `Lavender` (Soft lavender & light ocean blue, neumorphism)
    *(Note: The 'Neon' cyberpunk theme was deprecated for being too aggressive for a mental health app).*
 
-# Descripcion del proyecto versión 1.7 (ver que estructuras pueden ya haber estado modificadas pues es una versión anterior, el sistema puede que no esté a su funcionamiento proyectado)
 
-Arquitectura de alto rendimiento, diseñada para su ejecución local con capacidad de tener acceso a internet para verificación de temporalidad y veracidad. Desglose técnico de los cimientos de AI Diary:
-
-1. El Núcleo de Inferencia (C++)
-Motor: llama.cpp portado a React Native mediante JSI (JavaScript Interface).
-Lenguaje: C++ de bajo nivel para interactuar directamente con la GPU/NPU del móvil.
-Formato: Usamos modelos GGUF con cuantización avanzada (Turbo Quant, Q4_K_M) para meter modelos de 2B a 4B parámetros en la RAM del celular sin que colapse.
-Parche Maestro: Nuestra arquitectura usa CMake 3.24.0+ y el linker lld para resolver los conflictos de enlazado de NDK 26.1 que rompen otras apps.
-2. La Capa de Orquestación (TypeScript / React Native)
-Framework: React Native (Expo). Es el "Pegamento" que une la interfaz con el motor de C++ (normalmente hemos visto que la versión 20 sirve mejor, pero Gemma4:31b nos dice que posiblemente la versión 17 a evaluar).
-Lógica: TypeScript 5.0. Aquí vive el Sentinel, el orquestador de búsqueda y el gestor de handshake con internet, verificador de la AI.
-UI: Vanilla CSS con animaciones de Reanimated 3 para lograr esa estética de "Matrix/Santuario" sin sacrificar frames.
-3. La Envoltura Nativa (Java / Kotlin)
-Entorno: Android Nativo.
-Función: Gestiona los permisos de bajo nivel (archivos, micrófono, cámara) y el ciclo de vida de la aplicación. 
-4. La Infraestructura de Datos (SQLite)
-Motor: expo-sqlite (SQLite 3).
-Misión: Almacenamiento persistente de perfiles, la bóveda cifrada y la memoria forense (FTS5). Es ultra-rápida y no requiere servidores externos.
-5. La "Freedom Search" (APIs por ahorita)
-Conectores: TypeScript puro (fetch).
-Nodos: SearXNG (búsqueda profunda), Wikipedia (contexto bilingüe) y Wikidata (hechos atómicos).
-Resumen Visual:
-mermaid
-graph TD
-    UI[React Native / TS] -->|JSI Bridge| Engine[llama.cpp / C++]
-    Engine -->|Inferencia| GPU[NPU/GPU Mobile]
-    UI -->|Consultas| DB[SQLite / Memory]
-    UI -->|Protocolo| Search[SearXNG / Wiki / Wikidata]
-    Search -->|Freedom Web| Internet((Web))
-En resumen: Usamos C++ para el poder bruto, Java/Kotlin para la compatibilidad con Android, y TypeScript para la inteligencia y la interfaz. El resultado es una IA que no le debe nada a la nube.
 
 ---
 
@@ -1321,3 +1354,104 @@ Para evitar bloqueos inesperados, sobrecalentamientos o cierres forzados (*Out O
   2.  **Directivas Dinámicas (Refuerzo):** Se implementó una lógica que **innova** al aplicar reglas de restricción de pensamiento (`think_prompt` / `think_weight`) **solo a las arquitecturas Gemma** (Modelos Gemma 3 y Gemma 4), ya que poseen bloques de razonamiento. Al Llama 3.2 1B (que es un modelo de inferencia rápida y directa) no se le inyectan estas directivas, permitiendo que su velocidad natural fluya sin interferencia estructural.
   3.  **Refuerzo Final:** Se reemplazó el uso de etiquetas genéricas de parada (`stop`) por etiquetas específicas del tokenizador de cada arquitectura (`<|eot_id|>`, `<|eom_id|>` para Llama; `<eos>`, `<|im_end|>` para Gemma), forzando una finalización limpia y precisa del texto generado.
 - **Impacto:** Se elimina el relleno de texto, se reduce el consumo de tokens perdidos en digresiones y se estabiliza la personalidad del agente en función del motor seleccionado por el usuario.
+
+
+
+
+# AI DIARY: Inclusion del Jardin Zen y el Whisp avatar v1.9.6
+
+## 1. Módulo del Jardín Zen (Garden Tab)
+- **Archivos:** `app/(tabs)/garden.tsx`, `components/garden/PlantList.tsx`, `components/garden/PlantingModal.tsx`, `components/ui/FairyDust.tsx`
+- **Descripción:** Se implementó una nueva pantalla inmersiva que sirve como un espacio seguro y de crecimiento visual para las ideas del usuario ("Semillas"). 
+- **Características principales:**
+  - **FairyDust (Polvo de Hadas):** Un fondo dinámico de partículas mágicas interactivas renderizado con `@shopify/react-native-skia`, logrando un ambiente visual relajante a 60 FPS sin cargar el CPU.
+  - **Planting Modal:** Un sistema de ingreso de reflexiones/metas construido con `@gorhom/bottom-sheet`, que se desliza suavemente sobre el jardín e incluye categorías de semillas (Agradecimiento, Meta, Reflexión, Duda) para clasificar las entradas.
+  - **Plant List:** Visualización interactiva animada con `react-native-reanimated` (FadeInUp) para listar las plantas en crecimiento de forma armónica.
+
+## 2. El "Whisp" Avatar (AnimaBar)
+- **Archivos:** `components/ui/WhispAvatar.tsx`, `components/SanctuaryHeader.tsx`, `app/(tabs)/index.tsx`
+- **Descripción:** Se rediseñó la cabecera del santuario (Diary) para incorporar un ente digital paramétrico reactivo a los estados del LLM, fungiendo como la "cara" de la IA y mejorando profundamente el apego emocional y la interacción humano-máquina.
+- **Implementación Matemática y Gráfica:**
+  - Se abandonó el uso de GIFs estáticos en favor de un renderizado procedural (dibujado en tiempo real con `Skia` sobre el hilo de UI).
+  - **Flama de Múltiples Puntas:** Utilización de interpolaciones de trazados `Path.cubicTo` matemáticos para crear una "gota de fuego espiritual" con tres puntas (fuego principal y dos brazos laterales) que vibra y parpadea orgánicamente (`flicker`).
+  - **Expresiones Dinámicas:** Los ojos (escalado en Y/X para pestañeos y reacciones) y la boca (curva de Bézier de la sonrisa a la tristeza) se animan fluidamente basándose en el estado interno (`thinking`, `happy`, `tired`, `idle`).
+  - **Navegación Autónoma:** Se programó un motor de movimiento transversal utilizando **Curvas de Lissajous**. Al aplicar múltiples ondas senoidales con frecuencias irracionales desfasadas, el Whisp patrulla libremente de izquierda a derecha (y rebota verticalmente) dentro del campo del header simulando un comportamiento vivo e impredecible sin estar estrictamente codificado.
+
+## 3. Arquitectura de Memoria Semántica RAG (Retrieval-Augmented Generation)
+- **Archivos:** `lib/db.ts`, `hooks/useDocumentProcessor.ts`, `hooks/useAgentEngine.ts`, `lib/SemanticService.ts`
+- **Descripción:** Se implementó un pipeline completo de recuperación y generación aumentada local para permitir al usuario chatear por texto o por voz con documentos gigantes (PDF, TXT, DOCX) de forma fluida.
+- **Detalles del Pipeline:**
+  * **Persistencia Vectorial:** Se creó la tabla `document_chunks` en la base de datos SQLite para almacenar los fragmentos de texto procesados junto con sus embeddings representados en formato JSON.
+  * **Indexación Inteligente y Chunking:** Al subir un archivo, `useDocumentProcessor.ts` lo fragmenta en bloques semánticos de 1000 caracteres, los vectoriza por lotes (batching de 10) para cuidar la memoria RAM y guarda los resultados en SQLite.
+  * **Búsqueda Semántica:** `SemanticService.ts` vectoriza la pregunta del usuario en tiempo real, ejecuta una búsqueda de similitud coseno (`cosineSimilarity`) en JavaScript puro contra todos los fragmentos en la base de datos, y recupera los 5 bloques más relevantes para inyectarlos en el contexto contextual del LLM.
+  * **Integración con Whisper:** Al enrutar la consulta RAG sobre el texto de entrada (`userText`), el dictado de voz y la transcripción de Whisper alimentan de forma automática la búsqueda semántica, permitiendo dictar preguntas verbales sobre los documentos procesados.
+
+## 4. Distribución y Bundling 100% Offline (Embeddings en Instalador APK/IPA)
+- **Archivos:** `metro.config.js`, `.gitignore`, `.easignore`, `src/config/ModelConfig.ts`, `hooks/useAppLlm.ts`
+- **Descripción:** Se integró el modelo de embeddings `all-MiniLM-L6-v2` directamente dentro del paquete binario de la aplicación para garantizar un funcionamiento completamente desconectado sin descargas externas.
+- **Configuración Técnica:**
+  * **Asset Local Embebido:** Se descargó el modelo `all-MiniLM-L6-v2-Q4_0.gguf` (~19.7 MB) y se colocó en `assets/all-MiniLM-L6-v2-ggml-model-q4_0.gguf`.
+  * **Empaquetado de Assets (Metro):** Se actualizó `metro.config.js` agregando la extensión `gguf` al arreglo de extensiones de recursos de Metro (`config.resolver.assetExts`), permitiendo su resolución en tiempo de compilación.
+  * **Gestión de Git y EAS:** Se configuraron exclusiones específicas (`!assets/all-MiniLM-L6-v2-ggml-model-q4_0.gguf`) en `.gitignore` y `.easignore` para permitir el rastreo por control de versiones y la subida automática a los servidores de compilación de EAS Build.
+  * **Inferencia Segura en useAppLlm.ts:** La función `generateEmbeddings` copia el archivo del modelo desde los recursos locales (`Asset.fromModule(require(...))`) hacia la sandbox persistente del dispositivo en su primer inicio, e inicializa un contexto exclusivo de `llama.rn` en CPU que es liberado (`embeddingContext.release()`) inmediatamente después del procesamiento para evitar colapsos de memoria RAM.
+
+
+## 5. Expansión a 6 Estados de Ánimo Dinámicos
+- **Archivos:** [WhispAvatar.tsx](file:///c:/AI-Diary/components/ui/WhispAvatar.tsx), [index.tsx](file:///c:/AI-Diary/app/(tabs)/index.tsx)
+- **Descripción:** Se expandió el motor de animación del avatar de 4 a 6 estados dinámicos cableados con el estado en tiempo real del dispositivo y del flujo de inteligencia artificial.
+- **Detalles del Cableado:**
+  - **`listening` (Escuchando):** Activo instantáneamente cuando el Walkie-Talkie está grabando (`voiceState === 'RECORDING'`) o el dictado de voz está encendido (`dictation.isListening`). El avatar presenta ojos muy abiertos, boca atenta y manos levantadas hacia el frente en actitud de atención.
+  - **`speaking` (Hablando):** Activo cuando el sistema realiza síntesis de voz TTS (`isVoiceSpeaking || voiceState === 'SPEAKING'`). El avatar rebota energéticamente, gesticula con una boca que se abre y cierra proceduralmente, y extiende los brazos hacia los costados.
+  - **`thinking` (Pensando):** Vinculado a la generación de texto (`isTyping || isThinking || processingPhase !== 'idle'`). El avatar tiene ojos entrecerrados y mano pensativa en el mentón.
+  - **`tired` (Cansado):** Vinculado a modo ahorro o batería baja (`isEcoMode || batteryLevel <= 0.20`). El avatar flota lentamente con ojos caídos y manos bajas.
+  - **`happy` (Feliz):** Vinculado a batería alta (`batteryLevel > 0.70`). El avatar rebota felizmente con una gran sonrisa y ojos brillantes.
+  - **`idle` (Reposo):** Estado por defecto.
+
+## 6. Textos de Estado Reactivos y Localizados
+- **Archivos:** [index.tsx](file:///c:/AI-Diary/app/(tabs)/index.tsx)
+- **Mensaje Izquierdo:** Reemplaza dinámicamente el mensaje estático del Zen Garden (`animaMessage`) con etiquetas localizadas de acción al estar en un estado activo (e.g., `🎙️ Estoy escuchando...`, `🔊 Estoy hablando...`, `💭 Estoy pensando...`, `🔋 Tengo poca batería...`, `✨ ¡Estoy feliz!`), y muestra el mensaje del Zen Garden en estado `idle`.
+- **Mensaje Derecho:** Muestra un estado detallado contextual de lo que realiza la app: la fase exacta del RAG (`Leyendo archivo...`, `Indexando contenido...`), si busca información externa (`Buscando en la web...`), la batería exacta (`Batería: 85%`) en los estados dependientes de energía, o el modelo LLM activo en estado `idle`.
+
+
+
+
+# AI DIARY: Reorganización de UI, Herramienta de Dictado y To-Do List v1.9.6.1
+
+### 1. Reorganización y Limpieza de Pestañas
+- **Archivos:** `app/(tabs)/tools.tsx`, `app/(tabs)/settings.tsx`
+- **Cambios:**
+  - Se movieron los botones `EXPORT DIARY HISTORY PDF` y `EXPORT PERSONALITY REPORT PDF` hacia la pestaña de **Herramientas (Tools)**, posicionándolos en la parte superior.
+  - En la pestaña de Herramientas, se eliminó el título obsoleto "TOOLS" y el subtítulo "Bibliographic research and offline voice chamber".
+  - La opción `GPU ACCELERATION` se movió desde Herramientas hacia **Settings**, colocándola encima de la sección "DATA PRIVACY & EXPORT".
+  - Se renombró la sección "DATA PRIVACY & EXPORT" a "RESET OPTIONS" en Settings.
+
+## 2. Rediseño de la Herramienta de Dictado (Dictation Tool)
+- **Archivos:** `app/(tabs)/tools.tsx`
+- **Cambios:**
+  - Se implementó un rediseño de la herramienta de dictado. La interfaz exterior se simplificó al máximo, dejando únicamente dos botones anchos: "DICTAR" y "EXPORTAR A PDF".
+  - La funcionalidad principal y lógica de grabación se movió a un **Dictation Overlay** (una pantalla modal oscura superpuesta) para un enfoque libre de distracciones.
+  - El overlay permite al usuario dictar, editar el texto generado y copiar al portapapeles.
+  - **Limpieza de Nomenclatura:** Se eliminaron y reemplazaron todas las referencias y comentarios que usaban la palabra "Walkie-Talkie" dentro del código de dictado por "Dictation Overlay", previniendo confusión futura de nomenclatura.
+
+## 3. Nueva Herramienta: To-Do List / Notas Integrada con Whisp Avatar
+- **Archivos:** `app/(tabs)/tools.tsx`, `app/(tabs)/index.tsx`, `db/todoSchema.ts`, `lib/db.ts`, `hooks/useTodos.ts`, `components/ui/MarqueeText.tsx`
+- **Cambios:**
+  - **Base de Datos Local:** Se creó un esquema en SQLite (`todoSchema.ts`) con una nueva tabla `todos` para persistir notas rápidas que incluyan texto, fecha objetivo y hora objetivo. 
+  - **Gestión de Estado:** Se creó un hook modular (`useTodos.ts`) para operar la tabla de tareas y auto-ordenar cronológicamente las notas.
+  - **Interfaz en Tools:** Se diseñó una tarjeta interactiva "TO-DO LIST / NOTAS". Utiliza el paquete oficial `@react-native-community/datetimepicker` para proveer selectores de fecha y hora nativos del sistema. Cada tarea tiene un botón para marcarla como finalizada que la elimina por completo de la memoria del dispositivo.
+  - **Animación Marquee:** Se construyó el componente animado `MarqueeText.tsx` basado en Reanimated para lograr desplazamiento horizontal infinito de textos muy largos.
+  - **Integración con Whisp Avatar:** Se conectó el sistema de tareas al motor de consciencia del avatar. Ahora, en su estado de reposo (`idle`), el texto contiguo al avatar de la pantalla principal ya no dice solo "Sistema Listo", sino que "circula" la lista de pendientes activos. La lista utiliza la nueva animación Marquee y cambia esporádicamente entre las notas cada 15 segundos, fungiendo como un pequeño recordatorio personal en el jardín Zen.
+
+## 4. Bug fixing
+- **Archivos:** `app/(tabs)/tools.tsx`, `hooks/useTodos.ts`
+- **Cambios:**
+  - Se incrementó el `paddingBottom` de `scrollContent` en `tools.tsx` a `120` para evitar que la tarjeta de To-Do List y el botón "ADD NOTE" queden a medias u ocultos tras la barra de navegación inferior en dispositivos físicos y emuladores.
+  - Se agregaron logs de diagnóstico detallados (`[useTodos]`) en el hook `useTodos.ts` para rastrear las llamadas SQL de inserción (`addTodo`), obtención (`fetchTodos`) y borrado (`removeTodo`), permitiendo visualizar fallos silenciosos de la base de datos o de tipos de datos.
+
+## 5. Zen Garden Growth Badges (Boy Scout Merit Badges)
+- **Archivos:** `db/zenGardenSchema.ts`, `lib/systemPrompt.ts`, `hooks/useAgentEngine.ts`, `components/ui/ZenGarden.tsx`
+- **Cambios:**
+  - **Base de Datos:** Se crearon las columnas `category` y `label` en la tabla `zen_flora` con chequeo de migración seguro y se actualizaron los métodos `plantSeed` y `growFlora`.
+  - **Inferencia LLM:** Se reestructuraron las instrucciones del prompt del sistema para exigirle a Gemma 3/4 clasificar la conversación en una de las categorías (`"familia"`, `"ciencia"`, `"ecologia"`, `"trabajo"`, `"salud"`, `"introspeccion"`) y generar una única palabra que sirva como etiqueta de resumen.
+  - **Integración del Motor:** Se adaptó `useAgentEngine.ts` para parsear los nuevos parámetros del JSON `<zen>` y enviarlos a la base de datos.
+  - **Gráficos Skia:** Se actualizaron las propiedades de `ZenGarden.tsx` para dibujar contornos de insignias de color degradado y renderizar el texto de etiqueta directamente debajo de cada flor en la base del jardín.

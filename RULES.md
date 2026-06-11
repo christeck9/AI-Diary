@@ -84,6 +84,7 @@ C:\AI_Diary\Rules for APK creation.md
 > 5. Para saaber como funnciona Gemma 3 y 4 leer: C:\AI-Diary\SanctuaryAIsArchitecture.md
 Gemma4:e2b tiene mas comandos que pudieran llegar a ser utiles si los analizas.
 > 6. **Desactivación de Servidores MCP de Inferencia:** El servidor MCP `Gemma-31b (y posiblemente toda la familia Gemma, de seguro Gemma-26b tambien),` y todas sus herramientas de visión/análisis (como `gemini-analyze-image`) han sido desactivadas de forma definitiva o indefinida por Google. Queda estrictamente prohibido intentar invocar estas herramientas de la nube, debiendo realizar cualquier análisis visual o diagnóstico de archivos gráficos mediante scripts locales en Python (con la librería Pillow) o mediante el agente del navegador (`browser_subagent`).
+> 7. **Prohibición de Unificación:** Queda terminantemente prohibido a futuros agentes intentar unificar o mezclar ambos dialectos en un solo string genérico (como `!!SEARCH`). Cada modelo está calibrado independientemente según sus pesos.
 
 Aprender de este error (6/4/2026) de como hay que hablar con las IAs
 Forensic Report v2 - AI Diary Token Corruption Bug
@@ -140,15 +141,6 @@ Asegurar que PROACTIVE_CURRENCY_CHECK se active correctamente para preguntas fac
 Tabla de Bugs por Modelo
 Bug | Gemma 3 4B | Gemma 4 E2B | Llama 1B Tokens crudos unused | CRITICO | No afectado | No afectado Stop token turn faltante | No aplica | MEDIO | No aplica Brave funciona | OK Round 1 | OK | Verificar Sentinel funciona | Round 1 OK | OK | Verificar
 
-
-> ### 🛡️ SHIELD DE DIALECTO Y CALIBRACIÓN DE TOKENS (v1.9.0)
-> *Fecha de Registro: 2026-05-25*
->
-> Para prevenir la regresión y desoptimización de la latencia en dispositivos móviles, se prohíbe terminantemente revertir, mezclar o modificar la configuración de dialecto para las Gemmas sin autorización explícita y pruebas reales en hardware físico (no simuladores):
-> 1. **Gemma 4 (E2B):** Debe utilizar estrictamente su dialecto nativo SFT entrenado `<|tool_call|>search{query:"..."}</|tool_call|>` para evitar perplejidad y bucles infinitos en C++.
-> 2. **Gemma 3 (4B):** Debe utilizar estrictamente la sintaxis ultra-slim de corchetes `[SEARCH: "query"]`. Esto ahorra entre el 15% y 20% de tiempo de procesamiento de tokens de inferencia en móviles de gama media.
-> 3. **Prohibición de Unificación:** Queda terminantemente prohibido a futuros agentes intentar unificar o mezclar ambos dialectos en un solo string genérico (como `!!SEARCH`). Cada modelo está calibrado independientemente según sus pesos.
-> 4. **Verificación Física Obligatoria:** Cualquier intento de cambio requiere validación en hardware móvil físico real con la app corriendo para constatar que no incremente los tiempos de inferencia ni estrese la CPU.
 
 ---
 

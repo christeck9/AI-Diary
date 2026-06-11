@@ -10,10 +10,11 @@ import { SentinelStream } from './SentinelService';
  */
 export async function SanctuarySearchOrchestrator(
   stream: SentinelStream, 
-  query: string
+  query: string,
+  lang: 'es' | 'en' = 'es'
 ): Promise<string> {
   const pureQuery = purifyQuery(query);
-  console.log(`[Orchestrator] Processing Stream [${stream}]: "${pureQuery}"`);
+  console.log(`[Orchestrator] Processing Stream [${stream}]: "${pureQuery}" (lang: ${lang})`);
 
   // Layer 1: Brave LLM Context API (Motor Primario - Tiempo real)
   if (stream === 'FAST_FACT' || stream === 'DEEP_RESEARCH') {
@@ -28,7 +29,7 @@ export async function SanctuarySearchOrchestrator(
   // Layer 2: Wikipedia (Enciclopédico - Always Free Fallback)
   // Siempre ejecutamos Wikipedia si el stream es KNOWLEDGE, o si Brave falló
   if (stream === 'KNOWLEDGE' || stream === 'FAST_FACT' || stream === 'DEEP_RESEARCH') {
-    const wikiResult = await wikipediaSearch(pureQuery, 'es');
+    const wikiResult = await wikipediaSearch(pureQuery, lang);
     if (wikiResult && !wikiResult.includes('SENTINEL_NULL_DATA')) {
       console.log(`[Orchestrator] Layer 2 (Wikipedia) succeeded.`);
       return wikiResult;

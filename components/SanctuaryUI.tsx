@@ -35,62 +35,7 @@ export const ManifestoCard: React.FC<ManifestoProps> = ({ colors }) => {
   );
 };
 
-interface InferenceEngineProps {
-  colors: ThemeColors;
-  preferredModel: string;
-  setPreferredModel: (m: string) => void;
-  loadModel: () => void;
-}
 
-export const InferenceEngine: React.FC<InferenceEngineProps> = ({ colors, preferredModel, setPreferredModel, loadModel }) => {
-  const { t } = useLanguage();
-  const isQ3 = preferredModel.endsWith('q3');
-  const isQ4 = preferredModel.endsWith('q4');
-
-  const greenColor = '#7da885';
-  const greenBg = 'rgba(125, 168, 133, 0.05)';
-  const greenBorder = 'rgba(125, 168, 133, 0.2)';
-  const greenBorderBtn = 'rgba(125, 168, 133, 0.3)';
-  const greenBgActive = 'rgba(125, 168, 133, 0.1)';
-
-  return (
-    <View style={[styles.experimentalZone, { borderColor: greenBorder, backgroundColor: greenBg }]}>
-      <Text style={[styles.experimentalTitle, { color: greenColor }]}>{t('inference.title')}</Text>
-      <View style={styles.modelSelectionRow}>
-        <TouchableOpacity 
-          onPress={() => setPreferredModel('gemma4-e2b-q3')} 
-          style={[
-            styles.modelBtn, 
-            { 
-              borderColor: isQ3 ? greenColor : greenBorderBtn, 
-              backgroundColor: isQ3 ? greenBgActive : 'transparent' 
-            }
-          ]}
-        >
-          <Text style={{ color: greenColor, fontSize: 11, fontWeight: 'bold' }}>AGILE</Text>
-        </TouchableOpacity>
-        <TouchableOpacity 
-          onPress={() => setPreferredModel('gemma4-e2b-q4')} 
-          style={[
-            styles.modelBtn, 
-            { 
-              borderColor: isQ4 ? greenColor : greenBorderBtn, 
-              backgroundColor: isQ4 ? greenBgActive : 'transparent' 
-            }
-          ]}
-        >
-          <Text style={{ color: greenColor, fontSize: 11, fontWeight: 'bold' }}>ESSENCE</Text>
-        </TouchableOpacity>
-      </View>
-      <TouchableOpacity onPress={loadModel} style={[styles.reloadBtn, { backgroundColor: greenColor }]}>
-        <Text style={{ color: '#FFF', fontWeight: 'bold' }}>{t('inference.reloadCore')}</Text>
-      </TouchableOpacity>
-      <Text style={[styles.reloadHint, { color: greenColor }]}>
-        {t('inference.reloadHint')}
-      </Text>
-    </View>
-  );
-};
 
 interface DownloadOverlayProps {
   downloadPercent: number;
@@ -136,12 +81,7 @@ const styles = StyleSheet.create({
   disclaimerText: { fontSize: 12, lineHeight: 20, textAlign: 'justify' },
   disclaimerSubtext: { fontSize: 11, marginTop: 10, fontStyle: 'italic', opacity: 0.8 },
   manifestoFooter: { fontSize: 10, textAlign: 'center', marginTop: 15, letterSpacing: 1 },
-  experimentalZone: { padding: 15, borderRadius: 16, borderWidth: 1 },
-  experimentalTitle: { fontSize: 13, fontWeight: '900', textAlign: 'center', marginBottom: 12, letterSpacing: 1 },
-  modelSelectionRow: { flexDirection: 'row', gap: 10, marginBottom: 15 },
-  modelBtn: { flex: 1, paddingVertical: 12, borderRadius: 10, borderWidth: 1, alignItems: 'center' },
-  reloadBtn: { paddingVertical: 12, borderRadius: 24, alignItems: 'center' },
-  reloadHint: { fontSize: 10, textAlign: 'center', fontStyle: 'italic', marginTop: 10, opacity: 0.7 },
+
   downloadOverlay: { backgroundColor: 'rgba(255,255,255,0.05)', padding: 10, borderRadius: 16, width: '100%', alignItems: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)' },
   downloadHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 12 },
   downloadPercent: { fontSize: 18, fontWeight: 'bold' },

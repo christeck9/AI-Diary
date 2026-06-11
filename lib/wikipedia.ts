@@ -7,6 +7,19 @@ interface WikiPage {
   url: string;
 }
 
+const COMMON_FIRST_NAMES = new Set([
+  'sara', 'sarah', 'maria', 'jose', 'juan', 'john', 'david', 'ana', 'luis', 'carlos', 'jorge', 'pedro', 
+  'miguel', 'angel', 'paul', 'mary', 'james', 'robert', 'william', 'alex', 'mark', 'tom', 'sam', 
+  'daniel', 'manuel', 'antonio', 'francisco', 'jesus', 'alejandro', 'santiago', 'sebastian', 'mateo', 
+  'nicolas', 'diego', 'samuel', 'benjamin', 'lucas', 'alexander', 'michael', 'christopher', 'matthew', 
+  'joshua', 'andrew', 'joseph', 'elizabeth', 'jennifer', 'laura', 'cristina', 'marta', 'carmen', 
+  'alicia', 'andrea', 'sofia', 'camila', 'valentina', 'isabella', 'valeria', 'daniela', 'mariana',
+  'pablo', 'fernando', 'ricardo', 'roberto', 'eduardo', 'hugo', 'alvaro', 'adrian', 'marcos', 
+  'javier', 'enrique', 'alberto', 'ramon', 'vicente', 'raul', 'julio', 'cesar', 'sergio',
+  'lisa', 'susan', 'karen', 'jessica', 'emily', 'ashley', 'brian', 'kevin', 'jason', 'jeff', 
+  'tim', 'timothy', 'richard', 'charles', 'thomas'
+]);
+
 const fetchWithTimeout = async (url: string, options: any = {}, timeoutMs = 5000) => {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -180,48 +193,47 @@ export async function wikipediaSearch(query: string, preferredLang: 'es' | 'en' 
         .split(/\s+/)
         .filter(word => word.length > 3 && !stopWords.test(word));
 
-      const hasKeywordOverlap = queryKeywords.length > 0 && queryKeywords.some(kw => normalizedTitle.includes(kw));
+      const overlappingKeywords = queryKeywords.filter(kw => normalizedTitle.includes(kw));
+      
+      let isMatchValid = false;
+      if (overlappingKeywords.length > 0) {
+        if (overlappingKeywords.length === 1) {
+          const singleMatch = overlappingKeywords[0];
+          if (!COMMON_FIRST_NAMES.has(singleMatch)) {
+            isMatchValid = true;
+          } else {
+            console.log(`[WIKIPEDIA] Rejected single match on common first name: "${singleMatch}" for query "${cleanQuery}" against title "${results[0].title}"`);
+          }
+        } else {
+          isMatchValid = true;
+        }
+      }
 
-      if (hasKeywordOverlap) {
+      if (isMatchValid) {
         return await wikipediaSearch(results[0].title, preferredLang);
       } else {
-        console.warn(`[WIKIPEDIA] Discarding irrelevant title match "${results[0].title}" for query "${cleanQuery}" due to lack of keyword overlap.`);
+        console.warn(`[WIKIPEDIA] Discarding irrelevant title match "${results[0].title}" for query "${cleanQuery}" due to lack of valid keyword overlap.`);
       }
     }
     
     return "SENTINEL_NULL_DATA: No se halló registro relevante en Wikipedia.";
   }
 
-  // 2. Deep extraction (Bilingual)
-  const [primaryDeep, primaryInfobox, secondaryTitle] = await Promise.all([
+  // 2. Deep extraction (Preferred Language Only)
+  const [primaryDeep, primaryInfobox] = await Promise.all([
     fetchWikiPageData(primarySummary.title, preferredLang),
-    fetchWikiInfobox(primarySummary.title, preferredLang),
-    getInterWikiTitle(primarySummary.title, preferredLang, otherLang)
+    fetchWikiInfobox(primarySummary.title, preferredLang)
   ]);
-
-  let secondarySummary = null;
-  let secondaryInfobox = "";
-
-  if (secondaryTitle) {
-    [secondarySummary, secondaryInfobox] = await Promise.all([
-      fetchWikiSummary(secondaryTitle, otherLang),
-      fetchWikiInfobox(secondaryTitle, otherLang)
-    ]);
-  }
 
   // 3. Data Fusion
   let contextPayload = `--- WIKIPEDIA DATA ---\n\n`;
   
-  if (primaryInfobox || secondaryInfobox) {
-    contextPayload += `[[ FACT BOX ]]\n${primaryInfobox}${secondaryInfobox}\n`;
+  if (primaryInfobox) {
+    contextPayload += `[[ FACT BOX ]]\n${primaryInfobox}\n`;
   }
 
   const text = primaryDeep.length > primarySummary.extract.length ? primaryDeep : primarySummary.extract;
   contextPayload += `### [${preferredLang.toUpperCase()}] CONTENT:\n${text}\n\n`;
-  
-  if (secondarySummary) {
-    contextPayload += `### [${otherLang.toUpperCase()}] CROSS-REFERENCE:\n${secondarySummary.extract}\n\n`;
-  }
 
   const finalResult = `${contextPayload}Source: ${primarySummary.url}`;
   console.log(`[WIKIPEDIA] Retrieval completed. Length: ${finalResult.length} chars.`);

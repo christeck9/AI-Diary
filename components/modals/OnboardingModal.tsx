@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, TextInput, StyleSheet, Platform, Image } from 'react-native';
+import { View, Text, TouchableOpacity, TextInput, StyleSheet, Platform, Image, ScrollView } from 'react-native';
 import { IconSymbol } from '../ui/icon-symbol';
 import { PSY_QUESTIONS, PsyProfile } from './PsyTestModal';
 import { UserProfile } from '../../lib/PromptService';
@@ -79,7 +79,11 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
         }
 
         return (
-          <View style={{ width: '100%', marginTop: 20, alignItems: 'center' }}>
+          <ScrollView 
+            style={{ width: '100%', marginTop: 10 }}
+            contentContainerStyle={{ alignItems: 'center', paddingBottom: 20 }}
+            showsVerticalScrollIndicator={false}
+          >
             <View style={{ flexDirection: 'row', marginBottom: 20, borderWidth: 1, borderColor: colors.border, borderRadius: 8, overflow: 'hidden' }}>
               <TouchableOpacity 
                 style={{ paddingVertical: 10, paddingHorizontal: 20, backgroundColor: lang === 'en' ? colors.primary : 'transparent' }} 
@@ -175,15 +179,15 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
             {/* Free Tier Note */}
             <Text style={{ 
               color: colors.textSecondary, 
-              fontSize: 10, 
+              fontSize: 8.5, 
               textAlign: 'center', 
               marginBottom: 15, 
-              lineHeight: 14,
+              lineHeight: 12,
               fontStyle: 'italic'
             }}>
               {lang === 'es'
-                ? 'Nota: El nivel gratuito es solo AI Light Core y un nivel de Pruebas Psicológicas, pero eso es básicamente el 100% de cómo puedes usar esta aplicación como Diario, memoria de todos los registros y salida de los mismos. ¡Disfruta!'
-                : 'Note: Free tier is only AI Light Core and one tier of Psychological Tests but that basically is 100% of how you can use this app as a Diary, memory of all records and output of them. Enjoy!'}
+                ? 'Nota: El nivel gratuito es solo AI Light Core y un nivel de Pruebas Psicológicas, pero eso es básicamente el 100% de cómo puedes usar esta aplicación como Diario, memoria de todos los registros y salida de los mismos. ¡Disfruta! Para los probadores, estan abiertas todos los modelos. ¡Gracias!'
+                : 'Note: Free tier is only AI Light Core and one tier of Psychological Tests but that basically is 100% of how you can use this app as a Diary, memory of all records and output of them. Enjoy! For testers, all models are open. Thanks!'}
             </Text>
 
             {/* Action Button */}
@@ -205,12 +209,16 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
                 {lang === 'es' ? 'Empecemos' : "Let's Begin"}
               </Text>
             </TouchableOpacity>
-          </View>
+          </ScrollView>
         );
       })()}
 
       {onboardingStep === 1 && (
-        <View style={{ width: '100%', marginTop: 20 }}>
+        <ScrollView 
+          style={{ width: '100%', marginTop: 10 }}
+          contentContainerStyle={{ paddingBottom: 20 }}
+          showsVerticalScrollIndicator={false}
+        >
           <Text style={{ color: colors.secondary, fontWeight: 'bold', marginBottom: 5, textAlign: 'center', fontSize: 16 }}>
             {lang === 'es' ? '¡Bienvenido a AI Diary. Diario Privado!' : 'Welcome to AI Diary. Private Journal!'}
           </Text>
@@ -256,11 +264,15 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
               <Text style={{ color: (userProfile.nickname && userProfile.work) ? '#FFF' : colors.textSecondary, fontWeight: 'bold' }}>{lang === 'es' ? 'Siguiente' : 'Next'}</Text>
             </TouchableOpacity>
           </View>
-        </View>
+        </ScrollView>
       )}
 
       {onboardingStep === 2 && (
-        <View style={{ width: '100%', marginTop: 20 }}>
+        <ScrollView 
+          style={{ width: '100%', marginTop: 10 }}
+          contentContainerStyle={{ paddingBottom: 20 }}
+          showsVerticalScrollIndicator={false}
+        >
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
             <TouchableOpacity 
               onPress={() => {
@@ -321,7 +333,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
               <Text style={{ color: colors.textPrimary, fontSize: 13, textAlign: 'center' }}>{lang === 'es' ? opt.es : opt.en}</Text>
             </TouchableOpacity>
           ))}
-        </View>
+        </ScrollView>
       )}
     </View>
   );

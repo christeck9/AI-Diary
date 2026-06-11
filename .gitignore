@@ -34,7 +34,9 @@ sonido.zip
 
 # Machine Learning models (Gemma, Whisper, ONNX)
 *.gguf
+!assets/all-MiniLM-L6-v2-ggml-model-q4_0.gguf
 *.bin
+!assets/ggml-tiny.bin
 *.onnx
 *.model
 

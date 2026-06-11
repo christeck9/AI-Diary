@@ -79,6 +79,7 @@ export const CognitiveNode = React.memo(({ thought, toolQuery, colors, lang }: {
         <View style={{ paddingBottom: 12 }}>
           {toolQuery ? (
             <Text
+              selectable={false}
               style={{
                 color: colors.primary,
                 fontSize: 11,
@@ -94,6 +95,7 @@ export const CognitiveNode = React.memo(({ thought, toolQuery, colors, lang }: {
             </Text>
           ) : null}
           <Text
+            selectable={false}
             style={{
               color: colors.textSecondary,
               fontSize: 12,

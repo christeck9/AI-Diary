@@ -5,9 +5,9 @@ import { FlashList } from '@shopify/flash-list';
 import * as Battery from 'expo-battery';
 import * as FileSystem from 'expo-file-system';
 import * as Haptics from 'expo-haptics';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState, useMemo } from 'react';
 import { ActivityIndicator, Alert, AppState, Image, Keyboard, KeyboardAvoidingView, LayoutAnimation, Modal, Platform, SafeAreaView, ScrollView, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import * as ExpoClipboard from 'expo-clipboard';
 import { Directions, Gesture, GestureDetector, Swipeable } from 'react-native-gesture-handler';
@@ -22,6 +22,10 @@ import { VaultExplorerModal } from '../../components/modals/VaultExplorerModal';
 import { VoiceSettingsModal } from '../../components/modals/VoiceSettingsModal';
 import { VoiceOverlay } from '../../components/modals/VoiceOverlay';
 import { SanctuaryHeader } from '../../components/SanctuaryHeader';
+import { WhispAvatar } from '../../components/ui/WhispAvatar';
+import { getAnimaMessage } from '../../db/zenGardenSchema';
+import { useTodos } from '../../hooks/useTodos';
+import { MarqueeText } from '../../components/ui/MarqueeText';
 
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useAppTheme } from '../../contexts/ThemeContext';
@@ -49,6 +53,25 @@ export default function NeuralLinkScreen() {
   const db = useSQLiteContext();
   const { lang, setLang, t } = useLanguage();
 
+  const { todos, refreshTodos } = useTodos();
+  const [currentTodoIndex, setCurrentTodoIndex] = useState(0);
+
+  useFocusEffect(
+    useCallback(() => {
+      refreshTodos();
+    }, [refreshTodos])
+  );
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      refreshTodos();
+      setCurrentTodoIndex((prev) => prev + 1);
+    }, 15000);
+    return () => clearInterval(interval);
+  }, [refreshTodos]);
+
+  const activeTodo = todos.length > 0 ? todos[currentTodoIndex % todos.length] : null;
+
   const { status: statusRaw,
     isDownloading,
     downloadingModel,
@@ -66,7 +89,8 @@ export default function NeuralLinkScreen() {
     downloadPercent,
     currentContextSize,
     deviceRAM,
-    prefillContextLlm } = useLlm();
+    prefillContextLlm,
+    generateEmbeddings } = useLlm();
   const status = statusRaw as any;
 
   const { attachedFile, isProcessing: isFileProcessing, pickDocument, clearAttachment, buildFileContext, extractTextInChunks } = useFileAttachment(lang);
@@ -134,6 +158,29 @@ export default function NeuralLinkScreen() {
   const [batteryLevel, setBatteryLevel] = useState(1);
   const [manualEcoMode, setManualEcoMode] = useState(false);
   const [isEcoMode, setIsEcoMode] = useState(false);
+  const [animaMessage, setAnimaMessage] = useState('');
+
+  const fetchAnimaMessage = useCallback(async () => {
+    if (db) {
+      try {
+        const msg = await getAnimaMessage(db, lang);
+        setAnimaMessage(msg);
+      } catch (e) {
+        console.error('Error fetching anima message:', e);
+      }
+    }
+  }, [db, lang]);
+
+  useEffect(() => {
+    fetchAnimaMessage();
+  }, [fetchAnimaMessage, messages]);
+
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('focus', () => {
+      fetchAnimaMessage();
+    });
+    return unsubscribe;
+  }, [navigation, fetchAnimaMessage]);
 
   // 🔍 Sanctuary SEARCH STATES
   const [isSearching, setIsSearching] = useState(false);
@@ -359,7 +406,7 @@ export default function NeuralLinkScreen() {
   );
   const isMuted = voiceState === 'MUTED';
 
-  // Synchronize interactive mode request from Experimental Tab
+  // Synchronize interactive mode request from Tools Tab
   useEffect(() => {
     if (isInteractiveRequested) {
       const timer = setTimeout(() => {
@@ -378,7 +425,7 @@ export default function NeuralLinkScreen() {
     dictation.warmupModels();
   }, []);
 
-  // Handle openModal deep-linking / redirection from Experimental tab
+  // Handle openModal deep-linking / redirection from Tools tab
   useEffect(() => {
     if (params.openModal) {
       const modalAction = params.openModal as string;
@@ -448,8 +495,58 @@ export default function NeuralLinkScreen() {
     abortGeneration,
     currentContextSize,
     llamaContextRef,
-    prefillContextLlm
+    prefillContextLlm,
+    generateEmbeddings
   );
+
+  const whispStatus = useMemo((): 'idle' | 'thinking' | 'tired' | 'happy' | 'listening' | 'speaking' => {
+    if (voiceState === 'RECORDING' || dictation.isListening) return 'listening';
+    if (isVoiceSpeaking || voiceState === 'SPEAKING') return 'speaking';
+    if (isTyping || isThinking || processingPhase !== 'idle') return 'thinking';
+    if (isEcoMode || batteryLevel <= 0.20) return 'tired';
+    if (batteryLevel > 0.70) return 'happy';
+    return 'idle';
+  }, [voiceState, dictation.isListening, isVoiceSpeaking, isTyping, isThinking, processingPhase, isEcoMode, batteryLevel]);
+
+  const whispStatusLabel = useMemo(() => {
+    if (whispStatus === 'listening') return lang === 'es' ? '🎙️ Estoy escuchando...' : "🎙️ I'm listening...";
+    if (whispStatus === 'speaking') return lang === 'es' ? '🔊 Estoy hablando...' : "🔊 I'm speaking...";
+    if (whispStatus === 'thinking') return lang === 'es' ? '💭 Estoy pensando...' : "💭 I'm thinking...";
+    if (whispStatus === 'tired') return lang === 'es' ? '🔋 Tengo poca batería...' : "🔋 My battery is low...";
+    if (whispStatus === 'happy') return lang === 'es' ? '✨ ¡Estoy feliz!' : "✨ I'm happy!";
+    return animaMessage || (lang === 'es' ? 'Hola, soy IA Diary' : "Hi, I'm AI Diary");
+  }, [whispStatus, animaMessage, lang]);
+
+  const whispRightLabel = useMemo(() => {
+    if (whispStatus === 'thinking') {
+      if (processingPhase === 'reading_file') return lang === 'es' ? 'Leyendo\narchivo...' : 'Reading\nfile...';
+      if (processingPhase === 'indexing') return lang === 'es' ? 'Indexando\ncontenido...' : 'Indexing\ncontent...';
+      if (isSearchingWeb) return lang === 'es' ? 'Buscando\nen la web...' : 'Searching\nthe web...';
+      return lang === 'es' ? 'Pensando...' : 'Thinking...';
+    }
+    if (whispStatus === 'listening') {
+      return lang === 'es' ? 'Escuchando\naudio...' : 'Listening\nto audio...';
+    }
+    if (whispStatus === 'speaking') {
+      return lang === 'es' ? 'Hablando...' : 'Speaking...';
+    }
+    if (whispStatus === 'tired') {
+      return (lang === 'es' ? 'Batería: ' : 'Battery: ') + `${Math.round(batteryLevel * 100)}%`;
+    }
+    if (whispStatus === 'happy') {
+      return (lang === 'es' ? 'Batería: ' : 'Battery: ') + `${Math.round(batteryLevel * 100)}%`;
+    }
+    if (activeModel) {
+      return activeModel[lang === 'es' ? 'labelEs' : 'labelEn'] || 'AI Diary';
+    }
+    if (whispStatus === 'idle' && activeTodo) {
+      const dateTimeStr = activeTodo.target_date || activeTodo.target_time 
+        ? ` (${activeTodo.target_date || ''} ${activeTodo.target_time || ''})` 
+        : '';
+      return `${activeTodo.text}${dateTimeStr}`;
+    }
+    return lang === 'es' ? 'Sistema\nListo' : 'System\nReady';
+  }, [whispStatus, processingPhase, isSearchingWeb, batteryLevel, activeModel, lang, activeTodo]);
 
   const isSendingRef = useRef(false);
 
@@ -1102,102 +1199,63 @@ export default function NeuralLinkScreen() {
             if (next) startKebabTimer();
             else stopKebabTimer();
           }}
+          isStreaming={isTyping}
         />
-        {/* Overlay for closing menus on outside tap */}
-        {(showLangPicker || showKebabMenu) && (
-          <TouchableOpacity
-            style={[StyleSheet.absoluteFill, { zIndex: 9998, elevation: 998 }]}
-            activeOpacity={1}
-            onPress={() => {
-              if (showLangPicker) setShowLangPicker(false);
-              if (showKebabMenu) {
-                setShowKebabMenu(false);
-                stopKebabTimer();
-              }
-            }}
-          />
-        )}
-        {/* Language Dropdown - rendered at top level for proper z-index */}
-        {showLangPicker && (
-          <View style={{
-            position: 'absolute',
-            top: 90,
-            right: 60,
-            backgroundColor: colors.surfaceSecondary,
-            borderColor: colors.border,
-            borderWidth: 1,
-            borderRadius: 5,
-            zIndex: 9999,
-            elevation: 999,
-            minWidth: 80,
-          }}>
-            <TouchableOpacity style={{ padding: 10, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.1)' }} onPress={() => { setLang('en'); setShowLangPicker(false); }}>
-              <Text style={{ color: lang === 'en' ? colors.primary : colors.textPrimary }}>EN</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={{ padding: 10, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.1)' }} onPress={() => { setLang('es'); setShowLangPicker(false); }}>
-              <Text style={{ color: lang === 'es' ? colors.primary : colors.textPrimary }}>ES</Text>
-            </TouchableOpacity>
+        
+        {/* Fila 2: Sub-Barra de Diary Anima (Blob interactivo) - Solo en el Home/Diary */}
+        <View style={{
+          flexDirection: 'row',
+          borderTopWidth: 1,
+          borderBottomWidth: 1,
+          borderTopColor: colors.border,
+          borderBottomColor: colors.border,
+          backgroundColor: activeTheme === 'matrix' ? 'transparent' : colors.surfaceSecondary,
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          paddingVertical: 2,
+          paddingHorizontal: 15,
+          zIndex: 100, // Menor que el header para que los dropdowns lo cubran
+        }}>
+          {/* Izquierda: Mensajes simples o saludo */}
+          <View style={{ flex: 1, alignItems: 'flex-start' }}>
+            <Text style={{ 
+              fontSize: 12, 
+              fontWeight: 'bold', 
+              color: colors.primary, 
+              letterSpacing: 0.5,
+              fontStyle: 'italic',
+            }}>
+              {whispStatusLabel}
+            </Text>
           </View>
-        )}
-        {/* Kebab Menu Dropdown - rendered at top level for proper z-index */}
-        {showKebabMenu && (
-          <View
-            style={{
-              position: 'absolute',
-              top: 50,
-              right: 10,
-              backgroundColor: colors.surfaceSecondary,
-              borderColor: colors.border,
-              borderWidth: 1,
-              borderRadius: 5,
-              zIndex: 9999,
-              elevation: 999,
-              minWidth: 220,
-            }}
-          >
-            {isDownloading && downloadingModel && (
-              <View style={{ padding: 12, borderBottomWidth: 1, borderBottomColor: colors.border, backgroundColor: `${colors.primary}15` }}>
-                <Text style={{ color: colors.primary, fontSize: 10, fontWeight: 'bold', letterSpacing: 0.5, marginBottom: 4 }}>
-                  {lang === 'es' ? 'DESCARGANDO NÚCLEO...' : 'DOWNLOADING CORE...'}
-                </Text>
-                <Text style={{ color: colors.textPrimary, fontSize: 11, fontWeight: 'bold' }} numberOfLines={1}>
-                  {lang === 'es' ? downloadingModel.labelEs : downloadingModel.labelEn}
-                </Text>
-                <View style={{ height: 4, backgroundColor: `${colors.primary}20`, borderRadius: 2, marginVertical: 6, overflow: 'hidden' }}>
-                  <View style={{ width: `${downloadPercent}%`, height: '100%', backgroundColor: colors.primary }} />
-                </View>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <Text style={{ color: colors.textSecondary, fontSize: 9 }}>{downloadPercent}% ({downloadedMB}MB)</Text>
-                  {downloadSpeed > 0 && <Text style={{ color: colors.textSecondary, fontSize: 9 }}>🚀 {downloadSpeed} MB/s</Text>}
-                </View>
-              </View>
+
+          {/* Centro: Avatar */}
+          <View style={{ flex: 1, alignItems: 'center' }}>
+            <WhispAvatar status={whispStatus} size={90} />
+          </View>
+
+          {/* Derecha: Estados complejos u otros */}
+          <View style={{ flex: 1, alignItems: 'flex-end', overflow: 'hidden' }}>
+            {whispStatus === 'idle' && activeTodo ? (
+              <MarqueeText 
+                text={whispRightLabel} 
+                style={{ fontSize: 10, color: colors.primary, opacity: 0.8 }} 
+                duration={10000} 
+                gap={20}
+              />
+            ) : (
+              <Text style={{ 
+                fontSize: 10, 
+                color: colors.primary, 
+                textAlign: 'right',
+                opacity: 0.8
+              }}>
+                {whispRightLabel}
+              </Text>
             )}
-            <TouchableOpacity style={{ padding: 12, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.1)', flexDirection: 'row', alignItems: 'center' }} onPress={() => { setShowKebabMenu(false); onKebabAction('profile'); }}>
-              <Text style={{ fontSize: 18, marginRight: 10 }}>👤</Text>
-              <Text style={{ color: colors.textPrimary, flex: 1 }}>{lang === 'es' ? 'Perfil del Usuario' : 'User Profile'}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={{ padding: 12, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.1)', flexDirection: 'row', alignItems: 'center' }} onPress={() => { setShowKebabMenu(false); onKebabAction('intro'); }}>
-              <Text style={{ fontSize: 18, marginRight: 10 }}>👓</Text>
-              <Text style={{ color: colors.textPrimary, flex: 1 }}>{lang === 'es' ? 'Introducción' : 'Introduction'}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={{ padding: 12, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.1)', flexDirection: 'row', alignItems: 'center' }} onPress={() => { setShowKebabMenu(false); onKebabAction('voice_settings'); }}>
-              <Text style={{ fontSize: 18, marginRight: 10 }}>🔊</Text>
-              <Text style={{ color: colors.textPrimary, flex: 1 }}>{lang === 'es' ? 'Configuración Voz Android' : 'Android Voice Settings'}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={{ padding: 12, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.1)', flexDirection: 'row', alignItems: 'center' }} onPress={() => { setShowKebabMenu(false); onKebabAction('vault'); }}>
-              <Text style={{ fontSize: 18, marginRight: 10 }}>🔒</Text>
-              <Text style={{ color: colors.textPrimary, flex: 1 }}>{lang === 'es' ? 'Encriptación de Datos' : 'Data Encryption'}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={{ padding: 12, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.1)', flexDirection: 'row', alignItems: 'center' }} onPress={() => { setShowKebabMenu(false); onKebabAction('psy'); }}>
-              <Text style={{ fontSize: 18, marginRight: 10 }}>Ψ</Text>
-              <Text style={{ color: colors.textPrimary, flex: 1 }}>{lang === 'es' ? 'Test de Personalidad' : 'Personality Test'}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={{ padding: 12, borderBottomWidth: 0, flexDirection: 'row', alignItems: 'center' }} onPress={() => { setShowKebabMenu(false); onKebabAction('clear'); }}>
-              <Text style={{ fontSize: 18, marginRight: 10 }}>🗑️</Text>
-              <Text style={{ color: colors.textPrimary, flex: 1 }}>{lang === 'es' ? 'Borrar Historial' : 'Clear History'}</Text>
-            </TouchableOpacity>
           </View>
-        )}
+        </View>
+
 
         {isEcoMode && (
           <View style={{ backgroundColor: '#d96c6c', padding: 8, alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 20 }}>
@@ -2110,15 +2168,26 @@ export default function NeuralLinkScreen() {
 
         {/* CONTEXT MENU MODAL */}
         <Modal visible={!!selectedContextMsg} transparent={true} animationType="fade">
-          <TouchableOpacity
-            style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', alignItems: 'center' }}
-            onPress={() => setSelectedContextMsg(null)}
-            activeOpacity={1}
-          >
-            <View style={{ backgroundColor: colors.surface, borderRadius: 20, width: '80%', overflow: 'hidden', elevation: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 5 }, shadowOpacity: 0.3, shadowRadius: 6.68 }}>
+          <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', alignItems: 'center' }}>
+            <TouchableOpacity
+              style={StyleSheet.absoluteFillObject}
+              onPress={() => setSelectedContextMsg(null)}
+              activeOpacity={1}
+            />
+            <View style={{ backgroundColor: colors.surface, borderRadius: 20, width: '85%', overflow: 'hidden', elevation: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 5 }, shadowOpacity: 0.3, shadowRadius: 6.68 }}>
               <View style={{ padding: 20, borderBottomWidth: 1, borderBottomColor: colors.border }}>
                 <Text style={{ color: colors.textPrimary, fontWeight: 'bold', fontSize: 16 }}>{lang === 'es' ? 'Acciones de Mensaje' : 'Message Actions'}</Text>
               </View>
+
+              {selectedContextMsg && (
+                <View style={{ padding: 15, borderBottomWidth: 1, borderBottomColor: colors.border, maxHeight: 180, backgroundColor: colors.surfaceSecondary }}>
+                  <ScrollView style={{ maxHeight: 150 }} nestedScrollEnabled={true}>
+                    <Text selectable={true} style={{ color: colors.textPrimary, fontSize: 14, lineHeight: 20 }}>
+                      {selectedContextMsg.text}
+                    </Text>
+                  </ScrollView>
+                </View>
+              )}
 
               <TouchableOpacity
                 style={{ padding: 18, flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: colors.border }}
@@ -2171,7 +2240,7 @@ export default function NeuralLinkScreen() {
                 <Text style={{ color: 'red', fontSize: 15 }}>{lang === 'es' ? 'Eliminar Mensaje' : 'Delete Message'}</Text>
               </TouchableOpacity>
             </View>
-          </TouchableOpacity>
+          </View>
         </Modal>
 
         {/* FULL SCREEN IMAGE VIEWER WITH PINCH TO ZOOM */}
@@ -2209,6 +2278,141 @@ export default function NeuralLinkScreen() {
             </Text>
           </View>
         </Modal>
+
+        {/* --- GLOBAL APP MENUS OVERLAY --- 
+            Rendered at the absolute end of SafeAreaView to naturally overlay on Android without zIndex/Modal freezing bugs 
+        */}
+        {(showLangPicker || showKebabMenu) && (
+          <View style={[StyleSheet.absoluteFill, { zIndex: 9999, elevation: 999 }]}>
+            {/* Backdrop: toca fuera del menú para cerrarlo */}
+            <TouchableOpacity
+              style={StyleSheet.absoluteFill}
+              activeOpacity={1}
+              onPress={() => {
+                setShowLangPicker(false);
+                if (showKebabMenu) {
+                  setShowKebabMenu(false);
+                  stopKebabTimer();
+                }
+              }}
+            />
+            {/* Language Dropdown */}
+            {showLangPicker && (
+              <View
+                style={{
+                  position: 'absolute',
+                  top: Platform.OS === 'android' ? (StatusBar.currentHeight || 0) + 70 : 85,
+                  right: 60,
+                  backgroundColor: colors.surfaceSecondary,
+                  borderColor: colors.border,
+                  borderWidth: 1,
+                  borderRadius: 5,
+                  minWidth: 80,
+                  elevation: 10,
+                  shadowColor: '#000',
+                  shadowOffset: { width: 0, height: 4 },
+                  shadowOpacity: 0.3,
+                  shadowRadius: 6,
+                }}
+              >
+                <TouchableOpacity
+                  style={{ padding: 10, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.1)' }}
+                  onPress={() => { setLang('en'); setShowLangPicker(false); }}
+                >
+                  <Text style={{ color: lang === 'en' ? colors.primary : colors.textPrimary }}>EN</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={{ padding: 10 }}
+                  onPress={() => { setLang('es'); setShowLangPicker(false); }}
+                >
+                  <Text style={{ color: lang === 'es' ? colors.primary : colors.textPrimary }}>ES</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {/* Kebab Menu Dropdown */}
+            {showKebabMenu && (
+              <View
+                style={{
+                  position: 'absolute',
+                  top: Platform.OS === 'android' ? (StatusBar.currentHeight || 0) + 70 : 85,
+                  right: 10,
+                  backgroundColor: colors.surfaceSecondary,
+                  borderColor: colors.border,
+                  borderWidth: 1,
+                  borderRadius: 8,
+                  minWidth: 220,
+                  elevation: 10,
+                  shadowColor: '#000',
+                  shadowOffset: { width: 0, height: 4 },
+                  shadowOpacity: 0.3,
+                  shadowRadius: 6,
+                  overflow: 'hidden',
+                }}
+              >
+                {isDownloading && downloadingModel && (
+                  <View style={{ padding: 12, borderBottomWidth: 1, borderBottomColor: colors.border, backgroundColor: `${colors.primary}15` }}>
+                    <Text style={{ color: colors.primary, fontSize: 10, fontWeight: 'bold', letterSpacing: 0.5, marginBottom: 4 }}>
+                      {lang === 'es' ? 'DESCARGANDO NÚCLEO...' : 'DOWNLOADING CORE...'}
+                    </Text>
+                    <Text style={{ color: colors.textPrimary, fontSize: 11, fontWeight: 'bold' }} numberOfLines={1}>
+                      {lang === 'es' ? downloadingModel.labelEs : downloadingModel.labelEn}
+                    </Text>
+                    <View style={{ height: 4, backgroundColor: `${colors.primary}20`, borderRadius: 2, marginVertical: 6, overflow: 'hidden' }}>
+                      <View style={{ width: `${downloadPercent}%`, height: '100%', backgroundColor: colors.primary }} />
+                    </View>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <Text style={{ color: colors.textSecondary, fontSize: 9 }}>{downloadPercent}% ({downloadedMB}MB)</Text>
+                      {downloadSpeed > 0 && <Text style={{ color: colors.textSecondary, fontSize: 9 }}>🚀 {downloadSpeed} MB/s</Text>}
+                    </View>
+                  </View>
+                )}
+                <TouchableOpacity
+                  style={{ padding: 12, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.1)', flexDirection: 'row', alignItems: 'center' }}
+                  onPress={() => { setShowKebabMenu(false); onKebabAction('profile'); }}
+                >
+                  <Text style={{ fontSize: 18, marginRight: 10 }}>👤</Text>
+                  <Text style={{ color: colors.textPrimary, flex: 1 }}>{lang === 'es' ? 'Perfil del Usuario' : 'User Profile'}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={{ padding: 12, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.1)', flexDirection: 'row', alignItems: 'center' }}
+                  onPress={() => { setShowKebabMenu(false); onKebabAction('intro'); }}
+                >
+                  <Text style={{ fontSize: 18, marginRight: 10 }}>👓</Text>
+                  <Text style={{ color: colors.textPrimary, flex: 1 }}>{lang === 'es' ? 'Introducción' : 'Introduction'}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={{ padding: 12, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.1)', flexDirection: 'row', alignItems: 'center' }}
+                  onPress={() => { setShowKebabMenu(false); onKebabAction('voice_settings'); }}
+                >
+                  <Text style={{ fontSize: 18, marginRight: 10 }}>🔊</Text>
+                  <Text style={{ color: colors.textPrimary, flex: 1 }}>{lang === 'es' ? 'Configuración Voz Android' : 'Android Voice Settings'}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={{ padding: 12, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.1)', flexDirection: 'row', alignItems: 'center' }}
+                  onPress={() => { setShowKebabMenu(false); onKebabAction('vault'); }}
+                >
+                  <Text style={{ fontSize: 18, marginRight: 10 }}>🔒</Text>
+                  <Text style={{ color: colors.textPrimary, flex: 1 }}>{lang === 'es' ? 'Encriptación de Datos' : 'Data Encryption'}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={{ padding: 12, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.1)', flexDirection: 'row', alignItems: 'center' }}
+                  onPress={() => { setShowKebabMenu(false); onKebabAction('psy'); }}
+                >
+                  <Text style={{ fontSize: 18, marginRight: 10 }}>Ψ</Text>
+                  <Text style={{ color: colors.textPrimary, flex: 1 }}>{lang === 'es' ? 'Test de Personalidad' : 'Personality Test'}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={{ padding: 12, flexDirection: 'row', alignItems: 'center' }}
+                  onPress={() => { setShowKebabMenu(false); onKebabAction('clear'); }}
+                >
+                  <Text style={{ fontSize: 18, marginRight: 10 }}>🗑️</Text>
+                  <Text style={{ color: colors.textPrimary, flex: 1 }}>{lang === 'es' ? 'Borrar Historial' : 'Clear History'}</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
+        )}
       </SafeAreaView>
   );
 }

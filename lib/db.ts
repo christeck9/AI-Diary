@@ -1,6 +1,8 @@
 import { type SQLiteDatabase } from 'expo-sqlite';
 
 import { initializeSyntacticMemory } from '../db/syntacticMemorySchema';
+import { initializeZenGarden } from '../db/zenGardenSchema';
+import { initializeTodos } from '../db/todoSchema';
 
 export async function initializeDatabase(db: SQLiteDatabase) {
   try {
@@ -63,6 +65,14 @@ export async function initializeDatabase(db: SQLiteDatabase) {
         updated_at INTEGER
       );`);
 
+    await db.execAsync(`CREATE TABLE IF NOT EXISTS document_chunks (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        document_id TEXT NOT NULL,
+        chunk_index INTEGER NOT NULL,
+        text TEXT NOT NULL,
+        embedding TEXT NOT NULL
+      );`);
+
     // 2. Virtual Tables (FTS5)
     await db.execAsync(`CREATE VIRTUAL TABLE IF NOT EXISTS memory_fts USING fts5(id UNINDEXED, role UNINDEXED, text);`);
 
@@ -94,6 +104,20 @@ export async function initializeDatabase(db: SQLiteDatabase) {
       await initializeSyntacticMemory(db);
     } catch (e) {
       console.error('[DATABASE] Failed to initialize Syntactic Memory:', e);
+    }
+
+    // Initialize Zen Garden (Anima Harness) Infrastructure
+    try {
+      await initializeZenGarden(db);
+    } catch (e) {
+      console.error('[DATABASE] Failed to initialize Zen Garden:', e);
+    }
+
+    // Initialize Todo List
+    try {
+      await initializeTodos(db);
+    } catch (e) {
+      console.error('[DATABASE] Failed to initialize Todo List:', e);
     }
 
     console.log('[DATABASE] Initialization successful.');

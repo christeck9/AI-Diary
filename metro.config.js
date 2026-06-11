@@ -7,6 +7,7 @@ const config = getDefaultConfig(__dirname);
 
 config.resolver.assetExts.push('wasm');
 config.resolver.assetExts.push('bin');
+config.resolver.assetExts.push('gguf');
 config.resolver.sourceExts.push('wasm');
 config.resolver.unstable_enablePackageExports = true;
 

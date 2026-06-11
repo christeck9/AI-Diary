@@ -7,6 +7,8 @@ import { getHardwareConfig, getDeviceTemperature, getTotalRAM } from '../lib/har
 import { MODEL_CONFIG, getDynamicEngineConfig, MODEL_LIST, ModelDefinition } from '../src/config/ModelConfig';
 import { cpuSemaphore } from '../lib/CPUSemaphore';
 import { settingsService } from '../lib/SettingsService';
+import { Asset } from 'expo-asset';
+
 
 export interface ModelInfo extends ModelDefinition {
   label: string;
@@ -226,7 +228,7 @@ export function useAppLlm(lang: string = 'es') {
       if (contentLength) {
         return parseInt(contentLength, 10);
       }
-    } catch (e) { console.warn('Error fetching remote model size:', e); }
+    } catch (e) { console.log('Error fetching remote model size:', e); }
     return null;
   };
 
@@ -536,7 +538,7 @@ export function useAppLlm(lang: string = 'es') {
         return parseInt(contentLength, 10);
       }
     } catch (e) {
-      console.warn(`[LLM] Failed to fetch Content-Length for ${url}:`, e);
+      console.log(`[LLM] Failed to fetch Content-Length for ${url}:`, e);
     }
     return null;
   };
@@ -708,11 +710,11 @@ export function useAppLlm(lang: string = 'es') {
       const temp = await getDeviceTemperature();
       const totalRam = await getTotalRAM();
 
-      // Load experimentalTurbo setting via SettingsService
+      // Load gpuTurbo setting via SettingsService
       let useTurbo = false;
       try {
         const settings = await settingsService.get();
-        if (settings.experimentalTurbo) useTurbo = true;
+        if (settings.gpuTurbo ?? settings.experimentalTurbo) useTurbo = true;
       } catch (e) { console.log('[LLM] Error reading turbo setting', e); }
 
       const dynamicConfig = getDynamicEngineConfig(
@@ -802,26 +804,6 @@ export function useAppLlm(lang: string = 'es') {
     }
   };
 
-  const detectComplexity = (prompt: string | null, hasAttachment: boolean = false): 'ZEN' | 'BALANCE' | 'NORMAL' | 'PROFUNDO' => {
-    if (hasAttachment) return 'PROFUNDO';
-    if (!prompt) return 'BALANCE';
-
-    const userPart = prompt.split('<start_of_turn>user').pop() || prompt.split('<|turn|>user').pop() || '';
-    const relevantContent = userPart.toLowerCase();
-
-    const KEYWORDS = {
-      search: ['president', 'presidente', 'who is', 'quién es', 'quien es', 'actual', 'now', 'ahora', 'noticias', 'news', 'hoy', 'today'],
-      deep: ['arquitectura', 'lógica', 'audit', 'deep', 'analiza', 'crea', 'diseña', 'sistema', 'reason', 'architecture', 'design', 'código', 'code'],
-      normal: ['explica', 'cómo', 'por qué', 'dime más', 'ayúdame', 'how', 'why', 'explain', 'lista', 'resume']
-    };
-
-    if (KEYWORDS.search.some(k => relevantContent.includes(k))) return 'BALANCE';
-    if (userPart.length < 30 && !KEYWORDS.deep.some(k => relevantContent.includes(k))) return 'ZEN';
-    if (KEYWORDS.deep.some(k => relevantContent.includes(k))) return 'PROFUNDO';
-    if (KEYWORDS.normal.some(k => relevantContent.includes(k)) || userPart.length > 300) return 'NORMAL';
-
-    return 'BALANCE';
-  };
 
   const prefillContextLlm = async (
     prompt: string | null,
@@ -862,7 +844,6 @@ export function useAppLlm(lang: string = 'es') {
         throw new Error(lang === 'es' ? 'El modelo no está cargado o listo' : 'Model is not loaded or ready');
       }
       const hasAttachment = (multimodalMessages && multimodalMessages.length > 0) || !!imagePath || !!binaryBuffer;
-      const level = detectComplexity(prompt, hasAttachment);
 
       let adjustedPrompt = prompt;
       let adjustedMessages = multimodalMessages ? [...multimodalMessages] : null;
@@ -912,15 +893,16 @@ export function useAppLlm(lang: string = 'es') {
         ));
       }
 
-      const directives = {
-        'ZEN': "\n[[RULE: No thinking. No preamble. Respond in one sentence.]]",
-        'BALANCE': "\n[[RULE: Keep your Thinking Process brief (maximum 2 paragraphs).]]",
-        'NORMAL': "\n[[RULE: Keep your Thinking Process concise (maximum 4 paragraphs).]]",
-        'PROFUNDO': ""
+      // Map consciousnessLevel directly to directives (1=Zen, 2=Balance, 3=Deep, 4=Philosophic)
+      const directives: Record<number, string> = {
+        1: lang === 'es' ? "\n[[RULE: Sin pensar. Sin preámbulos. Responde en una sola oración.]]" : "\n[[RULE: No thinking. No preamble. Respond in one sentence.]]",
+        2: lang === 'es' ? "\n[[RULE: Mantén tu Proceso de Pensamiento breve (máximo 2 párrafos).]]" : "\n[[RULE: Keep your Thinking Process brief (maximum 2 paragraphs).]]",
+        3: lang === 'es' ? "\n[[RULE: Mantén tu Proceso de Pensamiento conciso (máximo 4 párrafos).]]" : "\n[[RULE: Keep your Thinking Process concise (maximum 4 paragraphs).]]",
+        4: ""
       };
 
       // Only apply directives to Gemma architectures (they have reasoning blocks)
-      const directive = isLlama ? "" : directives[level];
+      const directive = isLlama ? "" : (directives[consciousnessLevel] || "");
       if (directive) {
         if (adjustedMessages && adjustedMessages.length > 0) {
           const lastIdx = adjustedMessages.length - 1;
@@ -1124,6 +1106,55 @@ export function useAppLlm(lang: string = 'es') {
     getModelStatus,
     checkModelVersion,
     resumeIncompleteDownloads,
+
+    // RAG & Embeddings
+    generateEmbeddings: async (texts: string[]): Promise<number[][]> => {
+      const baseDirRaw = FileSystem.documentDirectory?.replace(/\/+$/, '').replace(/^file:\/\//, '');
+      const modelPath = `${baseDirRaw}/llm_models/all-MiniLM-L6-v2-ggml-model-q4_0.gguf`;
+      const info = await FileSystem.getInfoAsync(`file://${modelPath}`);
+      
+      if (!info.exists) {
+        console.log(`[LLM] 🧠 Copying local embedding model (all-MiniLM-L6-v2) from assets...`);
+        const parentDir = `${baseDirRaw}/llm_models`;
+        const parentInfo = await FileSystem.getInfoAsync(`file://${parentDir}`);
+        if (!parentInfo.exists) {
+          await FileSystem.makeDirectoryAsync(`file://${parentDir}`, { intermediates: true });
+        }
+        const asset = Asset.fromModule(require('../assets/all-MiniLM-L6-v2-ggml-model-q4_0.gguf'));
+        await asset.downloadAsync();
+        if (asset.localUri) {
+          await FileSystem.copyAsync({
+            from: asset.localUri,
+            to: `file://${modelPath}`
+          });
+          console.log(`[LLM] 🧠 Embedding Model copied successfully.`);
+        } else {
+          throw new Error('Failed to resolve local asset path for all-MiniLM-L6-v2');
+        }
+      }
+
+      console.log(`[LLM] 🧠 Initializing Embedding Context...`);
+      const embeddingContext = await initLlama({
+        model: `file://${modelPath}`,
+        embedding: true,
+        n_ctx: 512,
+        n_threads: 2, // Minimal threads for small model
+        n_gpu_layers: 0 // Keep on CPU to avoid OpenCL conflicts with active chat model
+      });
+
+      try {
+        const results: number[][] = [];
+        console.log(`[LLM] 🧠 Generating ${texts.length} embeddings...`);
+        for (const text of texts) {
+          const { embedding } = await embeddingContext.embedding(text);
+          results.push(embedding);
+        }
+        return results;
+      } finally {
+        console.log(`[LLM] 🧠 Releasing Embedding Context...`);
+        await embeddingContext.release();
+      }
+    }
   };
 }
 
