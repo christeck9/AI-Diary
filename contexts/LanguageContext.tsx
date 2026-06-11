@@ -119,6 +119,17 @@ export const useLanguage = () => useContext(LanguageContext);
 
 const getInitialLanguage = (): AppLanguage => {
   try {
+    // Check if the native module is registered to prevent Metro evaluation crash
+    const hasNativeModule = typeof global !== 'undefined' && !!(
+      (global as any).expo?.modules?.ExpoLocalization ||
+      (global as any).ExpoModules?.ExpoLocalization
+    );
+
+    if (!hasNativeModule) {
+      console.warn('[LanguageContext] ExpoLocalization native module is not registered on device. Falling back to English.');
+      return 'en';
+    }
+
     const Localization = require('expo-localization');
     const locales = Localization.getLocales();
     if (locales && locales.length > 0) {
