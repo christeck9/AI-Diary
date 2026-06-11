@@ -148,7 +148,7 @@ export default function ZenGardenScreen() {
 
       {/* --- GLOBAL APP MENUS OVERLAY --- */}
       <Modal visible={showKebabMenu} transparent={true} animationType="fade">
-        <View style={{ flex: 1, zIndex: 9999, elevation: 999 }}>
+        <View style={{ flex: 1, alignItems: 'flex-end', zIndex: 9999, elevation: 999 }}>
           <TouchableOpacity
             style={StyleSheet.absoluteFill}
             activeOpacity={1}
@@ -162,19 +162,19 @@ export default function ZenGardenScreen() {
 
           {/* Kebab Menu Dropdown */}
           <View style={[styles.dropdown, {
-            top: kebabMenuTop,
-            right: 10,
-              minWidth: 220,
-              overflow: 'hidden',
-              backgroundColor: colors.surfaceSecondary,
-              borderColor: colors.border,
-              borderRadius: 8,
-              elevation: 10,
-              shadowColor: '#000',
-              shadowOffset: { width: 0, height: 4 },
-              shadowOpacity: 0.3,
-              shadowRadius: 6,
-            }]}>
+            marginTop: kebabMenuTop,
+            marginRight: 10,
+            minWidth: 220,
+            overflow: 'hidden',
+            backgroundColor: colors.surfaceSecondary,
+            borderColor: colors.border,
+            borderRadius: 8,
+            elevation: 10,
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 4 },
+            shadowOpacity: 0.3,
+            shadowRadius: 6,
+          }]}>
               {isDownloading && downloadingModel && (
                 <View style={{ padding: 12, borderBottomWidth: 1, borderBottomColor: colors.border, backgroundColor: `${colors.primary}15` }}>
                   <Text style={{ color: colors.primary, fontSize: 10, fontWeight: 'bold', letterSpacing: 0.5, marginBottom: 4 }}>
@@ -250,7 +250,6 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   dropdown: {
-    position: 'absolute',
     borderWidth: 1,
     borderRadius: 5,
     zIndex: 9999,

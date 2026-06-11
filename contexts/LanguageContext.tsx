@@ -1,5 +1,4 @@
 import React, { createContext, useContext, useState } from 'react';
-import * as Localization from 'expo-localization';
 
 export type AppLanguage = 'en' | 'es';
 
@@ -120,6 +119,7 @@ export const useLanguage = () => useContext(LanguageContext);
 
 const getInitialLanguage = (): AppLanguage => {
   try {
+    const Localization = require('expo-localization');
     const locales = Localization.getLocales();
     if (locales && locales.length > 0) {
       const systemLang = locales[0].languageCode?.toLowerCase() || '';

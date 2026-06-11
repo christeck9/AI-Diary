@@ -493,7 +493,7 @@ export default function ToolsScreen() {
 
         {/* --- GLOBAL APP MENUS OVERLAY --- */}
         <Modal visible={showKebabMenu} transparent={true} animationType="fade">
-          <View style={{ flex: 1, zIndex: 9999, elevation: 999 }}>
+          <View style={{ flex: 1, alignItems: 'flex-end', zIndex: 9999, elevation: 999 }}>
             <TouchableOpacity
               style={StyleSheet.absoluteFill}
               activeOpacity={1}
@@ -507,14 +507,14 @@ export default function ToolsScreen() {
 
             {/* Kebab Menu Dropdown */}
             <View style={[styles.dropdown, {
-              top: kebabMenuTop,
-              right: 10,
-                minWidth: 220,
-                overflow: 'hidden',
-                backgroundColor: colors.surfaceSecondary,
-                borderColor: colors.border,
-                borderRadius: 8,
-              }]}>
+              marginTop: kebabMenuTop,
+              marginRight: 10,
+              minWidth: 220,
+              overflow: 'hidden',
+              backgroundColor: colors.surfaceSecondary,
+              borderColor: colors.border,
+              borderRadius: 8,
+            }]}>
                 <TouchableOpacity style={styles.kebabItem} onPress={() => { setShowKebabMenu(false); router.replace({ pathname: '/', params: { openModal: 'profile' } }); }}>
                   <Text style={{ fontSize: 18, marginRight: 10 }}>👤</Text>
                   <Text style={{ color: colors.textPrimary, flex: 1 }}>{lang === 'es' ? 'Perfil del Usuario' : 'User Profile'}</Text>
@@ -1079,7 +1079,6 @@ const styles = StyleSheet.create({
     fontWeight: 'bold'
   },
   dropdown: {
-    position: 'absolute',
     borderWidth: 1,
     borderRadius: 5,
     zIndex: 9999,

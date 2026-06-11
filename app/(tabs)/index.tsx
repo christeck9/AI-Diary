@@ -2280,7 +2280,7 @@ export default function NeuralLinkScreen() {
 
         {/* --- GLOBAL APP MENUS OVERLAY --- */}
         <Modal visible={showKebabMenu} transparent={true} animationType="fade">
-          <View style={{ flex: 1, zIndex: 9999, elevation: 999 }}>
+          <View style={{ flex: 1, alignItems: 'flex-end', zIndex: 9999, elevation: 999 }}>
             {/* Backdrop: toca fuera del menú para cerrarlo */}
             <TouchableOpacity
               style={StyleSheet.absoluteFill}
@@ -2296,10 +2296,9 @@ export default function NeuralLinkScreen() {
             {/* Kebab Menu Dropdown */}
             <View
               style={{
-                position: 'absolute',
-                top: kebabMenuTop,
-                right: 10,
-                  backgroundColor: colors.surfaceSecondary,
+                marginTop: kebabMenuTop,
+                marginRight: 10,
+                backgroundColor: colors.surfaceSecondary,
                   borderColor: colors.border,
                   borderWidth: 1,
                   borderRadius: 8,

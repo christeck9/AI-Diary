@@ -1142,7 +1142,7 @@ export default function SettingsScreen() {
         </Modal>
       {/* --- GLOBAL APP MENUS OVERLAY --- */}
       <Modal visible={showLangPicker || showKebabMenu} transparent={true} animationType="fade">
-        <View style={{ flex: 1, zIndex: 9999, elevation: 999 }}>
+        <View style={{ flex: 1, alignItems: 'flex-end', zIndex: 9999, elevation: 999 }}>
           <TouchableOpacity
             style={StyleSheet.absoluteFill}
             activeOpacity={1}
@@ -1182,9 +1182,8 @@ export default function SettingsScreen() {
           {/* Kebab Menu Dropdown */}
           {showKebabMenu && (
             <View style={{
-              position: 'absolute',
-              top: kebabMenuTop,
-              right: 10,
+              marginTop: kebabMenuTop,
+              marginRight: 10,
               backgroundColor: colors.surfaceSecondary,
               borderColor: colors.border,
               borderWidth: 1,
