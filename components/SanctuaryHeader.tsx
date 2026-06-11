@@ -49,7 +49,7 @@ export const SanctuaryHeader = ({
   isStreaming = false,
 }: SanctuaryHeaderProps) => {
   const { colors, activeTheme } = useAppTheme();
-  const { lang } = useLanguage();
+  const { lang, setLang } = useLanguage();
   const { deviceRAM } = useLlm();
 
   // Reanimated shared values for float and breathe/glow
@@ -143,16 +143,49 @@ export const SanctuaryHeader = ({
         </TouchableOpacity>
 
         <View key="header-actions-row" style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-          {/* Language trigger - dropdown rendered at screen level */}
+          {/* Language Pill Selector */}
           <View style={{ alignItems: 'center' }}>
             <Text style={{ fontSize: 8, fontWeight: 'bold', color: colors.primary, marginBottom: 2, letterSpacing: 0.5 }}>LANGUAGE</Text>
-            <TouchableOpacity
-              key="header-lang-trigger"
-              style={[styles.langToggle, { borderColor: colors.primary, paddingHorizontal: 10 }]}
-              onPress={onLangPress}
-            >
-              <Text key="header-lang-text" style={[styles.langText, { color: colors.primary, fontWeight: 'bold' }]}>{lang.toUpperCase()} ▼</Text>
-            </TouchableOpacity>
+            <View style={{ 
+              flexDirection: 'row', 
+              backgroundColor: colors.surfaceSecondary || 'rgba(0,0,0,0.05)', 
+              borderRadius: 20, 
+              borderWidth: 1, 
+              borderColor: colors.border,
+              padding: 2,
+              alignItems: 'center'
+            }}>
+              <TouchableOpacity 
+                onPress={() => setLang('en')}
+                style={{
+                  paddingVertical: 4,
+                  paddingHorizontal: 8,
+                  borderRadius: 15,
+                  backgroundColor: lang === 'en' ? colors.primary : 'transparent',
+                }}
+              >
+                <Text style={{ 
+                  fontSize: 10, 
+                  fontWeight: 'bold', 
+                  color: lang === 'en' ? (activeTheme === 'matrix' ? '#000000' : '#FFFFFF') : colors.textSecondary 
+                }}>EN</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                onPress={() => setLang('es')}
+                style={{
+                  paddingVertical: 4,
+                  paddingHorizontal: 8,
+                  borderRadius: 15,
+                  backgroundColor: lang === 'es' ? colors.primary : 'transparent',
+                }}
+              >
+                <Text style={{ 
+                  fontSize: 10, 
+                  fontWeight: 'bold', 
+                  color: lang === 'es' ? (activeTheme === 'matrix' ? '#000000' : '#FFFFFF') : colors.textSecondary 
+                }}>ES</Text>
+              </TouchableOpacity>
+            </View>
           </View>
 
           {/* CHAT VOICE: Prende / apaga la voz de la IA (TTS) */}

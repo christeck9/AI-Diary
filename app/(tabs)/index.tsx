@@ -103,7 +103,6 @@ export default function NeuralLinkScreen() {
   const [modelExists, setModelExists] = useState(false);
   const [selectedModel, setSelectedModel] = useState<ModelInfo>(AVAILABLE_MODELS[0]);
   const [showModelPicker, setShowModelPicker] = useState(false);
-  const [showLangPicker, setShowLangPicker] = useState(false);
   const [canResume, setCanResume] = useState(false);
   const [showKebabMenu, setShowKebabMenu] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
@@ -1045,7 +1044,6 @@ export default function NeuralLinkScreen() {
     setInputText('');
     setSelectedModel(AVAILABLE_MODELS[0]);
     setShowModelPicker(false);
-    setShowLangPicker(false);
     setShowKebabMenu(false);
   }, [resetToHome, db, t, AVAILABLE_MODELS]);
 
@@ -1189,9 +1187,6 @@ export default function NeuralLinkScreen() {
           onHomePress={handleHeaderHomePress}
           onModelPress={handleModelPress}
           activeModelLabel={status === 'ready' && activeModel ? activeModel[lang === 'es' ? 'labelEs' : 'labelEn'] : undefined}
-          showLangPicker={showLangPicker}
-          onLangPress={() => setShowLangPicker(!showLangPicker)}
-          onLangSelect={(l) => { setLang(l as 'en' | 'es'); setShowLangPicker(false); }}
           showKebabMenu={showKebabMenu}
           onKebabPress={() => {
             const next = !showKebabMenu;
@@ -2282,53 +2277,19 @@ export default function NeuralLinkScreen() {
         {/* --- GLOBAL APP MENUS OVERLAY --- 
             Rendered at the absolute end of SafeAreaView to naturally overlay on Android without zIndex/Modal freezing bugs 
         */}
-        {(showLangPicker || showKebabMenu) && (
+        {showKebabMenu && (
           <View style={[StyleSheet.absoluteFill, { zIndex: 9999, elevation: 999 }]}>
             {/* Backdrop: toca fuera del menú para cerrarlo */}
             <TouchableOpacity
               style={StyleSheet.absoluteFill}
               activeOpacity={1}
               onPress={() => {
-                setShowLangPicker(false);
                 if (showKebabMenu) {
                   setShowKebabMenu(false);
                   stopKebabTimer();
                 }
               }}
             />
-            {/* Language Dropdown */}
-            {showLangPicker && (
-              <View
-                style={{
-                  position: 'absolute',
-                  top: Platform.OS === 'android' ? (StatusBar.currentHeight || 0) + 70 : 85,
-                  right: 60,
-                  backgroundColor: colors.surfaceSecondary,
-                  borderColor: colors.border,
-                  borderWidth: 1,
-                  borderRadius: 5,
-                  minWidth: 80,
-                  elevation: 10,
-                  shadowColor: '#000',
-                  shadowOffset: { width: 0, height: 4 },
-                  shadowOpacity: 0.3,
-                  shadowRadius: 6,
-                }}
-              >
-                <TouchableOpacity
-                  style={{ padding: 10, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.1)' }}
-                  onPress={() => { setLang('en'); setShowLangPicker(false); }}
-                >
-                  <Text style={{ color: lang === 'en' ? colors.primary : colors.textPrimary }}>EN</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={{ padding: 10 }}
-                  onPress={() => { setLang('es'); setShowLangPicker(false); }}
-                >
-                  <Text style={{ color: lang === 'es' ? colors.primary : colors.textPrimary }}>ES</Text>
-                </TouchableOpacity>
-              </View>
-            )}
 
             {/* Kebab Menu Dropdown */}
             {showKebabMenu && (

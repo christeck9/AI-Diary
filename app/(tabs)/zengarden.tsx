@@ -33,7 +33,6 @@ export default function ZenGardenScreen() {
     resetToHome,
   } = useLlm();
 
-  const [showLangPicker, setShowLangPicker] = useState(false);
   const [showKebabMenu, setShowKebabMenu] = useState(false);
   const kebabTimerRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -118,9 +117,6 @@ export default function ZenGardenScreen() {
       <SanctuaryHeader
         showVoiceIcon={false}
         activeModelLabel={status === 'ready' && activeModel ? activeModel[lang === 'es' ? 'labelEs' : 'labelEn'] : undefined}
-        showLangPicker={showLangPicker}
-        onLangPress={() => setShowLangPicker(!showLangPicker)}
-        onLangSelect={(l) => { setLang(l as 'en' | 'es'); setShowLangPicker(false); }}
         showKebabMenu={showKebabMenu}
         onKebabPress={() => {
           const next = !showKebabMenu;
@@ -147,41 +143,18 @@ export default function ZenGardenScreen() {
 
 
       {/* --- GLOBAL APP MENUS OVERLAY --- */}
-      <Modal visible={showLangPicker || showKebabMenu} transparent={true} animationType="fade">
+      <Modal visible={showKebabMenu} transparent={true} animationType="fade">
         <View style={[StyleSheet.absoluteFill, { zIndex: 9999, elevation: 999 }]}>
           <TouchableOpacity
             style={StyleSheet.absoluteFill}
             activeOpacity={1}
             onPress={() => {
-              setShowLangPicker(false);
               if (showKebabMenu) {
                 setShowKebabMenu(false);
                 stopKebabTimer();
               }
             }}
           />
-          {/* Language Dropdown */}
-          {showLangPicker && (
-            <View style={[styles.dropdown, {
-              top: dropdownTop + 5,
-              right: 60,
-              minWidth: 80,
-              backgroundColor: colors.surfaceSecondary,
-              borderColor: colors.border,
-              elevation: 10,
-              shadowColor: '#000',
-              shadowOffset: { width: 0, height: 4 },
-              shadowOpacity: 0.3,
-              shadowRadius: 6,
-            }]}>
-              <TouchableOpacity style={styles.dropdownItem} onPress={() => { setLang('en'); setShowLangPicker(false); }}>
-                <Text style={{ color: lang === 'en' ? colors.primary : colors.textPrimary }}>EN</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.dropdownItem} onPress={() => { setLang('es'); setShowLangPicker(false); }}>
-                <Text style={{ color: lang === 'es' ? colors.primary : colors.textPrimary }}>ES</Text>
-              </TouchableOpacity>
-            </View>
-          )}
 
           {/* Kebab Menu Dropdown */}
           {showKebabMenu && (

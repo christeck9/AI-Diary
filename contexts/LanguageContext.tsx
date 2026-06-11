@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState } from 'react';
+import * as Localization from 'expo-localization';
 
 export type AppLanguage = 'en' | 'es';
 
@@ -117,8 +118,24 @@ const LanguageContext = createContext<LanguageContextType>({
 
 export const useLanguage = () => useContext(LanguageContext);
 
+const getInitialLanguage = (): AppLanguage => {
+  try {
+    const locales = Localization.getLocales();
+    if (locales && locales.length > 0) {
+      const systemLang = locales[0].languageCode?.toLowerCase() || '';
+      const romancePrefixes = ['es', 'pt', 'it', 'fr', 'ro', 'ca', 'gl'];
+      if (romancePrefixes.some(prefix => systemLang.startsWith(prefix))) {
+        return 'es';
+      }
+    }
+  } catch (e) {
+    console.warn('[LanguageContext] Failed to auto-detect language:', e);
+  }
+  return 'en';
+};
+ 
 export const LanguageProvider = ({ children }: { children: React.ReactNode }) => {
-  const [lang, setLang] = useState<AppLanguage>('en');
+  const [lang, setLang] = useState<AppLanguage>(getInitialLanguage());
 
   const t = (key: string): string => {
     return translations[lang]?.[key] ?? translations['en']?.[key] ?? key;
