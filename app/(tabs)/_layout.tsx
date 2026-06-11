@@ -38,17 +38,17 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="zengarden"
-        options={{
-          title: lang === 'es' ? 'Jardín' : 'Garden',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="leaf.fill" color={color} />,
-        }}
-      />
-      <Tabs.Screen
         name="tools"
         options={{
           title: lang === 'es' ? 'Herramientas' : 'Tools',
           tabBarIcon: ({ color }) => <IconSymbol size={28} name="wrench.fill" color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="zengarden"
+        options={{
+          title: lang === 'es' ? 'Jardín' : 'Garden',
+          tabBarIcon: ({ color }) => <IconSymbol size={28} name="leaf.fill" color={color} />,
         }}
       />
       <Tabs.Screen
