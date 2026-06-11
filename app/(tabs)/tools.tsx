@@ -58,6 +58,7 @@ export default function ToolsScreen() {
   );
 
   const [showKebabMenu, setShowKebabMenu] = useState(false);
+  const [kebabMenuTop, setKebabMenuTop] = useState(Platform.OS === 'android' ? (StatusBar.currentHeight || 0) + 70 : 85);
   const kebabTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const stopKebabTimer = () => {
@@ -465,7 +466,10 @@ export default function ToolsScreen() {
             showVoiceIcon={false}
             activeModelLabel={status === 'ready' && activeModel ? activeModel[lang === 'es' ? 'labelEs' : 'labelEn'] : undefined}
             showKebabMenu={showKebabMenu}
-            onKebabPress={() => {
+            onKebabPress={(calculatedTop) => {
+              if (calculatedTop !== undefined) {
+                setKebabMenuTop(calculatedTop);
+              }
               const next = !showKebabMenu;
               setShowKebabMenu(next);
               if (next) startKebabTimer();
@@ -502,10 +506,9 @@ export default function ToolsScreen() {
             />
 
             {/* Kebab Menu Dropdown */}
-            {showKebabMenu && (
-              <View style={[styles.dropdown, {
-                top: Platform.OS === 'android' ? (StatusBar.currentHeight || 0) + 70 : 85,
-                right: 10,
+            <View style={[styles.dropdown, {
+              top: kebabMenuTop,
+              right: 10,
                 minWidth: 220,
                 overflow: 'hidden',
                 backgroundColor: colors.surfaceSecondary,
@@ -545,9 +548,8 @@ export default function ToolsScreen() {
                   <Text style={{ color: colors.textPrimary, flex: 1 }}>{lang === 'es' ? 'Borrar Historial' : 'Clear History'}</Text>
                 </TouchableOpacity>
               </View>
-            )}
-          </View>
-        </Modal>
+            </View>
+          </Modal>
 
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1, zIndex: 1 }}>
           <ScrollView

@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Platform, StatusBar } from 'react-native';
 import Animated, { 
   useSharedValue, 
@@ -27,7 +27,7 @@ interface SanctuaryHeaderProps {
   onLangPress?: () => void;
   onLangSelect?: (lang: string) => void;
   showKebabMenu?: boolean;
-  onKebabPress?: () => void;
+  onKebabPress?: (calculatedTop: number) => void;
   isStreaming?: boolean;
   animaMessage?: string;
 }
@@ -51,6 +51,18 @@ export const SanctuaryHeader = ({
   const { colors, activeTheme } = useAppTheme();
   const { lang, setLang } = useLanguage();
   const { deviceRAM } = useLlm();
+
+  const kebabBtnRef = useRef<TouchableOpacity>(null);
+
+  const handleKebabPress = () => {
+    kebabBtnRef.current?.measure((x, y, width, height, pageX, pageY) => {
+      const fallback = Platform.OS === 'android' ? (StatusBar.currentHeight || 0) + 70 : 85;
+      const topOffset = (pageY !== undefined && pageY !== 0) ? (pageY + height) : fallback;
+      if (onKebabPress) {
+        onKebabPress(topOffset);
+      }
+    });
+  };
 
   // Reanimated shared values for float and breathe/glow
   const floatValue = useSharedValue(0);
@@ -217,8 +229,9 @@ export const SanctuaryHeader = ({
           {/* Hamburger trigger - kebab menu rendered at screen level */}
           <TouchableOpacity
             key="header-kebab-trigger"
+            ref={kebabBtnRef}
             style={{ padding: 5 }}
-            onPress={onKebabPress}
+            onPress={handleKebabPress}
           >
             <Text key="header-hamburger-lines" style={{ color: colors.primary, fontSize: 22, fontWeight: 'bold' }}>☰</Text>
           </TouchableOpacity>

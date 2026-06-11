@@ -105,6 +105,7 @@ export default function NeuralLinkScreen() {
   const [showModelPicker, setShowModelPicker] = useState(false);
   const [canResume, setCanResume] = useState(false);
   const [showKebabMenu, setShowKebabMenu] = useState(false);
+  const [kebabMenuTop, setKebabMenuTop] = useState(Platform.OS === 'android' ? (StatusBar.currentHeight || 0) + 70 : 85);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showIntroModal, setShowIntroModal] = useState(false);
   const [showPsyTestModal, setShowPsyTestModal] = useState(false);
@@ -1188,7 +1189,10 @@ export default function NeuralLinkScreen() {
           onModelPress={handleModelPress}
           activeModelLabel={status === 'ready' && activeModel ? activeModel[lang === 'es' ? 'labelEs' : 'labelEn'] : undefined}
           showKebabMenu={showKebabMenu}
-          onKebabPress={() => {
+          onKebabPress={(calculatedTop) => {
+            if (calculatedTop !== undefined) {
+              setKebabMenuTop(calculatedTop);
+            }
             const next = !showKebabMenu;
             setShowKebabMenu(next);
             if (next) startKebabTimer();
@@ -2274,10 +2278,8 @@ export default function NeuralLinkScreen() {
           </View>
         </Modal>
 
-        {/* --- GLOBAL APP MENUS OVERLAY --- 
-            Rendered at the absolute end of SafeAreaView to naturally overlay on Android without zIndex/Modal freezing bugs 
-        */}
-        {showKebabMenu && (
+        {/* --- GLOBAL APP MENUS OVERLAY --- */}
+        <Modal visible={showKebabMenu} transparent={true} animationType="fade">
           <View style={[StyleSheet.absoluteFill, { zIndex: 9999, elevation: 999 }]}>
             {/* Backdrop: toca fuera del menú para cerrarlo */}
             <TouchableOpacity
@@ -2292,12 +2294,11 @@ export default function NeuralLinkScreen() {
             />
 
             {/* Kebab Menu Dropdown */}
-            {showKebabMenu && (
-              <View
-                style={{
-                  position: 'absolute',
-                  top: Platform.OS === 'android' ? (StatusBar.currentHeight || 0) + 70 : 85,
-                  right: 10,
+            <View
+              style={{
+                position: 'absolute',
+                top: kebabMenuTop,
+                right: 10,
                   backgroundColor: colors.surfaceSecondary,
                   borderColor: colors.border,
                   borderWidth: 1,
@@ -2370,10 +2371,9 @@ export default function NeuralLinkScreen() {
                   <Text style={{ fontSize: 18, marginRight: 10 }}>🗑️</Text>
                   <Text style={{ color: colors.textPrimary, flex: 1 }}>{lang === 'es' ? 'Borrar Historial' : 'Clear History'}</Text>
                 </TouchableOpacity>
-              </View>
-            )}
+            </View>
           </View>
-        )}
+        </Modal>
       </SafeAreaView>
   );
 }

@@ -76,6 +76,7 @@ export default function SettingsScreen() {
   const [scannedModels, setScannedModels] = useState<ScannedModel[]>([]);
   const [showLangPicker, setShowLangPicker] = useState(false);
   const [showKebabMenu, setShowKebabMenu] = useState(false);
+  const [kebabMenuTop, setKebabMenuTop] = useState(Platform.OS === 'android' ? (StatusBar.currentHeight || 0) + 70 : 85);
   const kebabTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const stopKebabTimer = () => {
@@ -359,7 +360,10 @@ export default function SettingsScreen() {
           onLangPress={() => setShowLangPicker(!showLangPicker)}
           onLangSelect={(l) => { setLang(l as 'en' | 'es'); setShowLangPicker(false); }}
           showKebabMenu={showKebabMenu}
-          onKebabPress={() => {
+          onKebabPress={(calculatedTop) => {
+            if (calculatedTop !== undefined) {
+              setKebabMenuTop(calculatedTop);
+            }
             const next = !showKebabMenu;
             setShowKebabMenu(next);
             if (next) startKebabTimer();
@@ -1137,7 +1141,7 @@ export default function SettingsScreen() {
           </View>
         </Modal>
       {/* --- GLOBAL APP MENUS OVERLAY --- */}
-      {(showLangPicker || showKebabMenu) && (
+      <Modal visible={showLangPicker || showKebabMenu} transparent={true} animationType="fade">
         <View style={[StyleSheet.absoluteFill, { zIndex: 9999, elevation: 999 }]}>
           <TouchableOpacity
             style={StyleSheet.absoluteFill}
@@ -1179,7 +1183,7 @@ export default function SettingsScreen() {
           {showKebabMenu && (
             <View style={{
               position: 'absolute',
-              top: Platform.OS === 'android' ? (StatusBar.currentHeight || 0) + 70 : 85,
+              top: kebabMenuTop,
               right: 10,
               backgroundColor: colors.surfaceSecondary,
               borderColor: colors.border,
@@ -1220,7 +1224,7 @@ export default function SettingsScreen() {
             </View>
           )}
         </View>
-      )}
+      </Modal>
       </SafeAreaView>
   );
 }
