@@ -2280,7 +2280,7 @@ export default function NeuralLinkScreen() {
 
         {/* --- GLOBAL APP MENUS OVERLAY --- */}
         <Modal visible={showKebabMenu} transparent={true} animationType="fade">
-          <View style={[StyleSheet.absoluteFill, { zIndex: 9999, elevation: 999 }]}>
+          <View style={{ flex: 1, zIndex: 9999, elevation: 999 }}>
             {/* Backdrop: toca fuera del menú para cerrarlo */}
             <TouchableOpacity
               style={StyleSheet.absoluteFill}

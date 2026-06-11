@@ -148,7 +148,7 @@ export default function ZenGardenScreen() {
 
       {/* --- GLOBAL APP MENUS OVERLAY --- */}
       <Modal visible={showKebabMenu} transparent={true} animationType="fade">
-        <View style={[StyleSheet.absoluteFill, { zIndex: 9999, elevation: 999 }]}>
+        <View style={{ flex: 1, zIndex: 9999, elevation: 999 }}>
           <TouchableOpacity
             style={StyleSheet.absoluteFill}
             activeOpacity={1}
