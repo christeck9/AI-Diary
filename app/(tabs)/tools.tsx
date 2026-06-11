@@ -580,16 +580,33 @@ export default function ToolsScreen() {
             <View style={styles.content}>
               {/* EXPORT DATA BUTTONS */}
               <View style={{ width: '100%', marginBottom: 20 }}>
-                <TouchableOpacity style={styles.vaultButtonBlue} onPress={handleExportClinical}>
-                  <Text style={styles.vaultButtonText}>
-                    {lang === 'es' ? 'EXPORTAR HISTORIAL DEL DIARIO (PDF)' : 'EXPORT DIARY HISTORY (PDF)'}
+                {/* Export Personality Report Section */}
+                <View style={{ marginBottom: 15 }}>
+                  <Text style={[styles.buttonSubtitle, { color: colors.textSecondary }]}>
+                    {lang === 'es' 
+                      ? 'Ve al menú principal y haz algunos tests, exporta tus resultados aquí. Es para ti y los tuyos.' 
+                      : 'Go to the Main Menu and take some tests, export your results here. Is for you and yours to share.'}
                   </Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.vaultButtonGreen} onPress={handleExportPsycho}>
-                  <Text style={styles.vaultButtonText}>
-                    {lang === 'es' ? 'EXPORTAR REPORTE DE PERSONALIDAD (PDF)' : 'EXPORT PERSONALITY REPORT (PDF)'}
+                  <TouchableOpacity style={styles.vaultButtonGreen} onPress={handleExportPsycho}>
+                    <Text style={styles.vaultButtonText}>
+                      {lang === 'es' ? 'EXPORTAR REPORTE DE PERSONALIDAD (PDF)' : 'EXPORT PERSONALITY REPORT (PDF)'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+
+                {/* Export Diary History Section */}
+                <View style={{ marginBottom: 15 }}>
+                  <Text style={[styles.buttonSubtitle, { color: colors.textSecondary }]}>
+                    {lang === 'es' 
+                      ? 'Aquí verás todos tus recuerdos en esta app y podrás leerlos. Es para ti y los tuyos.' 
+                      : 'Here you will see all your memories in this app and read them. Is for you and yours to share.'}
                   </Text>
-                </TouchableOpacity>
+                  <TouchableOpacity style={styles.vaultButtonBlue} onPress={handleExportClinical}>
+                    <Text style={styles.vaultButtonText}>
+                      {lang === 'es' ? 'EXPORTAR HISTORIAL DEL DIARIO (PDF)' : 'EXPORT DIARY HISTORY (PDF)'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
               </View>
 
               <View style={[styles.vaultCard, { borderColor: colors.border, backgroundColor: colors.surfaceSecondary }]}>
@@ -994,6 +1011,13 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 30,
     fontStyle: 'italic',
+  },
+  buttonSubtitle: {
+    fontSize: 12,
+    fontWeight: '400',
+    marginBottom: 6,
+    lineHeight: 16,
+    opacity: 0.85,
   },
   vaultCard: {
     width: '100%',
