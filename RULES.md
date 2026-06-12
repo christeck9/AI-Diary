@@ -23,9 +23,9 @@
 6. Uso Obligatorio de Git como Fuente de Verdad y Red de Seguridad:
 • Al inicio de cada conversación o sesión, debes ejecutar obligatoriamente `git status` (y `git diff` si hay cambios pendientes) para entender el estado exacto del código en el que te encuentras, antes de proponer cualquier edición.
 • Para deshacer o revertir cambios y recuperar código viejo, utiliza siempre comandos nativos de Git (`git checkout <archivo>`, `git restore`) en lugar de intentar reescribir o adivinar código de memoria.
-• Al finalizar con éxito cualquier tarea o hito, sugiere de inmediato al usuario consolidar los cambios mediante un commit (`git add` y `git commit -m "mensaje"`) para crear un punto de restauración seguro.
+• Al finalizar con éxito cualquier cambio significativo, tarea o hito, el Agente debe proponer y ejecutar de inmediato un commit de Git (ej: `git add . && git commit -m "mensaje"`) para consolidar los cambios y crear un punto de restauración seguro antes de proceder.
 
-Nota: Cualquier palabra o código usando “Soverein” o “Soverano” se tiene que codificar y sustituir por “AISanctuary”.
+Nota: Cualquier palabra o código usando “Soverein” o “Soverano” se tiene que codificar y sustituir por “AISanctuary” (el antiguo nombre del proyecto) o mejor por su mas actual "AI-Diary" que es el nuevo nombre del proyecto y el nombre de lanzamiento. AI Sanctuary fue el nombre del prototipo asi que podemos tene muchas referencias de el en varias partes de nuestro codigo o Github. Pero siempre usando AI-Diary como el nombre del proyecto. "AISanctuary" solo se usaria en referencias historicas del proyecto.
 
 ---
 Any md or text created has to have date! To keep track of the time and better understanding of any document.
@@ -53,13 +53,10 @@ El error `Found item Style/AppTheme more than one time` es un problema recurrent
    `styles.xml` debe contener **única y exclusivamente una declaración** del tema base `<style name="AppTheme">` y **una declaración** del tema del splash `<style name="Theme.App.SplashScreen">`.
 2. **Uso de Modificaciones Incrementales (No Aditivas):**
    Está prohibido pegar bloques de estilo duplicados al final del archivo. Cualquier nueva propiedad de la barra de estado, barra de navegación o comportamiento del splash se debe agregar como una etiqueta `<item>` dentro de los bloques `<style>` existentes.
-3. **Validación Automática de Recursos:**
-   Antes de dar por terminada cualquier tarea que modifique `styles.xml` o los recursos nativos en `android/app/src/main/res/`, es obligatorio compilar el árbol de recursos ejecutando el Resource Merger en la terminal:
-   ```powershell
-   cd android
-   ./gradlew assembleDebug
-   ```
-   Si la compilación nativa arroja errores de duplicación, la tarea se considerará fallida y se deberá limpiar el archivo de recursos de inmediato.
+3. **Validación Automática de Recursos y Compilación:**
+   **PROHIBICIÓN de `./gradlew assembleDebug`:** Queda estrictamente prohibido que los agentes ejecuten `./gradlew assembleDebug` o comandos de Gradle de forma directa para validar la compilación.
+   *Razón:* Al ser un proyecto basado en Expo (aunque con módulos nativos custom), la resolución de plugins (como `expo-module-gradle-plugin`) requiere las variables de entorno inyectadas por la CLI de Node.js. Usar Gradle directamente siempre arrojará falsos positivos de errores.
+   *Alternativa permitida:* Para limpiar la caché de compilación sin romper dependencias, el único comando Gradle permitido es `.\gradlew clean`. Toda compilación o prueba debe sugerirse al usuario que la realice en su propia terminal mediante `npx expo run:android`.
 
 ----
 Archivos principales del proyecto: 
@@ -200,3 +197,60 @@ robocopy "c:\AI-Diary\android" "C:\AI-Diary\BACKUPS\<version>\android" /E /XD .g
 
 Actualizar el archivo C:\AI-Diary\package.json con el mismo número de versión que la carpeta que se acaba de crear. Este número de versión tiene que ser escrito dentro de la aplicación a la derecha de AI Diary en letras muy pequeñas y con color gris. Por ejemplo:
 AI Diary v1.8.1
+
+### 6. Arquitectura de Overlays y Menús (Prevención de colapso WRAP_CONTENT en Android/Fabric)
+*Fecha de Registro: 2026-06-11*
+
+**Problema Histórico:**
+Al migrar a React Native 0.74.1 (con la arquitectura Bridgeless/Fabric habilitada), el uso del componente `<Modal transparent={true}>` para renderizar menús desplegables pequeños causaba un colapso crítico de layout. El motor de Android evalúa inicialmente el Dialog nativo subyacente con `WRAP_CONTENT`, haciendo que el contenedor colapse al tamaño de su contenido y Android lo centre gravitacionalmente en la pantalla, destruyendo por completo las coordenadas absolutas de posicionamiento (`top`, `right`).
+
+**Regla Estricta y Solución:**
+Queda **estrictamente prohibido** usar `<Modal>` para crear menús desplegables, tooltips o popovers que requieran anclarse a coordenadas visuales específicas (como debajo de un botón). 
+Todos los menús desplegables deben construirse usando un componente de capa superpuesta (Overlay) posicionado absolutamente y **renderizado fuera del flujo de `<SafeAreaView>`**.
+
+*Implementación de Referencia Obligatoria:*
+```tsx
+return (
+  <>
+    <SafeAreaView style={styles.container}>
+      {/* Contenido principal y botones que calculan las coordenadas */}
+    </SafeAreaView>
+
+    {/* OVERLAY RENDERIZADO COMO HERMANO ABSOLUTO EN LA RAÍZ */}
+    <KebabMenuOverlay 
+      visible={showMenu} 
+      anchorTop={calculatedTop} 
+      onClose={() => setShowMenu(false)} 
+    />
+  </>
+);
+```
+Esta estrategia fuerza al overlay a compartir el mismo sistema de coordenadas de la ventana (Window) evitando los bugs nativos de los Modales en el nuevo motor de renderizado.
+
+### 7. Prohibición de Comandos Destructivos de Expo (Prebuild)
+*Fecha de Registro: 2026-06-11*
+
+**Problema:**
+Dado que este proyecto es una arquitectura híbrida avanzada (Bare Workflow modificado) que contiene código nativo escrito a mano directamente dentro de la carpeta `android/` (como `LlmForegroundService.kt` o puentes JNI como `vision_bridge.cpp` y `VisionBridge.kt`), el uso de comandos de Continuous Native Generation (CNG) de Expo es extremadamente peligroso.
+
+**Regla Estricta:**
+Queda **ESTRICTAMENTE PROHIBIDO** que cualquier agente de IA ejecute, recomiende o sugiera al usuario ejecutar `npx expo prebuild` o `npx expo prebuild --clean`.
+*Razón:* Este comando aniquila y borra por completo la carpeta `android/` para regenerarla desde cero basándose en `app.json`. Esto resultará en la eliminación permanente e irreversible de todo el código fuente nativo hecho a medida para AI Diary.
+
+*Flujo de compilación autorizado:*
+1. Para limpiar cachés: Usar únicamente `.\gradlew clean` (Opcional, seguro, no borra código).
+2. Para compilar la app y correr el entorno: Usar únicamente `npx expo run:android`.
+
+### 8. Protocolo de Integridad de Código y Mapa Arquitectónico (Skill Graphipy)
+*Fecha de Registro: 2026-06-12*
+
+**Descripción:**
+Para evitar que los modelos de IA exploren a ciegas el código base o realicen modificaciones destructivas que dejen código muerto u orfanen módulos, se ha implementado el Skill **Graphipy**. Este skill analiza la estructura sistémica del código mediante el algoritmo de Louvain, generando un mapa de dependencias y validando cambios.
+
+**Regla de Oro:**
+* **Consulta de Mapa (RAG-DB):** Al iniciar cualquier sesión de trabajo compleja o antes de refactorizaciones, el Agente **debe** consultar el mapa estructural generado en [codebase_rag_db.md](file:///c:/AI-Diary/SKILLS/Graphipy/resources/codebase_rag_db.md).
+* **Ejecución y Regeneración del Grafo:** Tras cualquier cambio significativo en el código base, el Agente **debe** regenerar el mapa y ejecutar la validación de deltas con el comando:
+  ```bash
+  uv run python SKILLS/Graphipy/scripts/graphipy.py --root c:\AI-Diary
+  ```
+* **Acción ante Alertas de Integridad:** Si el reporte terminal arroja alguna alerta del tipo `[ALERT] COMPLETELY DISCONNECTED` o `[WARNING] UNUSED` en los archivos modificados, el Agente debe detenerse inmediatamente, analizar si la desconexión es legítima o si se ha roto un enlace del sistema, y proponer su corrección o eliminación al usuario.
