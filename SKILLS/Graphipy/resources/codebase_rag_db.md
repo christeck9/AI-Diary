@@ -1,9 +1,13 @@
 # 🧠 AI-Diary — Codebase RAG-DB
-> Generated: 2026-06-12T19:37:18.735904 | Total Files: 105 | Communities: 26
+> Generated: 2026-06-12T19:45:31.493639 | Total Files: 105 | Communities: 26
 
 ## 📜 Historical Context & Instructions
 > For historical design decisions, latest major changes, or developer context, ALWAYS refer to:
 > `DOCS/Chris' Instructions.md` or git history. This markdown contains the most recent application states and intentions.
+
+## 🚀 Recommended Architectural Improvements
+> **1. Split High-Frequency States in LlmContext:** Separate streaming/download progress (high-frequency) from active model/configuration states (stable) to prevent global app re-renders during active downloads/generation.
+> **2. SQLite Batch Transaction:** Wrap multiple inserts/updates in `KnowledgeGraphService.ts` within a transaction to boost writing performance and prevent file-locking delay on mobile devices.
 
 ## Community 0
 ### Files

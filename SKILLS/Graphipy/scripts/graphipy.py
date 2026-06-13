@@ -60,6 +60,12 @@ def generate_markdown(G, communities, output_path):
     lines.append("> For historical design decisions, latest major changes, or developer context, ALWAYS refer to:")
     lines.append("> `DOCS/Chris' Instructions.md` or git history. This markdown contains the most recent application states and intentions.\n")
     
+    # ADDING RECOMMENDED ARCHITECTURAL IMPROVEMENTS
+    lines.append("## 🚀 Recommended Architectural Improvements")
+    lines.append("> **1. Split High-Frequency States in LlmContext:** Separate streaming/download progress (high-frequency) from active model/configuration states (stable) to prevent global app re-renders during active downloads/generation.")
+    lines.append("> **2. SQLite Batch Transaction:** Wrap multiple inserts/updates in `KnowledgeGraphService.ts` within a transaction to boost writing performance and prevent file-locking delay on mobile devices.\n")
+
+    
     for i, comm in enumerate(communities):
         lines.append(f"## Community {i}")
         nodes_info = []
@@ -276,9 +282,22 @@ def generate_html_visualizer(G, communities, output_path):
 
         <div id="detailPanel" class="flex-1 rounded-3xl glass-panel p-6 shadow-2xl overflow-y-auto pointer-events-auto flex flex-col">
             <h2 class="text-lg font-bold text-gray-100 border-b border-white/5 pb-3 flex-shrink-0">📁 Node Inspector</h2>
-            <div id="detailContent" class="flex-1 flex flex-col justify-center items-center text-center text-gray-500 py-12">
-                <span class="text-4xl mb-4">💡</span>
-                <p class="text-sm">Click any node in the graph to inspect its details, attributes, and dependencies.</p>
+            <div id="detailContent" class="flex-1 flex flex-col gap-4 text-left text-gray-300">
+                <div class="text-center py-4 flex-shrink-0">
+                    <span class="text-3xl">💡</span>
+                    <p class="text-xs text-gray-400 mt-1">Select a node to inspect dependencies</p>
+                </div>
+                <div class="border-t border-white/5 pt-4 flex-1 flex flex-col gap-3">
+                    <h3 class="text-xs font-bold uppercase tracking-wider text-indigo-400">🚀 Architectural Optimizations</h3>
+                    <div class="bg-white/5 border border-white/10 rounded-xl p-3 text-xs">
+                        <strong class="text-gray-100 block mb-1">1. Split High-Frequency States</strong>
+                        <p class="text-gray-400 leading-relaxed">Divide <code>LlmContext</code> state to separate high-frequency streaming (tokens, progress) from stable configurations to prevent app-wide re-renders.</p>
+                    </div>
+                    <div class="bg-white/5 border border-white/10 rounded-xl p-3 text-xs">
+                        <strong class="text-gray-100 block mb-1">2. SQLite Batch Transactions</strong>
+                        <p class="text-gray-400 leading-relaxed">Wrap multiple insert/update commands inside <code>KnowledgeGraphService.ts</code> in explicit transactions to accelerate mobile disk writes.</p>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -774,8 +793,23 @@ def generate_html_visualizer(G, communities, output_path):
             
             const detailPanel = document.getElementById('detailContent');
             detailPanel.innerHTML = `
-                <span class="text-4xl mb-4">💡</span>
-                <p class="text-sm">Click any node in the graph to inspect its details, attributes, and dependencies.</p>
+                <div class="flex-1 flex flex-col gap-4 text-left text-gray-300">
+                    <div class="text-center py-4 flex-shrink-0">
+                        <span class="text-3xl">💡</span>
+                        <p class="text-xs text-gray-400 mt-1">Select a node to inspect dependencies</p>
+                    </div>
+                    <div class="border-t border-white/5 pt-4 flex-1 flex flex-col gap-3">
+                        <h3 class="text-xs font-bold uppercase tracking-wider text-indigo-400">🚀 Architectural Optimizations</h3>
+                        <div class="bg-white/5 border border-white/10 rounded-xl p-3 text-xs">
+                            <strong class="text-gray-100 block mb-1">1. Split High-Frequency States</strong>
+                            <p class="text-gray-400 leading-relaxed">Divide <code>LlmContext</code> state to separate high-frequency streaming (tokens, progress) from stable configurations to prevent app-wide re-renders.</p>
+                        </div>
+                        <div class="bg-white/5 border border-white/10 rounded-xl p-3 text-xs">
+                            <strong class="text-gray-100 block mb-1">2. SQLite Batch Transactions</strong>
+                            <p class="text-gray-400 leading-relaxed">Wrap multiple insert/update commands inside <code>KnowledgeGraphService.ts</code> in explicit transactions to accelerate mobile disk writes.</p>
+                        </div>
+                    </div>
+                </div>
             `;
         }}
 
