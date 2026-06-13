@@ -13,15 +13,10 @@ import * as ExpoClipboard from 'expo-clipboard';
 import { Directions, Gesture, GestureDetector, Swipeable } from 'react-native-gesture-handler';
 import Animated, { FadeInDown, FadeOutUp, interpolate, runOnJS, useAnimatedStyle, useSharedValue, withRepeat, withSequence, withTiming } from 'react-native-reanimated';
 import { useSQLiteContext } from '../../components/MemoryProvider';
-import { IntroModal } from '../../components/modals/IntroModal';
 import { OnboardingModal } from '../../components/modals/OnboardingModal';
-import { ProfileModal } from '../../components/modals/ProfileModal';
-import { PsyTestModal, MBTI_QUESTIONS, PSY_QUESTIONS } from '../../components/modals/PsyTestModal';
-import { TestsMenuModal } from '../../components/modals/TestsMenuModal';
-import { VaultExplorerModal } from '../../components/modals/VaultExplorerModal';
-import { VoiceSettingsModal } from '../../components/modals/VoiceSettingsModal';
 import { VoiceOverlay } from '../../components/modals/VoiceOverlay';
 import { SanctuaryHeader } from '../../components/SanctuaryHeader';
+import { KebabMenuOverlay } from '../../components/KebabMenuOverlay';
 import { WhispAvatar } from '../../components/ui/WhispAvatar';
 import { getAnimaMessage } from '../../db/zenGardenSchema';
 import { useTodos } from '../../hooks/useTodos';
@@ -29,11 +24,14 @@ import { MarqueeText } from '../../components/ui/MarqueeText';
 
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useAppTheme } from '../../contexts/ThemeContext';
-import { useLlm } from '../../contexts/LlmContext';
+import { useLlmState, useLlmActions } from '../../contexts/LlmContext';
 import { useVoiceContext } from '../../contexts/VoiceContext';
+import { useProfile } from '../../contexts/ProfileContext';
+import { useGlobalModals } from '../../contexts/GlobalModalsContext';
 import { useAgentEngine } from '../../hooks/useAgentEngine';
 import type { ModelInfo } from '../../hooks/useAppLlm';
 import { settingsService } from '../../lib/SettingsService';
+import { SpeechFilter } from '../../lib/SpeechFilter';
 
 import { useFileAttachment } from '../../hooks/useFileAttachment';
 import { useInteractiveVoice } from '../../hooks/useInteractiveVoice';
@@ -44,6 +42,10 @@ import { micService } from '../../lib/UnifiedMicService';
 import { CONSCIOUSNESS_CONFIG, WAIT_PHRASES_ES, WAIT_PHRASES_EN } from '../../constants/NeuralConstants';
 import { Message, MessageItem } from '../../components/ui/MessageItem';
 import { CognitiveNode } from '../../components/ui/CognitiveNode';
+import { VoiceNoteOverlay } from '../../components/VoiceNoteOverlay';
+import { ModelLoaderPanel } from '../../components/ModelLoaderPanel';
+import { ChatInputBar } from '../../components/ChatInputBar';
+import { MessageContextMenu } from '../../components/MessageContextMenu';
 
 export default function NeuralLinkScreen() {
   const navigation = useNavigation();
@@ -76,21 +78,22 @@ export default function NeuralLinkScreen() {
     isDownloading,
     downloadingModel,
     activeModel,
-    selectModel,
+    AVAILABLE_MODELS,
+    downloadedMB,
+    downloadSpeed,
+    downloadPercent,
+    currentContextSize,
+    deviceRAM } = useLlmState();
+
+  const { selectModel,
     downloadModel,
     loadModel,
     resetToHome,
     llamaContextRef,
     generateStreamingResponse,
     abortGeneration,
-    AVAILABLE_MODELS,
-    downloadedMB,
-    downloadSpeed,
-    downloadPercent,
-    currentContextSize,
-    deviceRAM,
     prefillContextLlm,
-    generateEmbeddings } = useLlm();
+    generateEmbeddings } = useLlmActions();
   const status = statusRaw as any;
 
   const { attachedFile, isProcessing: isFileProcessing, pickDocument, clearAttachment, buildFileContext, extractTextInChunks } = useFileAttachment(lang);
@@ -106,13 +109,8 @@ export default function NeuralLinkScreen() {
   const [canResume, setCanResume] = useState(false);
   const [showKebabMenu, setShowKebabMenu] = useState(false);
   const [kebabMenuTop, setKebabMenuTop] = useState(Platform.OS === 'android' ? (StatusBar.currentHeight || 0) + 70 : 85);
-  const [showProfileModal, setShowProfileModal] = useState(false);
-  const [showIntroModal, setShowIntroModal] = useState(false);
-  const [showPsyTestModal, setShowPsyTestModal] = useState(false);
-  const [showTestsMenuModal, setShowTestsMenuModal] = useState(false);
-  const [showVaultModal, setShowVaultModal] = useState(false);
-  const [showVoiceSettingsModal, setShowVoiceSettingsModal] = useState(false);
   const kebabTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const modelReadyNotifiedRef = useRef(false);
   const flashListRef = useRef<any>(null);
 
   const scrollToBottom = useCallback((animated = true) => {
@@ -148,9 +146,8 @@ export default function NeuralLinkScreen() {
   const [psyStep, setPsyStep] = useState(0);
   const [psyAnswers, setPsyAnswers] = useState<number[]>([]);
   const [activeTest, setActiveTest] = useState<'ocean' | 'aptitude' | 'vocational' | 'anxiety' | 'mood' | 'mbti'>('ocean');
-  const [psyProfile, setPsyProfile] = useState({ O: 0, C: 0, E: 0, A: 0, N: 0, D: 0, L: 0, moodBalance: 0, mbtiType: '' });
-  const [psyCompleted, setPsyCompleted] = useState(false);
-  const [userProfile, setUserProfile] = useState<any>({ name: '', nickname: '', work: '', likes: '', values: [], shortTermGoal: '', longTermGoal: '', responseStyle: [] });
+  const { userProfile, setUserProfile, psyProfile, setPsyProfile, psyCompleted, setPsyCompleted } = useProfile();
+  const { openModal } = useGlobalModals();
   const [isOnboardingComplete, setIsOnboardingComplete] = useState(true);
   const [onboardingStep, setOnboardingStep] = useState(0);
   const [consciousnessLevel, setConsciousnessLevel] = useState(1); // Default: Zen
@@ -159,6 +156,7 @@ export default function NeuralLinkScreen() {
   const [manualEcoMode, setManualEcoMode] = useState(false);
   const [isEcoMode, setIsEcoMode] = useState(false);
   const [animaMessage, setAnimaMessage] = useState('');
+  const [initNotification, setInitNotification] = useState<string | null>(null);
 
   const fetchAnimaMessage = useCallback(async () => {
     if (db) {
@@ -173,7 +171,7 @@ export default function NeuralLinkScreen() {
 
   useEffect(() => {
     fetchAnimaMessage();
-  }, [fetchAnimaMessage, messages]);
+  }, [fetchAnimaMessage, messages.length]);
 
   useEffect(() => {
     const unsubscribe = navigation.addListener('focus', () => {
@@ -199,20 +197,36 @@ export default function NeuralLinkScreen() {
   }, []);
 
   useEffect(() => {
+    let isMounted = true;
     const checkBattery = async () => {
       const level = await Battery.getBatteryLevelAsync();
-      setBatteryLevel(level);
-      const batteryTrigger = level > 0 && level <= 0.20;
-      setIsEcoMode(manualEcoMode || batteryTrigger);
+      if (isMounted) {
+        setBatteryLevel(level);
+        const batteryTrigger = level > 0 && level <= 0.20;
+        setIsEcoMode(manualEcoMode || batteryTrigger);
+      }
     };
     checkBattery();
     const sub = Battery.addBatteryLevelListener(({ batteryLevel: b }) => {
-      setBatteryLevel(b);
-      const batteryTrigger = b > 0 && b <= 0.20;
-      setIsEcoMode(manualEcoMode || batteryTrigger);
+      if (isMounted) {
+        setBatteryLevel(b);
+        const batteryTrigger = b > 0 && b <= 0.20;
+        setIsEcoMode(manualEcoMode || batteryTrigger);
+      }
     });
-    return () => sub.remove();
+    return () => { isMounted = false; sub.remove(); };
   }, [manualEcoMode]);
+
+  useEffect(() => {
+    if (status === 'loading') {
+      setInitNotification(`${t('model.system')}: ${t('model.loading')}`);
+    } else if (status === 'downloading') {
+      const totalSize = selectedModel.sizeMB + (selectedModel.mmprojSizeMB || 0);
+      setInitNotification(prev => prev || `${t('model.system')}: ${t('model.startDownload')} ${selectedModel[lang === 'es' ? 'labelEs' : 'labelEn']} (${totalSize} MB)...`);
+    } else if (status === 'ready') {
+      setInitNotification(null);
+    }
+  }, [status, t, selectedModel, lang]);
 
   useEffect(() => {
     const showSub = Keyboard.addListener('keyboardDidShow', (e) => setKeyboardHeight(e.endCoordinates.height));
@@ -247,14 +261,18 @@ export default function NeuralLinkScreen() {
       }
 
       if (results.length === 0 && !query) {
-        setMessages([{ id: `welcome-${Date.now()}`, role: 'ai', text: t('chat.welcome'), created_at: Date.now() }]);
+        if (status === 'ready') {
+          setMessages([{ id: `welcome-${Date.now()}`, role: 'ai', text: t('chat.welcome'), created_at: Date.now() }]);
+        } else {
+          setMessages([]);
+        }
       } else {
         setMessages(results);
       }
     } catch (e) {
       console.error('[LOAD_MESSAGES] Error:', e);
     }
-  }, [db, t, messagesLimit]);
+  }, [db, t, messagesLimit, status]);
 
   // Debounced Search Logic
   useEffect(() => {
@@ -275,6 +293,12 @@ export default function NeuralLinkScreen() {
   const [uiIsCapturing, setUiIsCapturing] = useState(false);
   const [isWarmupActive, setIsWarmupActive] = useState(false);
   const debounceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (debounceTimeoutRef.current) clearTimeout(debounceTimeoutRef.current);
+    };
+  }, []);
 
   useEffect(() => {
     if (dictation.isListening) {
@@ -425,23 +449,7 @@ export default function NeuralLinkScreen() {
     dictation.warmupModels();
   }, []);
 
-  // Handle openModal deep-linking / redirection from Tools tab
-  useEffect(() => {
-    if (params.openModal) {
-      const modalAction = params.openModal as string;
-      console.log('[INDEX] Redirected to open modal:', modalAction);
-
-      // Clean up param so it doesn't trigger again on subsequent renders
-      router.setParams({ openModal: '' as any });
-
-      if (modalAction === 'intro') setShowIntroModal(true);
-      else if (modalAction === 'profile') setShowProfileModal(true);
-      else if (modalAction === 'vault') setShowVaultModal(true);
-      else if (modalAction === 'psy') setShowTestsMenuModal(true);
-      else if (modalAction === 'voice_settings') setShowVoiceSettingsModal(true);
-      else if (modalAction === 'toggle_tts_mute') dictation.toggleTts();
-    }
-  }, [params.openModal]);
+  // params.openModal has been removed, handled via GlobalModalsContext
 
   // 🎤 AUTO-START VOICE
   useEffect(() => {
@@ -518,6 +526,9 @@ export default function NeuralLinkScreen() {
   }, [whispStatus, animaMessage, lang]);
 
   const whispRightLabel = useMemo(() => {
+    if (initNotification) {
+      return initNotification;
+    }
     if (whispStatus === 'thinking') {
       if (processingPhase === 'reading_file') return lang === 'es' ? 'Leyendo\narchivo...' : 'Reading\nfile...';
       if (processingPhase === 'indexing') return lang === 'es' ? 'Indexando\ncontenido...' : 'Indexing\ncontent...';
@@ -546,7 +557,7 @@ export default function NeuralLinkScreen() {
       return `${activeTodo.text}${dateTimeStr}`;
     }
     return lang === 'es' ? 'Sistema\nListo' : 'System\nReady';
-  }, [whispStatus, processingPhase, isSearchingWeb, batteryLevel, activeModel, lang, activeTodo]);
+  }, [initNotification, whispStatus, processingPhase, isSearchingWeb, batteryLevel, activeModel, lang, activeTodo]);
 
   const isSendingRef = useRef(false);
 
@@ -760,27 +771,7 @@ export default function NeuralLinkScreen() {
     const loadInitialData = async () => {
       if (!db) return;
       try {
-        // Load User Profile
-        const profileRes: any[] = await db.getAllAsync('SELECT * FROM user_profile LIMIT 1');
-        if (profileRes && profileRes.length > 0) {
-          setUserProfile({
-            name: profileRes[0].name || '',
-            nickname: profileRes[0].nickname || '',
-            work: profileRes[0].work || '',
-            likes: profileRes[0].likes || '',
-            values: profileRes[0].values_tags ? JSON.parse(profileRes[0].values_tags) : [],
-            shortTermGoal: profileRes[0].short_term_goal || '',
-            longTermGoal: profileRes[0].long_term_goal || '',
-            responseStyle: profileRes[0].response_style_tags ? JSON.parse(profileRes[0].response_style_tags) : []
-          });
-        }
-
-        // Load Psy Profile
-        const psyRes: any[] = await db.getAllAsync('SELECT * FROM psy_profile LIMIT 1');
-        if (psyRes && psyRes.length > 0) {
-          setPsyProfile({ O: psyRes[0].O, C: psyRes[0].C, E: psyRes[0].E, A: psyRes[0].A, N: psyRes[0].N, D: psyRes[0].D, L: psyRes[0].L, moodBalance: psyRes[0].mood_balance ?? 0, mbtiType: psyRes[0].mbti_type ?? '' });
-          setPsyCompleted(true);
-        }
+        // Profile fetching has been moved to ProfileContext
 
         // Check Onboarding Status
         const onboardRes: any[] = await db.getAllAsync('SELECT * FROM onboarding_status WHERE id = 1 LIMIT 1');
@@ -831,11 +822,9 @@ export default function NeuralLinkScreen() {
   // System notification when model becomes ready
   useEffect(() => {
     if (status === 'ready' && selectedModel) {
-      const totalSize = selectedModel.sizeMB + (selectedModel.mmprojSizeMB || 0);
-      addSystemMessage(`${t('model.system')}: ${(selectedModel[lang === 'es' ? 'labelEs' : 'labelEn'] || '').toUpperCase()} (${totalSize} MB) ${t('model.ready')}`);
       loadMessages('');
     }
-  }, [status, activeModel, loadMessages, selectedModel, t, lang]);
+  }, [status, activeModel, loadMessages, selectedModel]);
 
   const handleLoad = useCallback(async () => {
     // 🛡️ Guard: never interrupt an active background download
@@ -856,12 +845,12 @@ export default function NeuralLinkScreen() {
         const ToastAndroid = require('react-native').ToastAndroid;
         ToastAndroid.show(lang === 'es' ? 'Activando AI Diary...' : 'Activating AI Diary...', ToastAndroid.SHORT);
       }
-      if (selectedModel.id !== activeModel.id) {
+      if (selectedModel.id !== activeModel?.id) {
         selectModel(selectedModel);
       }
       // Si estamos en Eco-Mode, forzamos menos hilos para cuidar la batería
-      const loadOptions = isEcoMode ? { n_threads: 2 } : undefined;
-      await loadModel(selectedModel, loadOptions);
+      // const loadOptions = isEcoMode ? { n_threads: 2 } : undefined;
+      await loadModel();
     } catch (e: any) {
       addSystemMessage(`[SYSTEM ERROR]: ${e.message}`);
     }
@@ -869,23 +858,13 @@ export default function NeuralLinkScreen() {
 
   const handleDownload = useCallback(async () => {
     const totalSize = selectedModel.sizeMB + (selectedModel.mmprojSizeMB || 0);
-    const dlMsg: Message = {
-      id: Date.now().toString(),
-      role: 'ai',
-      text: `${t('model.system')}: ${t('model.startDownload')} ${selectedModel[lang === 'es' ? 'labelEs' : 'labelEn']} (${totalSize} MB)...`,
-      created_at: Date.now()
-    };
-    setMessages(prev => [...prev, dlMsg]);
+    const startText = `${t('model.system')}: ${t('model.startDownload')} ${selectedModel[lang === 'es' ? 'labelEs' : 'labelEn']} (${totalSize} MB)...`;
+    setInitNotification(startText);
 
     try {
       await downloadModel(selectedModel);
-      const doneMsg: Message = {
-        id: (Date.now() + 1).toString(),
-        role: 'ai',
-        text: `${t('model.system')}: ${selectedModel[lang === 'es' ? 'labelEs' : 'labelEn']} ${t('model.downloaded')}`,
-        created_at: Date.now() + 1
-      };
-      setMessages(prev => [...prev, doneMsg]);
+      const doneText = `${t('model.system')}: ${selectedModel[lang === 'es' ? 'labelEs' : 'labelEn']} ${t('model.downloaded')}`;
+      setInitNotification(doneText);
     } catch (e: any) {
       const errorStr = String(e?.message || e);
       let friendlyMessage = '';
@@ -909,13 +888,8 @@ export default function NeuralLinkScreen() {
           : `The download was interrupted: ${errorStr}. You can try to resume it.`;
       }
 
-      const errorMsg: Message = {
-        id: (Date.now() + 1).toString(),
-        role: 'ai',
-        text: `${t('model.system')}: ⚠️ ${friendlyMessage}`,
-        created_at: Date.now() + 1
-      };
-      setMessages(prev => [...prev, errorMsg]);
+      const errorText = `${t('model.system')}: ⚠️ ${friendlyMessage}`;
+      setInitNotification(errorText);
     }
   }, [t, selectedModel, lang, downloadModel]);
 
@@ -955,7 +929,7 @@ export default function NeuralLinkScreen() {
     }
   }, [db]);
 
-  const handleSend = useCallback(async () => {
+  const handleSend = useCallback(async (overrideText?: string) => {
     if (isTypingRef.current || isSendingRef.current) return;
     isSendingRef.current = true;
 
@@ -965,7 +939,7 @@ export default function NeuralLinkScreen() {
     // Clear speech queue and stop any ongoing TTS speech
     clearSpeechQueue();
 
-    const textToProcess = inputText.trim();
+    const textToProcess = (overrideText ?? inputText).trim();
     if (!textToProcess && !attachedFile) {
       isSendingRef.current = false;
       return;
@@ -1012,28 +986,6 @@ export default function NeuralLinkScreen() {
     }
   }, [inputText, attachedFile, status, lang, addSystemMessage, assembleMessagePayload, persistUserMessage, processMessage, consciousnessLevel, queueSpeech, clearSpeechQueue, startSpeechSession, endSpeechSession]);
 
-  const triggerProfile = useCallback((type: 'ocean' | 'aptitude' | 'vocational' | 'anxiety' | 'mood' | 'mbti' | 'basic') => {
-    if (type !== 'basic') {
-      setActiveTest(type);
-      setPsyStep(0);
-      setPsyAnswers([]);
-      setShowPsyTestModal(true);
-      return;
-    }
-
-    const userMsgId = `psy-${Date.now()}-${Math.random().toString(36).substring(7)}`;
-    const prompt = lang === 'es' ? "Quiero que me hagas unas preguntas básicas para conocerme mejor (cómo llamarme, mi trabajo, y mi propósito para ti). Sé amigable." : "I want you to ask me some basic profiling questions to get to know me (how to address me, my job, and my purpose for you). Be friendly.";
-
-    const userMsg: Message = {
-      id: userMsgId, role: 'user', text: prompt, created_at: Date.now(), status: 'sent'
-    };
-
-    setMessages(prev => [...prev, userMsg]);
-    db?.runAsync('INSERT INTO messages (id, role, text, created_at) VALUES (?, ?, ?, ?)', [userMsg.id, userMsg.role, userMsg.text, userMsg.created_at ?? Date.now()]).catch(() => { });
-
-    processMessage(prompt, userMsgId, setMessages);
-  }, [lang, db, processMessage]);
-
   // ── Home Reset ──
   const handleHomeReset = useCallback(async () => {
     await resetToHome();
@@ -1041,18 +993,13 @@ export default function NeuralLinkScreen() {
       await db.runAsync('DELETE FROM messages');
       await db.runAsync('DELETE FROM memory_fts');
     }
-    setMessages([{ id: `welcome-${Date.now()}`, role: 'ai', text: t('chat.welcome'), created_at: Date.now() }]);
+    setMessages([]);
     setInputText('');
     setSelectedModel(AVAILABLE_MODELS[0]);
     setShowModelPicker(false);
     setShowKebabMenu(false);
-  }, [resetToHome, db, t, AVAILABLE_MODELS]);
-
-  const getModelDesc = (model: ModelInfo) => {
-    if (model.id === 'gemma4-2b') return t('model.2b.desc');
-    if (model.id === 'gemma4-4b') return t('model.4b.desc');
-    return (model as any).description || (lang === 'es' ? model.descEs : model.descEn);
-  };
+    setInitNotification(null);
+  }, [resetToHome, db, AVAILABLE_MODELS]);
 
   const handleReportMessage = useCallback((msgId: string) => {
     Alert.alert(
@@ -1112,8 +1059,12 @@ export default function NeuralLinkScreen() {
     setFullScreenImage(uri);
   }, []);
 
+  const filteredMessages = useMemo(() => {
+    return messages.filter(m => m.text.trim() !== '' || (m.role === 'ai' && isTyping && m === messages[messages.length - 1]));
+  }, [messages, isTyping]);
+
   const renderMessage = useCallback(({ item, index }: { item: Message, index: number }) => {
-    const isLatest = index === messages.length - 1;
+    const isLatest = index === filteredMessages.length - 1;
     return (
       <MessageItem
         item={item}
@@ -1128,14 +1079,24 @@ export default function NeuralLinkScreen() {
         onImagePress={handleImagePress}
       />
     );
-  }, [messages.length, colors, isTyping, processingPhase, lang, handleReportMessage, handleImagePress]);
+  }, [filteredMessages.length, colors, isTyping, processingPhase, lang, handleReportMessage, handleImagePress]);
+
+  const handleDeleteMessage = useCallback(async (msgId: string) => {
+    try {
+      if (db) {
+        await db.runAsync('DELETE FROM messages WHERE id = ?', [msgId]);
+        await db.runAsync('DELETE FROM memory_fts WHERE id = ?', [msgId]);
+      }
+      setMessages(prev => prev.filter(m => m.id !== msgId));
+    } catch (e) { console.error('Delete error:', e); }
+  }, [db]);
 
   const onKebabAction = useCallback(async (action: string) => {
-    if (action === 'intro') setShowIntroModal(true);
-    if (action === 'profile') setShowProfileModal(true);
-    if (action === 'vault') setShowVaultModal(true);
-    if (action === 'psy') setShowTestsMenuModal(true);
-    if (action === 'voice_settings') setShowVoiceSettingsModal(true);
+    if (action === 'intro') openModal('intro');
+    if (action === 'profile') openModal('profile');
+    if (action === 'vault') openModal('vault');
+    if (action === 'psy') openModal('tests_menu');
+    if (action === 'voice_settings') openModal('voice_settings');
     if (action === 'toggle_tts_mute') {
       dictation.toggleTts();
     }
@@ -1173,8 +1134,10 @@ export default function NeuralLinkScreen() {
     }
   }, [status]);
 
+
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: activeTheme === 'matrix' ? '#000000' : colors.background }]}>
+    <>
+      <SafeAreaView style={[styles.container, { backgroundColor: activeTheme === 'matrix' ? '#000000' : colors.background }]}>
         {activeTheme === 'matrix' && <MatrixRain paused={isTyping} />}
         <SanctuaryHeader
           onVoicePress={() => {
@@ -1235,7 +1198,7 @@ export default function NeuralLinkScreen() {
 
           {/* Derecha: Estados complejos u otros */}
           <View style={{ flex: 1, alignItems: 'flex-end', overflow: 'hidden' }}>
-            {whispStatus === 'idle' && activeTodo ? (
+            {(whispStatus === 'idle' && activeTodo) || initNotification ? (
               <MarqueeText 
                 text={whispRightLabel} 
                 style={{ fontSize: 10, color: colors.primary, opacity: 0.8 }} 
@@ -1311,194 +1274,43 @@ export default function NeuralLinkScreen() {
           db={db}
         />
 
-        {status !== 'ready' && isOnboardingComplete && (
-          <View style={[styles.statusOverlay, { backgroundColor: colors.surfaceSecondary, borderColor: colors.secondary }]}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', width: '90%', justifyContent: 'center' }}>
-              <IconSymbol name="cpu" size={28} color={colors.secondary} style={{ marginRight: 10 }} />
-              <Text style={{ color: colors.textPrimary, fontSize: 16, fontWeight: 'bold', letterSpacing: 1 }}>
-                {t('model.status').toUpperCase()}: {
-                  status === 'loading' ? (lang === 'es' ? 'CARGANDO...' : 'LOADING...') :
-                    status === 'ready' ? (lang === 'es' ? 'ACTIVO' : 'READY') :
-                      status.toUpperCase()
-                }
-              </Text>
-            </View>
-
-            <TouchableOpacity
-              style={{
-                flexDirection: 'row',
-                alignItems: 'center',
-                backgroundColor: colors.surface,
-                paddingHorizontal: 15,
-                paddingVertical: 10,
-                borderRadius: 12,
-                marginTop: 8,
-                borderWidth: 1,
-                borderColor: colors.border,
-                width: '90%'
-              }}
-              onPress={() => setShowModelPicker(!showModelPicker)}
-            >
-              <View style={{ flex: 1 }}>
-                <Text style={{ color: colors.textPrimary, fontSize: 14, fontWeight: 'bold' }}>
-                  {selectedModel[lang === 'es' ? 'labelEs' : 'labelEn']}
-                </Text>
-                <Text style={{ color: colors.textSecondary, fontSize: 11, marginTop: 2 }}>
-                  {selectedModel.sizeMB + (selectedModel.mmprojSizeMB || 0)} MB — {lang === 'es' ? 'Local' : 'Local'}
-                </Text>
-              </View>
-              <IconSymbol name="chevron.up.chevron.down" size={16} color={colors.textSecondary} />
-            </TouchableOpacity>
-
-            {/* Mini Picker Modal para Modelos */}
-            {showModelPicker && (
-              <View
-                style={{
-                  backgroundColor: colors.surface,
-                  borderRadius: 12,
-                  width: '90%',
-                  marginTop: 5,
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  overflow: 'hidden',
-                  elevation: 5,
-                  shadowColor: '#000',
-                  shadowOffset: { width: 0, height: 2 },
-                  shadowOpacity: 0.2,
-                  shadowRadius: 4
-                }}>
-                {AVAILABLE_MODELS.filter(m => !(m as any).experimental).map((model) => {
-                  let isDisabled = false;
-                  if (model.id === 'gemma4-e2b-q3' && deviceRAM < 8000) isDisabled = true;
-                  if (model.id === 'gemma3-4b-q4' && deviceRAM < 6000) isDisabled = true;
-
-                  return (
-                  <TouchableOpacity
-                    key={model.id}
-                    disabled={isDisabled}
-                    style={{
-                      padding: 15,
-                      borderBottomWidth: 1,
-                      borderBottomColor: colors.border,
-                      backgroundColor: selectedModel.id === model.id ? colors.surfaceSecondary : 'transparent',
-                      opacity: isDisabled ? 0.4 : 1
-                    }}
-                    onPress={async () => {
-                      setSelectedModel(model);
-                      // Si el modelo ya existe, lo seleccionamos en el hook para cargar
-                      // Si no existe, solo lo seleccionamos localmente para mostrar el botón de descarga
-                      const baseDir = FileSystem.documentDirectory?.replace(/\/+$/, '') + '/llm_models';
-                      const modelPath = `${baseDir}/${model.fileName}`;
-                      const info = await FileSystem.getInfoAsync(modelPath);
-
-                      if (info.exists) {
-                        selectModel(model);
-                      }
-
-                      setShowModelPicker(false);
-                      try {
-                        await settingsService.set({ preferredModel: model.id });
-                      } catch (e) { }
-                    }}
-                  >
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <Text style={{ color: colors.textPrimary, fontWeight: selectedModel.id === model.id ? 'bold' : 'normal' }}>
-                        {model.label}
-                      </Text>
-                      {isDisabled && (
-                        <IconSymbol name="lock.fill" size={14} color={colors.textSecondary} />
-                      )}
-                    </View>
-                    {isDisabled && (
-                      <Text style={{ color: colors.textSecondary, fontSize: 10, marginTop: 4 }}>
-                        {lang === 'es' ? 'Requiere más memoria RAM' : 'Requires more RAM'}
-                      </Text>
-                    )}
-                  </TouchableOpacity>
-                  );
-                })}
-              </View>
-            )}
-
-            {(status === 'idle' || status === 'downloading') && (
-              <View style={{ width: '100%', marginTop: 5, alignItems: 'center' }}>
-                <View style={{ flexDirection: 'row', gap: 10, marginTop: 10, justifyContent: 'center' }}>
-                  <Animated.View style={[{ opacity: !modelExists ? 1 : 0.6 }]}>
-                    <TouchableOpacity
-                      style={[
-                        styles.actionBtn,
-                        {
-                          borderColor: modelExists ? colors.border : (status === 'downloading' ? '#424242' : colors.primary),
-                          backgroundColor: modelExists ? 'transparent' : (status === 'downloading' ? '#424242' : colors.primary),
-                          borderWidth: modelExists ? 1 : 2,
-                          paddingHorizontal: 25,
-                          borderRadius: 24
-                        }
-                      ]}
-                      onPress={handleDownload}
-                      disabled={modelExists || status === 'downloading'}
-                    >
-                      <Text style={{ color: modelExists ? colors.textSecondary : (status === 'downloading' ? '#888888' : '#FFF'), fontWeight: 'bold', fontSize: 13 }}>
-                        {modelExists ? t('model.download') : (status === 'downloading' || canResume ? t('model.continueDownload') : t('model.download'))}
-                      </Text>
-                    </TouchableOpacity>
-                  </Animated.View>
-
-                  <Animated.View style={[{ opacity: (modelExists && status !== 'downloading') ? 1 : 0.6 }]}>
-                    <TouchableOpacity
-                      style={[
-                        styles.actionBtn,
-                        {
-                          borderColor: (modelExists && status !== 'downloading') ? colors.secondary : colors.border,
-                          backgroundColor: (modelExists && status !== 'downloading') ? colors.secondary : 'transparent',
-                          borderWidth: (modelExists && status !== 'downloading') ? 2 : 1,
-                          paddingHorizontal: 25,
-                          borderRadius: 24
-                        }
-                      ]}
-                      onPress={handleLoad}
-                      disabled={!modelExists || status === 'downloading'}
-                    >
-                      <Text style={{ color: (modelExists && status !== 'downloading') ? '#FFF' : colors.textSecondary, fontWeight: 'bold', fontSize: 13 }}>
-                        {lang === 'es' ? 'ACTIVAR AI' : 'ACTIVATE AI'}
-                      </Text>
-                    </TouchableOpacity>
-                  </Animated.View>
-                </View>
-              </View>
-            )}
-
-            {(status === 'downloading' || status === 'loading') && (
-              <View style={{ alignItems: 'center', marginTop: 8, width: '90%' }}>
-                <CompactDownloadOverlay
-                  downloadPercent={downloadPercent}
-                  downloadedMB={downloadedMB}
-                  totalMB={
-                    downloadingModel
-                      ? (downloadingModel.sizeMB + (downloadingModel.mmprojSizeMB || 0))
-                      : (activeModel ? (activeModel.sizeMB + (activeModel.mmprojSizeMB || 0)) : 0)
-                  }
-                  downloadSpeed={downloadSpeed}
-                  waitPhrase={waitPhrase}
-                  colors={colors}
-                />
-              </View>
-            )}
-          </View>
-        )}
+        <ModelLoaderPanel
+          status={status}
+          isOnboardingComplete={isOnboardingComplete}
+          colors={colors}
+          lang={lang}
+          t={t}
+          showModelPicker={showModelPicker}
+          setShowModelPicker={setShowModelPicker}
+          selectedModel={selectedModel}
+          setSelectedModel={setSelectedModel}
+          AVAILABLE_MODELS={AVAILABLE_MODELS}
+          deviceRAM={deviceRAM}
+          selectModel={selectModel}
+          modelExists={modelExists}
+          handleDownload={handleDownload}
+          canResume={canResume}
+          handleLoad={handleLoad}
+          downloadPercent={downloadPercent}
+          downloadedMB={downloadedMB}
+          downloadingModel={downloadingModel}
+          activeModel={activeModel}
+          downloadSpeed={downloadSpeed}
+          waitPhrase={waitPhrase}
+        />
 
         <View style={{ flex: 1, paddingBottom: Platform.OS === 'android' ? keyboardHeight : 0 }}>
           <View style={{ flex: 1, display: voiceState !== 'IDLE' ? 'none' : 'flex' }}>
             <FlashList
               ref={flashListRef}
               estimatedItemSize={120}
-              data={messages.filter(m => m.text.trim() !== '' || (m.role === 'ai' && isTyping && m === messages[messages.length - 1]))}
+              data={filteredMessages}
               keyExtractor={(item) => String(item.id ?? `msg_${item.created_at}`)}
               renderItem={renderMessage}
               contentContainerStyle={styles.chatContainer}
               overScrollMode="never"
               bounces={false}
-              extraData={{ isTyping }}
+              extraData={isTyping}
               ListHeaderComponent={
                 (!isFiltering && messages.length >= messagesLimit) ? (
                   <TouchableOpacity
@@ -1565,682 +1377,80 @@ export default function NeuralLinkScreen() {
           />
 
           {/* 🎙 Modal de Dictado — Pipeline asíncrono */}
-          {showVoiceNoteModal && (
-            <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.88)', zIndex: 1000, justifyContent: 'center', alignItems: 'center' }}>
-              {/* Botón cerrar */}
-              <TouchableOpacity
-                style={{ position: 'absolute', top: 50, right: 20, padding: 10, backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: 20 }}
-                onPress={() => {
-                  dictation.stopListening();
-                  setShowVoiceNoteModal(false);
-                  setMicPhase('idle');
-                }}
-              >
-                <IconSymbol name="xmark" size={24} color="white" />
-              </TouchableOpacity>
+          <VoiceNoteOverlay
+            show={showVoiceNoteModal}
+            lang={lang}
+            dictation={dictation}
+            uiIsCapturing={uiIsCapturing}
+            micPhase={micPhase}
+            onClose={() => {
+              dictation.stopListening();
+              setShowVoiceNoteModal(false);
+              setMicPhase('idle');
+            }}
+            onSendAudio={async (transcript) => {
+              const textToSend = transcript;
+              await dictation.stopListening();
+              setShowVoiceNoteModal(false);
+              setMicPhase('idle');
+              if (!textToSend.trim()) return;
 
-              {/* Fase: Solicitando permisos */}
-              {micPhase === 'permission' && (
-                <View style={{ alignItems: 'center', gap: 16, paddingHorizontal: 30 }}>
-                  <ActivityIndicator size="large" color="#ffffff" />
-                  <Text style={{ color: 'white', fontSize: 14, fontWeight: 'bold', textAlign: 'center' }}>
-                    {lang === 'es' ? '🔐 Verificando permisos...' : '🔐 Checking permissions...'}
-                  </Text>
-                </View>
-              )}
+              const cleaned = SpeechFilter.cleanWhisperText(textToSend);
+              if (!cleaned) return;
 
-              {/* Fase: Cargando modelo Whisper */}
-              {micPhase === 'init' && (
-                <View style={{ alignItems: 'center', gap: 16, paddingHorizontal: 30 }}>
-                  <ActivityIndicator size="large" color="#ffffff" />
-                  <Text style={{ color: 'white', fontSize: 14, fontWeight: 'bold', textAlign: 'center' }}>
-                    {lang === 'es' ? '⚡ Iniciando motor de voz...' : '⚡ Starting voice engine...'}
-                  </Text>
-                  <Text style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12, textAlign: 'center' }}>
-                    {lang === 'es' ? 'Solo la primera vez tarda un momento.' : 'First time only — takes a moment.'}
-                  </Text>
-                </View>
-              )}
-
-              {/* Fase: Escuchando / Error */}
-              {(micPhase === 'ready' || micPhase === 'idle') && (
-                  <View style={{ alignItems: 'center', paddingHorizontal: 30, width: '100%' }}>
-                    {dictation.voiceError ? (
-                      <View style={{ alignItems: 'center', gap: 10 }}>
-                        <Text style={{ fontSize: 40 }}>⚠️</Text>
-                        <Text style={{ color: '#ff6b6b', fontSize: 14, fontWeight: 'bold', textAlign: 'center' }}>
-                          {dictation.voiceError}
-                        </Text>
-                      </View>
-                    ) : (
-                      <>
-                        <IconSymbol
-                          name={dictation.isInitializing ? 'waveform' : (uiIsCapturing ? 'waveform' : 'waveform.slash')}
-                          size={126}
-                          color={uiIsCapturing && !dictation.isInitializing ? '#4cd137' : 'rgba(255,255,255,0.3)'}
-                        />
-                        <Text style={{ color: 'white', fontSize: 14, marginTop: 18, fontWeight: 'bold', textAlign: 'center' }}>
-                          {dictation.isInitializing || !uiIsCapturing
-                            ? (lang === 'es' ? 'Iniciando micrófono...' : 'Microphone is starting...')
-                            : (lang === 'es' ? 'Listo' : 'Ready')
-                          }
-                        </Text>
-
-                        {dictation.transcript && !dictation.isInitializing ? (
-                          <View style={{ alignItems: 'center', width: '100%' }}>
-                            <ScrollView 
-                               style={{ maxHeight: 150, width: '100%', marginVertical: 10 }}
-                               contentContainerStyle={{ alignItems: 'center', paddingHorizontal: 10 }}
-                               showsVerticalScrollIndicator={true}
-                            >
-                              <Text style={{ color: 'white', fontSize: 14, fontWeight: 'bold', textAlign: 'center', lineHeight: 20 }}>
-                                {dictation.transcript}
-                              </Text>
-                            </ScrollView>
-
-                            <TouchableOpacity
-                              style={{
-                                backgroundColor: 'white',
-                                paddingVertical: 10,
-                                paddingHorizontal: 24,
-                                borderRadius: 20,
-                                flexDirection: 'row',
-                                alignItems: 'center',
-                                gap: 8,
-                                shadowColor: '#000',
-                                shadowOffset: { width: 0, height: 4 },
-                                shadowOpacity: 0.3,
-                                shadowRadius: 4,
-                                elevation: 4,
-                                marginTop: 10
-                              }}
-                              onPress={async () => {
-                                const textToSend = dictation.transcript;
-                                await dictation.stopListening();
-                                setShowVoiceNoteModal(false);
-                                setMicPhase('idle');
-                                if (!textToSend.trim()) return;
-
-                                const cleaned = textToSend.replace(/\[BLANK_AUDIO\]/g, '').replace(/\[ SILENCE \]/g, '').trim();
-                                if (!cleaned) return;
-
-                                const userMsgId = `voice-note-${Date.now()}-${Math.random().toString(36).substring(7)}`;
-                                const userMsg: Message = { id: userMsgId, role: 'user', text: '🎙️ ' + cleaned, created_at: Date.now(), status: 'sent' };
-                                setMessages(prev => [...prev, userMsg]);
-                                db.runAsync('INSERT INTO messages (id, role, text, created_at) VALUES (?, ?, ?, ?)', [userMsg.id, userMsg.role, userMsg.text, userMsg.created_at ?? Date.now()]).catch(e => console.error('DB Insert:', e));
-                                db.runAsync('INSERT INTO memory_fts (id, role, text) VALUES (?, ?, ?)', [userMsg.id, userMsg.role, userMsg.text]).catch(e => console.error('DB FTS:', e));
-                                processMessage(cleaned, userMsgId, setMessages, undefined, true);
-                              }}
-                            >
-                              <IconSymbol name="arrow.up.circle.fill" size={18} color="black" />
-                              <Text style={{ color: 'black', fontSize: 12, fontWeight: 'bold' }}>
-                                {lang === 'es' ? 'Enviar Audio' : 'Send Audio'}
-                              </Text>
-                            </TouchableOpacity>
-                          </View>
-                        ) : (
-                          <Text style={{ color: 'white', fontSize: 12, marginTop: 10, textAlign: 'center', fontStyle: 'italic' }}>
-                            {dictation.isInitializing || !uiIsCapturing
-                              ? (lang === 'es' ? 'Iniciando micrófono...' : 'Microphone is starting...')
-                              : (lang === 'es' ? 'Esperando tu voz...' : 'Waiting for your voice...')
-                            }
-                          </Text>
-                        )}
-                      </>
-                    )}
-                  </View>
-              )}
-
-              {/* Environment Control Panel (Always visible when listening and not initializing) */}
-              {(micPhase === 'ready' || micPhase === 'idle') && !dictation.isInitializing && !dictation.voiceError && (
-                <View style={{ position: 'absolute', bottom: 40, left: 30, right: 30, alignItems: 'center' }}>
-                  <Text style={{ color: 'white', fontSize: 10, marginBottom: 8, textTransform: 'uppercase', letterSpacing: 1 }}>
-                    {lang === 'es' ? 'Entorno (Ruido)' : 'Environment (Noise)'}
-                  </Text>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', width: '100%', backgroundColor: 'rgba(255,255,255,0.05)', padding: 10, borderRadius: 15 }}>
-                    <TouchableOpacity 
-                      onPress={() => dictation.changeVadLevel?.(Math.max(1, (dictation.vadLevel || 3) - 1))}
-                      style={{ padding: 8 }}
-                    >
-                      <Text style={{ color: 'white', fontSize: 12, fontWeight: (dictation.vadLevel || 3) > 1 ? 'bold' : 'normal' }}>
-                        {lang === 'es' ? 'Silencio' : 'Clean'}
-                      </Text>
-                    </TouchableOpacity>
-                    
-                    <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
-                      {[1, 2, 3, 4, 5].map(lvl => (
-                        <View 
-                          key={lvl} 
-                          style={{ 
-                            width: 10, 
-                            height: lvl === (dictation.vadLevel || 3) ? 14 : 6, 
-                            borderRadius: 5, 
-                            backgroundColor: lvl === (dictation.vadLevel || 3) ? 'white' : 'rgba(255,255,255,0.25)',
-                            borderWidth: 1,
-                            borderColor: 'white'
-                          }} 
-                        />
-                      ))}
-                    </View>
-
-                    <TouchableOpacity 
-                      onPress={() => dictation.changeVadLevel?.(Math.min(5, (dictation.vadLevel || 3) + 1))}
-                      style={{ padding: 8 }}
-                    >
-                      <Text style={{ color: 'white', fontSize: 12, fontWeight: (dictation.vadLevel || 3) < 5 ? 'bold' : 'normal' }}>
-                        {lang === 'es' ? 'Ruidoso' : 'Noisy'}
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              )}
-            </View>
-          )}
+              const userMsgId = `voice-note-${Date.now()}-${Math.random().toString(36).substring(7)}`;
+              const userMsg: Message = { id: userMsgId, role: 'user', text: '🎙️ ' + cleaned, created_at: Date.now(), status: 'sent' };
+              setMessages(prev => [...prev, userMsg]);
+              db.runAsync('INSERT INTO messages (id, role, text, created_at) VALUES (?, ?, ?, ?)', [userMsg.id, userMsg.role, userMsg.text, userMsg.created_at ?? Date.now()]).catch(e => console.error('DB Insert:', e));
+              db.runAsync('INSERT INTO memory_fts (id, role, text) VALUES (?, ?, ?)', [userMsg.id, userMsg.role, userMsg.text]).catch(e => console.error('DB FTS:', e));
+              processMessage(cleaned, userMsgId, setMessages, undefined, true);
+            }}
+          />
 
           {/* 🛡️ SENTINEL v3.0 — Indicador Dinámico de Fase */}
-          {isSearchingWeb && (
-            <Animated.View style={{ position: 'absolute', bottom: 100, alignSelf: 'center', backgroundColor: colors.surfaceSecondary, paddingHorizontal: 15, paddingVertical: 8, borderRadius: 20, flexDirection: 'row', alignItems: 'center', zIndex: 100, elevation: 5, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 3.84 }}>
-              <ActivityIndicator size="small" color={searchingStep === 'searching' ? colors.primary : '#00ffcc'} style={{ marginRight: 8 }} />
-              <Text style={{ color: colors.textPrimary, fontSize: 13, fontWeight: 'bold' }}>
-                {searchingStep === 'searching'
-                  ? (lang === 'es' ? '🌐 Consultando Red de Búsqueda...' : '🌐 Querying Search Network...')
-                  : (lang === 'es' ? '🧠 Sintetizando Verdad...' : '🧠 Synthesizing Truth...')}
-              </Text>
-            </Animated.View>
-          )}
-
-          {/* Gemma 4 Reasoning Indicator — visible during <|think|> block before first response token */}
-          {isThinking && !isSearchingWeb && (
-            <Animated.View
-              entering={FadeInDown.duration(250)}
-              exiting={FadeOutUp.duration(200)}
-              style={{ position: 'absolute', bottom: 100, alignSelf: 'center', backgroundColor: colors.surfaceSecondary, paddingHorizontal: 15, paddingVertical: 8, borderRadius: 20, flexDirection: 'row', alignItems: 'center', zIndex: 100, elevation: 5, shadowColor: '#7B5EA7', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.35, shadowRadius: 4 }}
-            >
-              <ActivityIndicator size="small" color="#a78bfa" style={{ marginRight: 8 }} />
-              <Text style={{ color: colors.textPrimary, fontSize: 13, fontWeight: 'bold' }}>
-                {lang === 'es' ? '💭 Gemma está pensando...' : '💭 Gemma is thinking...'}
-              </Text>
-            </Animated.View>
-          )}
-
-          {/* 🔱 BACKGROUND FORGING — removed duplicate black bar; progress is shown in the model card CompactDownloadOverlay */}
-
-          <KeyboardAvoidingView
-            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-            keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
-            enabled={Platform.OS === 'ios'}
-          >
-            {isTyping && processingAttachedFile && (
-              <View style={{ backgroundColor: colors.surfaceSecondary, padding: 10, borderTopWidth: 1, borderTopColor: colors.border, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                <ActivityIndicator size="small" color={colors.primary} />
-                <Text style={{ color: colors.textSecondary, fontSize: 12 }}>
-                  {lang === 'es' 
-                    ? `Procesando ${processingAttachedFile.name}...` 
-                    : `Processing ${processingAttachedFile.name}...`}
-                </Text>
-              </View>
-            )}
-            <View style={[styles.inputContainer, { backgroundColor: colors.surface, borderTopColor: colors.border, borderTopWidth: 1, paddingBottom: 5, paddingHorizontal: 10 }]}>
-              <TouchableOpacity
-                style={{ marginRight: 10, paddingBottom: 5, display: activeModel?.id === 'llama3.2-1b-q4' ? 'none' : 'flex' }}
-                onPress={handlePickDocument}
-                accessibilityRole="button"
-                accessibilityLabel={lang === 'es' ? 'Adjuntar archivo' : 'Attach file'}
-                accessibilityHint={lang === 'es' ? 'Permite seleccionar una imagen o documento para analizar' : 'Allows selecting an image or document to analyze'}
-              >
-                <IconSymbol name="doc.fill" size={28} color={colors.primary} />
-              </TouchableOpacity>
-              <TextInput
-                style={[styles.input, { color: colors.textPrimary, backgroundColor: colors.surface, flex: 1 }]}
-                value={inputText}
-                onChangeText={handleInputChange}
-                placeholder={t('chat.placeholder.ready')}
-                placeholderTextColor={colors.textSecondary}
-                multiline={true}
-                returnKeyType="send"
-                blurOnSubmit={Platform.OS === 'ios' ? false : true}
-                onSubmitEditing={() => {
-                  if ((inputText || "").trim() || attachedFile) {
-                    handleSend();
-                  }
-                }}
-                onKeyPress={(e) => {
-                  // Handle physical keyboard 'Enter' for multiline send
-                  if (e.nativeEvent.key === 'Enter' && !(e.nativeEvent as any).shiftKey && Platform.OS !== 'web') {
-                    handleSend();
-                  }
-                }}
-              />
-              <TouchableOpacity
-                style={[styles.sendButton, (!(inputText || "").trim() && !attachedFile && !isTyping) && { opacity: 0.5 }]}
-                onPress={isTyping ? stopGeneration : handleSend}
-                disabled={(!(inputText || "").trim() && !attachedFile && !isTyping)}
-                accessibilityRole="button"
-                accessibilityLabel={isTyping ? (lang === 'es' ? 'Detener generación' : 'Stop generation') : (lang === 'es' ? 'Enviar mensaje' : 'Send message')}
-                accessibilityHint={isTyping ? (lang === 'es' ? 'Detiene la escritura de la IA' : 'Stops the AI from writing') : (lang === 'es' ? 'Envía el mensaje al core de IA' : 'Sends the message to the AI core')}
-              >
-                <IconSymbol name={isTyping ? "stop.circle.fill" : "arrow.up.circle.fill"} size={32} color={isTyping ? colors.primary : (((inputText || "").trim() || attachedFile) ? colors.primary : colors.textSecondary)} />
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.sendButton, { marginLeft: 10 }]}
-                onPress={async () => {
-                  if (status !== 'ready') return;
-
-                  // APAGADOR: Si el Walkie-Talkie está activo, apagarlo limpiamente antes de dictar
-                  if (voiceState !== 'IDLE') {
-                    console.log('[CHAT] Walkie-Talkie active. Turning it off before launching dictation.');
-                    await toggleInteractiveMode();
-                    // Cooldown limpio: dar tiempo al motor de voz de liberar recursos nativos
-                    await new Promise<void>((resolve) => setTimeout(resolve, 200));
-                  }
-
-                  setMicPhase('idle');
-                  setShowVoiceNoteModal(true);
-
-                  // Pipeline asíncrono: en este modo manual el usuario presiona "Enviar Audio" en la UI.
-                  const success = await dictation.startListening(
-                    undefined,
-                    undefined, // Desactivar auto-envío
-                    (phase: 'permission' | 'init' | 'ready') => setMicPhase(phase)
-                  );
-                  if (!success) {
-                    setMicPhase('idle');
-                  }
-                }}
-                disabled={status !== 'ready'}
-                accessibilityRole="button"
-                accessibilityLabel={lang === 'es' ? 'Grabar nota de voz' : 'Record voice note'}
-                accessibilityHint={lang === 'es' ? 'Abre la interfaz para dictar un mensaje con voz' : 'Opens the interface to dictate a voice message'}
-              >
-                <IconSymbol name="waveform" size={32} color={status === 'ready' ? '#4cd137' : colors.textSecondary} />
-              </TouchableOpacity>
-            </View>
-
-            <View style={{
-              flexDirection: 'row',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              backgroundColor: colors.surface,
-              paddingHorizontal: 15,
-              paddingVertical: 6,
-              borderTopWidth: 1,
-              borderTopColor: colors.border
-            }}>
-              {/* TALK: Walkie-Talkie button — estado dinámico */}
-              {(() => {
-                const isRecording = voiceState === 'RECORDING';
-                const isProcessing = voiceState === 'PROCESSING';
-                const isSpeakingNow = voiceState === 'SPEAKING';
-                const isMutedWT = voiceState === 'MUTED';
-                const isActive = voiceState !== 'IDLE';
-
-                const btnColor = isRecording ? '#ff3b30'
-                  : isProcessing ? (colors.secondary || '#D4A017')
-                  : isSpeakingNow ? (colors.primary)
-                  : isMutedWT ? colors.textSecondary
-                  : isActive ? colors.primary
-                  : colors.textSecondary;
-
-                const btnBg = isRecording ? 'rgba(255,59,48,0.15)'
-                  : isActive ? `${colors.primary}25`
-                  : colors.surfaceSecondary;
-
-                const btnBorder = isRecording ? '#ff3b30'
-                  : isActive ? colors.primary
-                  : colors.border;
-
-                const iconName = isRecording ? 'waveform'
-                  : isSpeakingNow ? 'waveform'
-                  : isMutedWT ? 'waveform.slash'
-                  : 'voice.active';
-
-                const labelES = isRecording ? '● REC'
-                  : isProcessing ? '⚙ PROC.'
-                  : isSpeakingNow ? '🔊 HABLA'
-                  : isMutedWT ? '🔇 MUTED'
-                  : isActive ? '🎙 LISTO'
-                  : 'TALK';
-
-                const labelEN = isRecording ? '● REC'
-                  : isProcessing ? '⚙ PROC.'
-                  : isSpeakingNow ? '🔊 SPEAK'
-                  : isMutedWT ? '🔇 MUTED'
-                  : isActive ? '🎙 READY'
-                  : 'TALK';
-
-                 return (
-                  <TouchableOpacity
-                    style={{
-                      flexDirection: 'row',
-                      alignItems: 'center',
-                      backgroundColor: btnBg,
-                      paddingHorizontal: 12,
-                      paddingVertical: 6,
-                      borderRadius: 20,
-                      borderWidth: 1,
-                      borderColor: btnBorder,
-                      minWidth: 72,
-                    }}
-                    onPress={async () => {
-                      if (status === 'ready') {
-                        await toggleInteractiveMode();
-                      } else {
-                        Alert.alert(
-                          lang === 'es' ? 'Núcleo inactivo' : 'Core inactive',
-                          lang === 'es' ? 'Por favor activa el núcleo de IA primero.' : 'Please activate the AI Core first.'
-                        );
-                      }
-                    }}
-                    accessibilityRole="button"
-                    accessibilityLabel={lang === 'es' ? 'Modo Walkie Talkie' : 'Walkie Talkie Mode'}
-                    accessibilityHint={lang === 'es' ? 'Activa o desactiva la conversación fluida por voz con la IA' : 'Toggles fluent voice conversation with the AI'}
-                  >
-                    <IconSymbol
-                      name={iconName}
-                      size={16}
-                      color={btnColor}
-                    />
-                    <Text style={{
-                      marginLeft: 6,
-                      fontSize: 11,
-                      fontWeight: 'bold',
-                      color: btnColor,
-                      textTransform: 'uppercase',
-                      letterSpacing: 0.3,
-                    }}>
-                      {lang === 'es' ? labelES : labelEN}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })()}
-
-              {/* Right side group */}
-              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                {/* Descripción movida a la derecha */}
-                <Text
-                  numberOfLines={2}
-                  style={{
-                    fontSize: 12,
-                    lineHeight: 14,
-                    color: colors.textSecondary,
-                    fontWeight: 'bold',
-                    fontStyle: 'italic',
-                    marginRight: 12,
-                    textAlign: 'right'
-                  }}
-                >
-                  {CONSCIOUSNESS_CONFIG[lang as 'es' | 'en'][consciousnessLevel as 1 | 2 | 3 | 4].desc}
-                </Text>
-
-                {/* Derecha: Botón Cabeza/Engrane */}
-                <TouchableOpacity
-                  style={{
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    backgroundColor: colors.surfaceSecondary,
-                    paddingHorizontal: 10,
-                    paddingVertical: 6,
-                    borderRadius: 20,
-                    borderWidth: 1,
-                    borderColor: colors.border
-                  }}
-                  onPress={() => {
-                    const nextLevel = consciousnessLevel >= 4 ? 1 : consciousnessLevel + 1;
-                    setConsciousnessLevel(nextLevel);
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  }}
-                  accessibilityRole="button"
-                  accessibilityLabel={lang === 'es' ? `Nivel de consciencia: ${CONSCIOUSNESS_CONFIG[lang as 'es' | 'en'][consciousnessLevel as 1 | 2 | 3 | 4].label}` : `Consciousness level: ${CONSCIOUSNESS_CONFIG[lang as 'es' | 'en'][consciousnessLevel as 1 | 2 | 3 | 4].label}`}
-                  accessibilityHint={lang === 'es' ? 'Cambia el nivel de profundidad cognitiva del modelo' : 'Changes the cognitive depth of the model'}
-                >
-                  <IconSymbol
-                    name="brain.head.profile"
-                    size={18}
-                    color={
-                      consciousnessLevel === 1 ? colors.textSecondary :
-                        consciousnessLevel === 2 ? '#4A90D9' : '#D4A017'
-                    }
-                  />
-                  <Text style={{
-                    marginLeft: 6,
-                    fontSize: 11,
-                    fontWeight: 'bold',
-                    color: consciousnessLevel === 1 ? colors.textSecondary :
-                      consciousnessLevel === 2 ? '#4A90D9' : '#D4A017',
-                    textTransform: 'uppercase'
-                  }}>
-                    {CONSCIOUSNESS_CONFIG[lang as 'es' | 'en'][consciousnessLevel as 1 | 2 | 3 | 4].label}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-
-            {attachedFile && (
-              <View style={{ backgroundColor: colors.surfaceSecondary, padding: 10, borderTopWidth: 1, borderTopColor: colors.border }}>
-                {attachedFile.type === 'image' ? (
-                  <View style={{ width: 80, height: 80, borderRadius: 8, overflow: 'hidden', position: 'relative', elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.2, shadowRadius: 1.41 }}>
-                    <Image
-                      source={{ uri: attachedFile.uri }}
-                      style={{ width: '100%', height: '100%' }}
-                      resizeMode="cover"
-                    />
-                    <TouchableOpacity
-                      style={{ position: 'absolute', top: 2, right: 2, backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: 10, width: 20, height: 20, justifyContent: 'center', alignItems: 'center' }}
-                      onPress={clearAttachment}
-                    >
-                      <Text style={{ color: '#FFF', fontSize: 10, fontWeight: 'bold' }}>✕</Text>
-                    </TouchableOpacity>
-                  </View>
-                ) : (
-                  <View style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 4 }}>
-                    <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }}>
-                      <Text style={{ fontSize: 14, marginRight: 8 }}>{attachedFile.type === 'pdf' ? '📄' : attachedFile.type === 'doc' ? '📝' : '📋'}</Text>
-                      <Text numberOfLines={1} style={{ color: colors.textPrimary, fontSize: 13, flex: 1, fontWeight: 'bold' }}>{attachedFile.name}</Text>
-                      <Text style={{ color: colors.textSecondary, fontSize: 11, marginLeft: 8 }}>{attachedFile.sizeKB}KB</Text>
-                    </View>
-                    <TouchableOpacity style={{ marginLeft: 12, padding: 4 }} onPress={clearAttachment}>
-                      <Text style={{ color: 'red', fontWeight: 'bold', fontSize: 16 }}>✕</Text>
-                    </TouchableOpacity>
-                  </View>
-                )}
-              </View>
-            )}
-          </KeyboardAvoidingView>
+          <ChatInputBar
+            isTyping={isTyping}
+            processingAttachedFile={processingAttachedFile}
+            colors={colors}
+            lang={lang}
+            activeModel={activeModel}
+            handlePickDocument={handlePickDocument}
+            inputText={inputText}
+            handleInputChange={handleInputChange}
+            t={t}
+            handleSend={handleSend}
+            stopGeneration={stopGeneration}
+            attachedFile={attachedFile}
+            status={status}
+            voiceState={voiceState}
+            toggleInteractiveMode={toggleInteractiveMode}
+            setMicPhase={setMicPhase}
+            setShowVoiceNoteModal={setShowVoiceNoteModal}
+            dictation={dictation}
+            consciousnessLevel={consciousnessLevel}
+            setConsciousnessLevel={setConsciousnessLevel}
+            clearAttachment={clearAttachment}
+            isSearchingWeb={isSearchingWeb}
+            searchingStep={searchingStep}
+            isThinking={isThinking}
+          />
         </View>
 
-        <ProfileModal
-          visible={showProfileModal}
-          onClose={() => setShowProfileModal(false)}
-          lang={lang}
-          colors={colors}
-          userProfile={userProfile}
-          setUserProfile={setUserProfile}
-          psyProfile={psyProfile}
-          db={db}
-        />
-
-        <IntroModal
-          visible={showIntroModal}
-          onClose={() => setShowIntroModal(false)}
-          lang={lang}
-          colors={colors}
-        />
-
-        <TestsMenuModal
-          visible={showTestsMenuModal}
-          onClose={() => setShowTestsMenuModal(false)}
-          lang={lang}
-          colors={colors}
-          onSelectTest={(type) => {
-            setShowTestsMenuModal(false);
-            triggerProfile(type);
-          }}
-        />
-
-
-        <PsyTestModal
-          visible={showPsyTestModal}
-          onClose={() => setShowPsyTestModal(false)}
-          lang={lang}
-          colors={colors}
-          psyProfile={psyProfile}
-          psyStep={psyStep}
-          setPsyStep={setPsyStep}
-          psyAnswers={psyAnswers}
-          setPsyAnswers={setPsyAnswers}
-          activeTest={activeTest}
-          scoreTest={async (type, answers) => {
-            if (type === 'ocean') {
-              const dims: Record<string, number[]> = { O: [], C: [], E: [], A: [], N: [], D: [], L: [] };
-              answers.forEach((ansIdx, i) => {
-                const q = PSY_QUESTIONS[i];
-                const opt = q?.opts[ansIdx];
-                if (opt && opt.dim) {
-                  dims[opt.dim].push(opt.val);
-                }
-              });
-              const avg = (arr: number[]) => arr.length > 0 ? arr.reduce((a, b) => a + b, 0) / arr.length : 0.5;
-              const scores = {
-                O: avg(dims.O),
-                C: avg(dims.C),
-                E: avg(dims.E),
-                A: avg(dims.A),
-                N: avg(dims.N),
-                D: avg(dims.D),
-                L: avg(dims.L),
-                moodBalance: psyProfile.moodBalance,
-                mbtiType: psyProfile.mbtiType,
-              };
-              setPsyProfile(scores);
-              setPsyCompleted(true);
-              if (db) {
-                await db.runAsync('INSERT OR REPLACE INTO psy_profile (id, O, C, E, A, N, D, L, mood_balance, mbti_type) VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-                  [scores.O, scores.C, scores.E, scores.A, scores.N, scores.D, scores.L, scores.moodBalance, scores.mbtiType]);
-              }
-            } else if (type === 'mbti') {
-              const dims: Record<string, number> = { E: 0, I: 0, S: 0, N: 0, T: 0, F: 0, J: 0, P: 0 };
-              answers.forEach((ansIdx, i) => {
-                const opt = MBTI_QUESTIONS[i]?.opts[ansIdx];
-                if (opt && opt.dim) dims[opt.dim]++;
-              });
-              const res = (dims.E >= dims.I ? 'E' : 'I') +
-                (dims.S >= dims.N ? 'S' : 'N') +
-                (dims.T >= dims.F ? 'T' : 'F') +
-                (dims.J >= dims.P ? 'J' : 'P');
-              setPsyProfile(prev => {
-                const newProfile = { ...prev, mbtiType: res };
-                if (db) {
-                  db.runAsync('INSERT OR REPLACE INTO psy_profile (id, O, C, E, A, N, D, L, mood_balance, mbti_type) VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-                    [newProfile.O, newProfile.C, newProfile.E, newProfile.A, newProfile.N, newProfile.D, newProfile.L, newProfile.moodBalance, newProfile.mbtiType]).catch(err => console.log('[DB_ERROR]', err));
-                }
-                return newProfile;
-              });
-            } else if (type === 'mood') {
-              const sum = answers.reduce((a, b) => a + b, 0);
-              const normalized = sum / (answers.length * 3); // 25 questions * max 3 = 75
-              setPsyProfile(prev => {
-                const newProfile = { ...prev, moodBalance: normalized };
-                if (db) {
-                  db.runAsync('INSERT OR REPLACE INTO psy_profile (id, O, C, E, A, N, D, L, mood_balance, mbti_type) VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-                    [newProfile.O, newProfile.C, newProfile.E, newProfile.A, newProfile.N, newProfile.D, newProfile.L, newProfile.moodBalance, newProfile.mbtiType]).catch(err => console.log('[DB_ERROR]', err));
-                }
-                return newProfile;
-              });
-            }
-            console.log(`[TEST_COMPLETE] ${type} scored with ${answers.length} answers.`);
-          }}
-        />
-
-        <VaultExplorerModal
-          visible={showVaultModal}
-          onClose={() => setShowVaultModal(false)}
-          colors={colors}
-          lang={lang}
-        />
-
-        <VoiceSettingsModal
-          visible={showVoiceSettingsModal}
-          onClose={() => setShowVoiceSettingsModal(false)}
-          lang={lang}
-          colors={colors}
-        />
+        {/* Modales extracted to GlobalModalsContext */}
 
         {/* CONTEXT MENU MODAL */}
-        <Modal visible={!!selectedContextMsg} transparent={true} animationType="fade">
-          <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', alignItems: 'center' }}>
-            <TouchableOpacity
-              style={StyleSheet.absoluteFillObject}
-              onPress={() => setSelectedContextMsg(null)}
-              activeOpacity={1}
-            />
-            <View style={{ backgroundColor: colors.surface, borderRadius: 20, width: '85%', overflow: 'hidden', elevation: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 5 }, shadowOpacity: 0.3, shadowRadius: 6.68 }}>
-              <View style={{ padding: 20, borderBottomWidth: 1, borderBottomColor: colors.border }}>
-                <Text style={{ color: colors.textPrimary, fontWeight: 'bold', fontSize: 16 }}>{lang === 'es' ? 'Acciones de Mensaje' : 'Message Actions'}</Text>
-              </View>
-
-              {selectedContextMsg && (
-                <View style={{ padding: 15, borderBottomWidth: 1, borderBottomColor: colors.border, maxHeight: 180, backgroundColor: colors.surfaceSecondary }}>
-                  <ScrollView style={{ maxHeight: 150 }} nestedScrollEnabled={true}>
-                    <Text selectable={true} style={{ color: colors.textPrimary, fontSize: 14, lineHeight: 20 }}>
-                      {selectedContextMsg.text}
-                    </Text>
-                  </ScrollView>
-                </View>
-              )}
-
-              <TouchableOpacity
-                style={{ padding: 18, flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: colors.border }}
-                onPress={() => {
-                  if (selectedContextMsg) {
-                    ExpoClipboard.setStringAsync(selectedContextMsg.text);
-                    Alert.alert(lang === 'es' ? "Copiado" : "Copied", lang === 'es' ? "Texto copiado al portapapeles." : "Text copied to clipboard.");
-                  }
-                  setSelectedContextMsg(null);
-                }}
-              >
-                <IconSymbol name="doc.on.doc" size={22} color={colors.primary} style={{ marginRight: 15 }} />
-                <Text style={{ color: colors.textPrimary, fontSize: 15 }}>{lang === 'es' ? 'Copiar Texto' : 'Copy Text'}</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={{ padding: 18, flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: colors.border }}
-                onPress={() => {
-                  if (selectedContextMsg) {
-                    const originalText = selectedContextMsg.text;
-                    setSelectedContextMsg(null);
-                    if (isTypingRef.current) {
-                      addSystemMessage(lang === 'es' ? '⏳ Espera a que termine la respuesta actual.' : '⏳ Wait for the current response to finish.');
-                      return;
-                    }
-                    const prompt = lang === 'es'
-                      ? `Haz un análisis profundo y explícame mejor esto que dijiste: "${originalText}"`
-                      : `Do a deep analysis and explain better what you said here: "${originalText}"`;
-                    setInputText(prompt);
-                    // Trigger send
-                    setTimeout(() => handleSend(), 100);
-                  }
-                }}
-              >
-                <IconSymbol name="brain.head.profile" size={22} color={colors.secondary} style={{ marginRight: 15 }} />
-                <Text style={{ color: colors.textPrimary, fontSize: 15 }}>{lang === 'es' ? 'Análisis Profundo' : 'Deep Analysis'}</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={{ padding: 18, flexDirection: 'row', alignItems: 'center' }}
-                onPress={() => {
-                  if (selectedContextMsg) {
-                    const idToDel = selectedContextMsg.id;
-                    setSelectedContextMsg(null);
-                    handleReportMessage(idToDel);
-                  }
-                }}
-              >
-                <IconSymbol name="trash" size={22} color="red" style={{ marginRight: 15 }} />
-                <Text style={{ color: 'red', fontSize: 15 }}>{lang === 'es' ? 'Eliminar Mensaje' : 'Delete Message'}</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </Modal>
+        <MessageContextMenu
+          selectedContextMsg={selectedContextMsg}
+          setSelectedContextMsg={setSelectedContextMsg}
+          colors={colors}
+          lang={lang}
+          isTypingRef={isTypingRef}
+          addSystemMessage={addSystemMessage}
+          setInputText={setInputText}
+          handleSend={handleSend}
+          handleReportMessage={handleReportMessage}
+          handleDeleteMessage={handleDeleteMessage}
+        />
 
         {/* FULL SCREEN IMAGE VIEWER WITH PINCH TO ZOOM */}
         <Modal visible={!!fullScreenImage} transparent={true} animationType="fade">
@@ -2278,102 +1488,33 @@ export default function NeuralLinkScreen() {
           </View>
         </Modal>
 
-        {/* --- GLOBAL APP MENUS OVERLAY --- */}
-        <Modal visible={showKebabMenu} transparent={true} animationType="fade">
-          <View style={{ flex: 1, alignItems: 'flex-end', zIndex: 9999, elevation: 999 }}>
-            {/* Backdrop: toca fuera del menú para cerrarlo */}
-            <TouchableOpacity
-              style={StyleSheet.absoluteFill}
-              activeOpacity={1}
-              onPress={() => {
-                if (showKebabMenu) {
-                  setShowKebabMenu(false);
-                  stopKebabTimer();
-                }
-              }}
-            />
-
-            {/* Kebab Menu Dropdown */}
-            <View
-              style={{
-                marginTop: kebabMenuTop,
-                marginRight: 10,
-                backgroundColor: colors.surfaceSecondary,
-                  borderColor: colors.border,
-                  borderWidth: 1,
-                  borderRadius: 8,
-                  minWidth: 220,
-                  elevation: 10,
-                  shadowColor: '#000',
-                  shadowOffset: { width: 0, height: 4 },
-                  shadowOpacity: 0.3,
-                  shadowRadius: 6,
-                  overflow: 'hidden',
-                }}
-              >
-                {isDownloading && downloadingModel && (
-                  <View style={{ padding: 12, borderBottomWidth: 1, borderBottomColor: colors.border, backgroundColor: `${colors.primary}15` }}>
-                    <Text style={{ color: colors.primary, fontSize: 10, fontWeight: 'bold', letterSpacing: 0.5, marginBottom: 4 }}>
-                      {lang === 'es' ? 'DESCARGANDO NÚCLEO...' : 'DOWNLOADING CORE...'}
-                    </Text>
-                    <Text style={{ color: colors.textPrimary, fontSize: 11, fontWeight: 'bold' }} numberOfLines={1}>
-                      {lang === 'es' ? downloadingModel.labelEs : downloadingModel.labelEn}
-                    </Text>
-                    <View style={{ height: 4, backgroundColor: `${colors.primary}20`, borderRadius: 2, marginVertical: 6, overflow: 'hidden' }}>
-                      <View style={{ width: `${downloadPercent}%`, height: '100%', backgroundColor: colors.primary }} />
-                    </View>
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <Text style={{ color: colors.textSecondary, fontSize: 9 }}>{downloadPercent}% ({downloadedMB}MB)</Text>
-                      {downloadSpeed > 0 && <Text style={{ color: colors.textSecondary, fontSize: 9 }}>🚀 {downloadSpeed} MB/s</Text>}
-                    </View>
-                  </View>
-                )}
-                <TouchableOpacity
-                  style={{ padding: 12, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.1)', flexDirection: 'row', alignItems: 'center' }}
-                  onPress={() => { setShowKebabMenu(false); onKebabAction('profile'); }}
-                >
-                  <Text style={{ fontSize: 18, marginRight: 10 }}>👤</Text>
-                  <Text style={{ color: colors.textPrimary, flex: 1 }}>{lang === 'es' ? 'Perfil del Usuario' : 'User Profile'}</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={{ padding: 12, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.1)', flexDirection: 'row', alignItems: 'center' }}
-                  onPress={() => { setShowKebabMenu(false); onKebabAction('intro'); }}
-                >
-                  <Text style={{ fontSize: 18, marginRight: 10 }}>👓</Text>
-                  <Text style={{ color: colors.textPrimary, flex: 1 }}>{lang === 'es' ? 'Introducción' : 'Introduction'}</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={{ padding: 12, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.1)', flexDirection: 'row', alignItems: 'center' }}
-                  onPress={() => { setShowKebabMenu(false); onKebabAction('voice_settings'); }}
-                >
-                  <Text style={{ fontSize: 18, marginRight: 10 }}>🔊</Text>
-                  <Text style={{ color: colors.textPrimary, flex: 1 }}>{lang === 'es' ? 'Configuración Voz Android' : 'Android Voice Settings'}</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={{ padding: 12, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.1)', flexDirection: 'row', alignItems: 'center' }}
-                  onPress={() => { setShowKebabMenu(false); onKebabAction('vault'); }}
-                >
-                  <Text style={{ fontSize: 18, marginRight: 10 }}>🔒</Text>
-                  <Text style={{ color: colors.textPrimary, flex: 1 }}>{lang === 'es' ? 'Encriptación de Datos' : 'Data Encryption'}</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={{ padding: 12, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.1)', flexDirection: 'row', alignItems: 'center' }}
-                  onPress={() => { setShowKebabMenu(false); onKebabAction('psy'); }}
-                >
-                  <Text style={{ fontSize: 18, marginRight: 10 }}>Ψ</Text>
-                  <Text style={{ color: colors.textPrimary, flex: 1 }}>{lang === 'es' ? 'Test de Personalidad' : 'Personality Test'}</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={{ padding: 12, flexDirection: 'row', alignItems: 'center' }}
-                  onPress={() => { setShowKebabMenu(false); onKebabAction('clear'); }}
-                >
-                  <Text style={{ fontSize: 18, marginRight: 10 }}>🗑️</Text>
-                  <Text style={{ color: colors.textPrimary, flex: 1 }}>{lang === 'es' ? 'Borrar Historial' : 'Clear History'}</Text>
-                </TouchableOpacity>
-            </View>
-          </View>
-        </Modal>
       </SafeAreaView>
+
+      {/* --- GLOBAL APP MENUS OVERLAY --- */}
+      <KebabMenuOverlay
+        visible={showKebabMenu}
+        anchorTop={kebabMenuTop}
+        onClose={() => {
+          setShowKebabMenu(false);
+          stopKebabTimer();
+        }}
+        colors={colors}
+        lang={lang}
+        isDownloading={isDownloading}
+        downloadingModel={downloadingModel}
+        downloadPercent={downloadPercent}
+        downloadedMB={downloadedMB}
+        downloadSpeed={downloadSpeed}
+        menuItems={[
+          { emoji: '👤', labelEs: 'Perfil del Usuario', labelEn: 'User Profile', onPress: () => { setShowKebabMenu(false); onKebabAction('profile'); } },
+          { emoji: '👓', labelEs: 'Introducción', labelEn: 'Introduction', onPress: () => { setShowKebabMenu(false); onKebabAction('intro'); } },
+          { emoji: '🔊', labelEs: 'Configuración Voz Android', labelEn: 'Android Voice Settings', onPress: () => { setShowKebabMenu(false); onKebabAction('voice_settings'); } },
+          { emoji: '🔒', labelEs: 'Encriptación de Datos', labelEn: 'Data Encryption', onPress: () => { setShowKebabMenu(false); onKebabAction('vault'); } },
+          { emoji: 'Ψ', labelEs: 'Test de Personalidad', labelEn: 'Personality Test', onPress: () => { setShowKebabMenu(false); onKebabAction('psy'); } },
+          { emoji: '🗑️', labelEs: 'Borrar Historial', labelEn: 'Clear History', onPress: () => { setShowKebabMenu(false); onKebabAction('clear'); } },
+        ]}
+      />
+    </>
   );
 }
 

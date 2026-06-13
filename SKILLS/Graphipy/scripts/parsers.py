@@ -6,7 +6,7 @@ from pathlib import Path
 IGNORED_DIRS = {"node_modules", "dist", ".git", ".expo", "venv", ".idea", ".vscode", "assets", "website", "scratch", "build", ".gradle", ".cxx", "BACKUPS"}
 
 # Regex patterns
-TS_IMPORT_PATTERN = re.compile(r"(?:import|require)\s*(?:[\w\s{},*]+from\s*)?['\"]([^'\"]+)['\"]")
+TS_IMPORT_PATTERN = re.compile(r"(?:import\s+(?:[\w\s{},*]+from\s*)?|require\s*\(\s*)['\"]([^'\"]+)['\"]")
 NATIVE_MODULE_PATTERN = re.compile(r"NativeModules\.(\w+)")
 CPP_INCLUDE_PATTERN = re.compile(r"#include\s*['\"]([^'\"]+)['\"]")
 CPP_JNI_PATTERN = re.compile(r"extern\s+\"C\"\s+JNIEXPORT")
@@ -32,11 +32,13 @@ class CodebaseParser:
                     self.parse_file(p)
 
     def resolve_ts_import(self, source_path, import_str):
-        if not import_str.startswith("."):
+        if import_str.startswith("@/"):
+            target_path = (self.root_dir / import_str[2:]).resolve()
+        elif import_str.startswith("."):
+            base_dir = source_path.parent
+            target_path = (base_dir / import_str).resolve()
+        else:
             return import_str
-
-        base_dir = source_path.parent
-        target_path = (base_dir / import_str).resolve()
         
         try:
             rel_target = target_path.relative_to(self.root_dir).as_posix()
@@ -49,14 +51,20 @@ class CodebaseParser:
         ext = path.suffix.lower()
         size = path.stat().st_size
         
-        node_metadata = {
-            "id": rel_path,
-            "type": self._guess_type(rel_path, ext),
-            "size_bytes": size,
-            "imports": [],
-            "bridges": []
-        }
-        self.nodes[rel_path] = node_metadata
+        # Merge Metro platform variants into a single logical node
+        rel_path = re.sub(r'\.(web|ios|android)\.(ts|tsx|js|jsx)$', r'.\2', rel_path)
+        
+        if rel_path not in self.nodes:
+            self.nodes[rel_path] = {
+                "id": rel_path,
+                "type": self._guess_type(rel_path, ext),
+                "size_bytes": 0,
+                "imports": [],
+                "bridges": []
+            }
+        
+        self.nodes[rel_path]["size_bytes"] += size
+        node_metadata = self.nodes[rel_path]
 
         try:
             with open(path, "r", encoding="utf-8", errors="ignore") as f:

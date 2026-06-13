@@ -1,0 +1,615 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI-Diary Codebase Graph Explorer</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script src="https://unpkg.com/force-graph"></script>
+    <style>
+        body {
+            font-family: 'Outfit', sans-serif;
+            background-color: #020206;
+            color: #f3f4f6;
+            margin: 0;
+            overflow: hidden;
+        }
+        .glass-panel {
+            background: rgba(17, 24, 39, 0.7);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(0,0,0,0.1);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+    </style>
+</head>
+<body>
+    <div id="graph" class="w-screen h-screen"></div>
+
+    <div class="absolute top-6 left-6 bottom-6 w-96 z-10 flex flex-col gap-6 pointer-events-none">
+        
+        <div class="p-5 rounded-2xl glass-panel pointer-events-auto shadow-2xl flex-shrink-0">
+            <h1 class="text-xl font-bold bg-gradient-to-r from-blue-400 via-indigo-400 to-purple-400 bg-clip-text text-transparent flex items-center gap-2">
+                🧠 AI-Diary
+            </h1>
+            <p class="text-xs text-gray-400 mt-1 font-semibold tracking-wider">CODEBASE GRAPH EXPLORER</p>
+            <div class="mt-4">
+                <label class="text-[10px] uppercase tracking-wider font-bold text-gray-400 block mb-1">Perspective View</label>
+                <select id="perspectiveSelector" onchange="changePerspective(this.value)" class="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-xs text-gray-200 outline-none cursor-pointer focus:border-indigo-500/50">
+                    <option value="ai" class="bg-[#020206] text-gray-200">🤖 AI View (Louvain Modules)</option>
+                    <option value="semantic" class="bg-[#020206] text-gray-200">🏗️ Architectural Layers</option>
+                    <option value="folder" class="bg-[#020206] text-gray-200">📂 Folder Hierarchy (DDD)</option>
+                    <option value="cohesion" class="bg-[#020206] text-gray-200">🔗 Integrated Systems (Degree)</option>
+                    <option value="orphans" class="bg-[#020206] text-gray-200">💤 Dormant / Reusable Code</option>
+                </select>
+            </div>
+            <div class="mt-4 flex flex-wrap gap-2 text-xs font-semibold">
+                <span class="px-2.5 py-1 rounded-full bg-blue-500/10 text-blue-300 border border-blue-500/20">
+                    📁 105 Nodos
+                </span>
+                <span class="px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">
+                    🔗 205 Aristas
+                </span>
+            </div>
+        </div>
+
+        <div id="detailPanel" class="flex-1 rounded-3xl glass-panel p-6 shadow-2xl overflow-y-auto pointer-events-auto flex flex-col">
+            <h2 class="text-lg font-bold text-gray-100 border-b border-white/5 pb-3 flex-shrink-0">📁 Node Inspector</h2>
+            <div id="detailContent" class="flex-1 flex flex-col justify-center items-center text-center text-gray-500 py-12">
+                <span class="text-4xl mb-4">💡</span>
+                <p class="text-sm">Click any node in the graph to inspect its details, attributes, and dependencies.</p>
+            </div>
+        </div>
+
+    </div>
+
+    <div class="absolute top-6 left-1/2 transform -translate-x-1/2 z-10 w-96 glass-panel rounded-full px-5 py-2 shadow-2xl flex items-center gap-3">
+        <span class="text-gray-400">🔍</span>
+        <input 
+            type="text" 
+            id="searchInput" 
+            placeholder="Search files or components..." 
+            class="bg-transparent text-sm w-full outline-none text-white placeholder-gray-500"
+            oninput="handleSearch(this.value)"
+        />
+        <div id="searchSuggestions" class="absolute left-0 right-0 top-full mt-2 glass-panel rounded-2xl max-h-60 overflow-y-auto hidden z-20"></div>
+    </div>
+
+    <div class="absolute top-6 right-6 bottom-6 w-96 z-10 flex flex-col gap-6 pointer-events-none">
+        
+        <div class="flex-1 rounded-3xl glass-panel p-6 shadow-2xl overflow-y-auto pointer-events-auto flex flex-col">
+            <h2 class="text-sm font-bold text-gray-100 border-b border-white/5 pb-3 mb-3 flex justify-between items-center flex-shrink-0">
+                <label class="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" id="masterCheckbox" checked onchange="toggleAllCommunities(this.checked)" class="rounded border-white/10 bg-transparent text-indigo-600 focus:ring-0 w-3.5 h-3.5" />
+                    <span>🎨 Communities (Louvain)</span>
+                </label>
+            </h2>
+            <div id="communitiesList" class="flex-1 overflow-y-auto flex flex-col gap-2.5 text-xs text-gray-300"></div>
+        </div>
+
+    </div>
+
+    <script>
+        const graphData = {"nodes": [{"id": "babel.config.js", "label": "babel.config.js", "type": "file", "size_bytes": 169, "val": 9.4093909361377, "community": 0, "isOrphan": true, "closestCommunity": -1, "degree": 0}, {"id": "eslint.config.js", "label": "eslint.config.js", "type": "file", "size_bytes": 237, "val": 9.894817763307945, "community": 1, "isOrphan": true, "closestCommunity": -1, "degree": 0}, {"id": "index.js", "label": "index.js", "type": "file", "size_bytes": 2641, "val": 13.367414751246828, "community": 2, "isOrphan": true, "closestCommunity": -1, "degree": 0}, {"id": "metro.config.js", "label": "metro.config.js", "type": "file", "size_bytes": 942, "val": 11.881113960675096, "community": 3, "isOrphan": true, "closestCommunity": -1, "degree": 0}, {"id": "react-native.config.js", "label": "react-native.config.js", "type": "file", "size_bytes": 164, "val": 9.366322214245816, "community": 4, "isOrphan": true, "closestCommunity": -1, "degree": 0}, {"id": "android/app/src/main/cpp/vision_bridge.cpp", "label": "vision_bridge.cpp", "type": "native", "size_bytes": 3429, "val": 13.743992861060175, "community": 5, "isOrphan": true, "closestCommunity": 0, "degree": 0}, {"id": "android/app/src/main/java/com/christeck/aidiary/LlmForegroundService.kt", "label": "LlmForegroundService.kt", "type": "service", "size_bytes": 2073, "val": 13.018200178813226, "community": 6, "isOrphan": true, "closestCommunity": 7, "degree": 0}, {"id": "android/app/src/main/java/com/christeck/aidiary/LlmProtectionModule.kt", "label": "LlmProtectionModule.kt", "type": "native", "size_bytes": 1033, "val": 12.014020470314934, "community": 7, "isOrphan": true, "closestCommunity": 6, "degree": 0}, {"id": "android/app/src/main/java/com/christeck/aidiary/LlmProtectionPackage.kt", "label": "LlmProtectionPackage.kt", "type": "native", "size_bytes": 565, "val": 11.144658242831882, "community": 8, "isOrphan": true, "closestCommunity": 6, "degree": 0}, {"id": "android/app/src/main/java/com/christeck/aidiary/MainActivity.kt", "label": "MainActivity.kt", "type": "native", "size_bytes": 2234, "val": 13.12605911607068, "community": 9, "isOrphan": true, "closestCommunity": 6, "degree": 0}, {"id": "android/app/src/main/java/com/christeck/aidiary/MainApplication.kt", "label": "MainApplication.kt", "type": "native", "size_bytes": 1953, "val": 12.932214751968385, "community": 10, "isOrphan": true, "closestCommunity": 6, "degree": 0}, {"id": "android/app/src/main/java/com/christeck/aidiary/PdfToImageModule.kt", "label": "PdfToImageModule.kt", "type": "native", "size_bytes": 3668, "val": 13.841171189248543, "community": 11, "isOrphan": true, "closestCommunity": 6, "degree": 0}, {"id": "android/app/src/main/java/com/christeck/aidiary/PdfToImagePackage.kt", "label": "PdfToImagePackage.kt", "type": "native", "size_bytes": 559, "val": 11.129283016944967, "community": 12, "isOrphan": true, "closestCommunity": 6, "degree": 0}, {"id": "android/app/src/main/java/com/christeck/aidiary/VisionBridge.kt", "label": "VisionBridge.kt", "type": "native", "size_bytes": 1184, "val": 12.210671343785622, "community": 13, "isOrphan": true, "closestCommunity": 6, "degree": 0}, {"id": "android/react-settings-plugin/bin/main/expo/plugins/ReactSettingsPlugin.kt", "label": "ReactSettingsPlugin.kt", "type": "native", "size_bytes": 239, "val": 9.90689059560852, "community": 14, "isOrphan": true, "closestCommunity": 0, "degree": 0}, {"id": "android/react-settings-plugin/src/main/kotlin/expo/plugins/ReactSettingsPlugin.kt", "label": "ReactSettingsPlugin.kt", "type": "native", "size_bytes": 239, "val": 9.90689059560852, "community": 15, "isOrphan": true, "closestCommunity": 0, "degree": 0}, {"id": "app/_layout.tsx", "label": "_layout.tsx", "type": "file", "size_bytes": 4397, "val": 14.102631888854969, "community": 16, "isOrphan": false, "closestCommunity": -1, "degree": 8}, {"id": "app/(tabs)/index.tsx", "label": "index.tsx", "type": "file", "size_bytes": 64048, "val": 17.966888425427797, "community": 17, "isOrphan": false, "closestCommunity": -1, "degree": 34}, {"id": "app/(tabs)/settings.tsx", "label": "settings.tsx", "type": "file", "size_bytes": 65166, "val": 17.991853960743686, "community": 16, "isOrphan": false, "closestCommunity": -1, "degree": 12}, {"id": "app/(tabs)/tools.tsx", "label": "tools.tsx", "type": "file", "size_bytes": 47911, "val": 17.54809941697839, "community": 16, "isOrphan": false, "closestCommunity": -1, "degree": 15}, {"id": "app/(tabs)/zengarden.tsx", "label": "zengarden.tsx", "type": "file", "size_bytes": 9233, "val": 15.172740017049366, "community": 16, "isOrphan": false, "closestCommunity": -1, "degree": 11}, {"id": "app/(tabs)/_layout.tsx", "label": "_layout.tsx", "type": "file", "size_bytes": 2021, "val": 12.981567281903015, "community": 16, "isOrphan": false, "closestCommunity": -1, "degree": 4}, {"id": "components/ChatInputBar.tsx", "label": "ChatInputBar.tsx", "type": "component", "size_bytes": 15893, "val": 15.956194629090778, "community": 17, "isOrphan": false, "closestCommunity": -1, "degree": 3}, {"id": "components/GlobalDownloadBanner.tsx", "label": "GlobalDownloadBanner.tsx", "type": "component", "size_bytes": 7675, "val": 14.90613899619538, "community": 16, "isOrphan": false, "closestCommunity": -1, "degree": 4}, {"id": "components/haptic-tab.tsx", "label": "haptic-tab.tsx", "type": "component", "size_bytes": 591, "val": 11.20945336562895, "community": 16, "isOrphan": false, "closestCommunity": -1, "degree": 1}, {"id": "components/KebabMenuOverlay.tsx", "label": "KebabMenuOverlay.tsx", "type": "component", "size_bytes": 4548, "val": 14.151333719291655, "community": 16, "isOrphan": false, "closestCommunity": -1, "degree": 5}, {"id": "components/MatrixRain.tsx", "label": "MatrixRain.tsx", "type": "component", "size_bytes": 4583, "val": 14.162391328756906, "community": 16, "isOrphan": false, "closestCommunity": -1, "degree": 6}, {"id": "components/MemoryProvider.tsx", "label": "MemoryProvider.tsx", "type": "component", "size_bytes": 2756, "val": 13.428883552010191, "community": 16, "isOrphan": false, "closestCommunity": -1, "degree": 7}, {"id": "components/MessageContextMenu.tsx", "label": "MessageContextMenu.tsx", "type": "component", "size_bytes": 5878, "val": 14.521355062558259, "community": 17, "isOrphan": false, "closestCommunity": -1, "degree": 2}, {"id": "components/ModelLoaderPanel.tsx", "label": "ModelLoaderPanel.tsx", "type": "component", "size_bytes": 9099, "val": 15.151650829973422, "community": 19, "isOrphan": false, "closestCommunity": -1, "degree": 5}, {"id": "components/SanctuaryHeader.tsx", "label": "SanctuaryHeader.tsx", "type": "component", "size_bytes": 9533, "val": 15.218865910069676, "community": 16, "isOrphan": false, "closestCommunity": -1, "degree": 8}, {"id": "components/SanctuaryUI.tsx", "label": "SanctuaryUI.tsx", "type": "component", "size_bytes": 4483, "val": 14.130570562805426, "community": 16, "isOrphan": false, "closestCommunity": -1, "degree": 5}, {"id": "components/SentinelTraceBuffer.tsx", "label": "SentinelTraceBuffer.tsx", "type": "component", "size_bytes": 4266, "val": 14.059006395201111, "community": 16, "isOrphan": false, "closestCommunity": -1, "degree": 1}, {"id": "components/VoiceNoteOverlay.tsx", "label": "VoiceNoteOverlay.tsx", "type": "component", "size_bytes": 7968, "val": 14.960182981831874, "community": 17, "isOrphan": false, "closestCommunity": -1, "degree": 2}, {"id": "components/modals/IntroModal.tsx", "label": "IntroModal.tsx", "type": "component", "size_bytes": 11698, "val": 15.514097596819836, "community": 17, "isOrphan": false, "closestCommunity": -1, "degree": 2}, {"id": "components/modals/OnboardingModal.tsx", "label": "OnboardingModal.tsx", "type": "component", "size_bytes": 18343, "val": 16.163020639580793, "community": 17, "isOrphan": false, "closestCommunity": -1, "degree": 5}, {"id": "components/modals/ProfileModal.tsx", "label": "ProfileModal.tsx", "type": "component", "size_bytes": 10745, "val": 15.391512122707118, "community": 17, "isOrphan": false, "closestCommunity": -1, "degree": 5}, {"id": "components/modals/PsyTestModal.tsx", "label": "PsyTestModal.tsx", "type": "component", "size_bytes": 62079, "val": 17.921840937074492, "community": 17, "isOrphan": false, "closestCommunity": -1, "degree": 4}, {"id": "components/modals/TestsMenuModal.tsx", "label": "TestsMenuModal.tsx", "type": "component", "size_bytes": 6458, "val": 14.65709510488839, "community": 16, "isOrphan": false, "closestCommunity": -1, "degree": 1}, {"id": "components/modals/VaultExplorerModal.tsx", "label": "VaultExplorerModal.tsx", "type": "component", "size_bytes": 10343, "val": 15.336506559810255, "community": 17, "isOrphan": false, "closestCommunity": -1, "degree": 3}, {"id": "components/modals/VoiceOverlay.tsx", "label": "VoiceOverlay.tsx", "type": "component", "size_bytes": 15193, "val": 15.89121410590583, "community": 17, "isOrphan": false, "closestCommunity": -1, "degree": 2}, {"id": "components/modals/VoicePickerModal.tsx", "label": "VoicePickerModal.tsx", "type": "component", "size_bytes": 8581, "val": 15.067098185748385, "community": 17, "isOrphan": false, "closestCommunity": -1, "degree": 1}, {"id": "components/modals/VoiceSettingsModal.tsx", "label": "VoiceSettingsModal.tsx", "type": "component", "size_bytes": 9449, "val": 15.206098613995797, "community": 17, "isOrphan": false, "closestCommunity": -1, "degree": 2}, {"id": "components/ui/CognitiveNode.tsx", "label": "CognitiveNode.tsx", "type": "component", "size_bytes": 3612, "val": 13.818981539432443, "community": 17, "isOrphan": false, "closestCommunity": -1, "degree": 3}, {"id": "components/ui/icon-symbol.tsx", "label": "icon-symbol.tsx", "type": "component", "size_bytes": 2903, "val": 13.50382573799575, "community": 17, "isOrphan": false, "closestCommunity": -1, "degree": 19}, {"id": "components/ui/MarqueeText.tsx", "label": "MarqueeText.tsx", "type": "component", "size_bytes": 1911, "val": 12.900866807980748, "community": 17, "isOrphan": false, "closestCommunity": -1, "degree": 2}, {"id": "components/ui/MessageItem.tsx", "label": "MessageItem.tsx", "type": "component", "size_bytes": 6689, "val": 14.707790495528823, "community": 17, "isOrphan": false, "closestCommunity": -1, "degree": 3}, {"id": "components/ui/SnowflakeChart.tsx", "label": "SnowflakeChart.tsx", "type": "component", "size_bytes": 3633, "val": 13.827342704234116, "community": 17, "isOrphan": false, "closestCommunity": -1, "degree": 1}, {"id": "components/ui/WhispAvatar.tsx", "label": "WhispAvatar.tsx", "type": "component", "size_bytes": 13956, "val": 15.768701253028144, "community": 17, "isOrphan": false, "closestCommunity": -1, "degree": 1}, {"id": "components/ui/ZenGarden.tsx", "label": "ZenGarden.tsx", "type": "component", "size_bytes": 28623, "val": 16.804937672051906, "community": 16, "isOrphan": false, "closestCommunity": -1, "degree": 3}, {"id": "constants/NeuralConstants.ts", "label": "NeuralConstants.ts", "type": "file", "size_bytes": 2271, "val": 13.149747119504681, "community": 17, "isOrphan": false, "closestCommunity": -1, "degree": 2}, {"id": "constants/Themes.ts", "label": "Themes.ts", "type": "file", "size_bytes": 1978, "val": 12.950555897047511, "community": 16, "isOrphan": false, "closestCommunity": -1, "degree": 3}, {"id": "contexts/GlobalModalsContext.tsx", "label": "GlobalModalsContext.tsx", "type": "context", "size_bytes": 7917, "val": 14.950920352030098, "community": 16, "isOrphan": false, "closestCommunity": -1, "degree": 15}, {"id": "contexts/LanguageContext.tsx", "label": "LanguageContext.tsx", "type": "context", "size_bytes": 9256, "val": 15.176329006617596, "community": 16, "isOrphan": false, "closestCommunity": -1, "degree": 13}, {"id": "contexts/LlmContext.tsx", "label": "LlmContext.tsx", "type": "context", "size_bytes": 4701, "val": 14.199058823653022, "community": 16, "isOrphan": false, "closestCommunity": -1, "degree": 10}, {"id": "contexts/ProfileContext.tsx", "label": "ProfileContext.tsx", "type": "context", "size_bytes": 3400, "val": 13.731743290707842, "community": 16, "isOrphan": false, "closestCommunity": -1, "degree": 4}, {"id": "contexts/ThemeContext.tsx", "label": "ThemeContext.tsx", "type": "context", "size_bytes": 1463, "val": 12.515699838284043, "community": 16, "isOrphan": false, "closestCommunity": -1, "degree": 11}, {"id": "contexts/VoiceContext.tsx", "label": "VoiceContext.tsx", "type": "context", "size_bytes": 1058, "val": 12.048486873992337, "community": 16, "isOrphan": false, "closestCommunity": -1, "degree": 5}, {"id": "db/knowledgeGraphSchema.ts", "label": "knowledgeGraphSchema.ts", "type": "schema", "size_bytes": 2988, "val": 13.545447181678094, "community": 20, "isOrphan": false, "closestCommunity": -1, "degree": 1}, {"id": "db/syntacticMemorySchema.ts", "label": "syntacticMemorySchema.ts", "type": "schema", "size_bytes": 5892, "val": 14.524786550851607, "community": 20, "isOrphan": false, "closestCommunity": -1, "degree": 1}, {"id": "db/todoSchema.ts", "label": "todoSchema.ts", "type": "schema", "size_bytes": 706, "val": 11.4655664048094, "community": 20, "isOrphan": false, "closestCommunity": -1, "degree": 2}, {"id": "db/zenGardenSchema.ts", "label": "zenGardenSchema.ts", "type": "schema", "size_bytes": 6867, "val": 14.745674324002135, "community": 21, "isOrphan": false, "closestCommunity": -1, "degree": 7}, {"id": "hooks/use-color-scheme.ts", "label": "use-color-scheme.ts", "type": "hook", "size_bytes": 22, "val": 6.523561956057013, "community": 18, "isOrphan": true, "closestCommunity": 19, "degree": 0}, {"id": "hooks/useAgentEngine.ts", "label": "useAgentEngine.ts", "type": "hook", "size_bytes": 35561, "val": 17.11804884288877, "community": 21, "isOrphan": false, "closestCommunity": -1, "degree": 15}, {"id": "hooks/useAppLlm.ts", "label": "useAppLlm.ts", "type": "hook", "size_bytes": 49531, "val": 17.596073254748063, "community": 19, "isOrphan": false, "closestCommunity": -1, "degree": 10}, {"id": "hooks/useCircadianCycle.ts", "label": "useCircadianCycle.ts", "type": "hook", "size_bytes": 500, "val": 10.968666793195208, "community": 16, "isOrphan": false, "closestCommunity": -1, "degree": 3}, {"id": "hooks/useDocumentProcessor.ts", "label": "useDocumentProcessor.ts", "type": "hook", "size_bytes": 11067, "val": 15.434106928609955, "community": 21, "isOrphan": false, "closestCommunity": -1, "degree": 4}, {"id": "hooks/useFileAttachment.ts", "label": "useFileAttachment.ts", "type": "hook", "size_bytes": 20149, "val": 16.29849221830269, "community": 21, "isOrphan": false, "closestCommunity": -1, "degree": 3}, {"id": "hooks/useInteractiveVoice.ts", "label": "useInteractiveVoice.ts", "type": "hook", "size_bytes": 20880, "val": 16.349903184392815, "community": 19, "isOrphan": false, "closestCommunity": -1, "degree": 7}, {"id": "hooks/useSafeState.ts", "label": "useSafeState.ts", "type": "hook", "size_bytes": 662, "val": 11.372865060112588, "community": 19, "isOrphan": false, "closestCommunity": -1, "degree": 2}, {"id": "hooks/useTodos.ts", "label": "useTodos.ts", "type": "hook", "size_bytes": 2152, "val": 13.072132604167233, "community": 20, "isOrphan": false, "closestCommunity": -1, "degree": 3}, {"id": "hooks/useVoice.ts", "label": "useVoice.ts", "type": "hook", "size_bytes": 26314, "val": 16.683597774380136, "community": 19, "isOrphan": false, "closestCommunity": -1, "degree": 9}, {"id": "lib/BraveLlmSearch.ts", "label": "BraveLlmSearch.ts", "type": "service", "size_bytes": 5194, "val": 14.342908033791574, "community": 22, "isOrphan": false, "closestCommunity": -1, "degree": 4}, {"id": "lib/CloudTTSService.ts", "label": "CloudTTSService.ts", "type": "service", "size_bytes": 4282, "val": 14.064405961891042, "community": 19, "isOrphan": false, "closestCommunity": -1, "degree": 1}, {"id": "lib/ContextFoldingService.ts", "label": "ContextFoldingService.ts", "type": "service", "size_bytes": 4386, "val": 14.09901899101923, "community": 21, "isOrphan": false, "closestCommunity": -1, "degree": 1}, {"id": "lib/CPUSemaphore.ts", "label": "CPUSemaphore.ts", "type": "service", "size_bytes": 2229, "val": 13.122827994807666, "community": 19, "isOrphan": false, "closestCommunity": -1, "degree": 2}, {"id": "lib/db.ts", "label": "db.ts", "type": "service", "size_bytes": 5997, "val": 14.55026580686874, "community": 20, "isOrphan": false, "closestCommunity": -1, "degree": 5}, {"id": "lib/FactExtractionService.ts", "label": "FactExtractionService.ts", "type": "service", "size_bytes": 5530, "val": 14.433324626715926, "community": 21, "isOrphan": false, "closestCommunity": -1, "degree": 5}, {"id": "lib/grammars.ts", "label": "grammars.ts", "type": "service", "size_bytes": 1573, "val": 12.620219825507487, "community": 21, "isOrphan": false, "closestCommunity": -1, "degree": 1}, {"id": "lib/hardware.ts", "label": "hardware.ts", "type": "service", "size_bytes": 4453, "val": 14.12088584278779, "community": 19, "isOrphan": false, "closestCommunity": -1, "degree": 6}, {"id": "lib/IdentityRotator.ts", "label": "IdentityRotator.ts", "type": "service", "size_bytes": 2595, "val": 13.342074667999139, "community": 22, "isOrphan": false, "closestCommunity": -1, "degree": 3}, {"id": "lib/KnowledgeGraphService.ts", "label": "KnowledgeGraphService.ts", "type": "service", "size_bytes": 5964, "val": 14.542306422582591, "community": 21, "isOrphan": false, "closestCommunity": -1, "degree": 2}, {"id": "lib/KnowledgeManager.ts", "label": "KnowledgeManager.ts", "type": "service", "size_bytes": 2373, "val": 13.213104219641906, "community": 21, "isOrphan": false, "closestCommunity": -1, "degree": 2}, {"id": "lib/LouvainCommunity.ts", "label": "LouvainCommunity.ts", "type": "service", "size_bytes": 4467, "val": 14.125413470483315, "community": 21, "isOrphan": false, "closestCommunity": -1, "degree": 1}, {"id": "lib/MemoryManager.ts", "label": "MemoryManager.ts", "type": "service", "size_bytes": 3158, "val": 13.625252221746873, "community": 17, "isOrphan": false, "closestCommunity": -1, "degree": 4}, {"id": "lib/openlibrary.ts", "label": "openlibrary.ts", "type": "service", "size_bytes": 1891, "val": 12.885696373339396, "community": 22, "isOrphan": false, "closestCommunity": -1, "degree": 4}, {"id": "lib/PdfToImage.ts", "label": "PdfToImage.ts", "type": "service", "size_bytes": 1077, "val": 12.074141462752506, "community": 21, "isOrphan": false, "closestCommunity": -1, "degree": 1}, {"id": "lib/PromptService.ts", "label": "PromptService.ts", "type": "service", "size_bytes": 6648, "val": 14.698921662339814, "community": 21, "isOrphan": false, "closestCommunity": -1, "degree": 7}, {"id": "lib/SemanticService.ts", "label": "SemanticService.ts", "type": "service", "size_bytes": 2830, "val": 13.467096033905747, "community": 21, "isOrphan": false, "closestCommunity": -1, "degree": 1}, {"id": "lib/SentinelService.ts", "label": "SentinelService.ts", "type": "service", "size_bytes": 13676, "val": 15.73946419458592, "community": 22, "isOrphan": false, "closestCommunity": -1, "degree": 3}, {"id": "lib/SettingsService.ts", "label": "SettingsService.ts", "type": "service", "size_bytes": 3865, "val": 13.916625922211235, "community": 19, "isOrphan": false, "closestCommunity": -1, "degree": 6}, {"id": "lib/SpeechFilter.ts", "label": "SpeechFilter.ts", "type": "service", "size_bytes": 9083, "val": 15.149111990706889, "community": 19, "isOrphan": false, "closestCommunity": -1, "degree": 3}, {"id": "lib/systemPrompt.ts", "label": "systemPrompt.ts", "type": "service", "size_bytes": 13512, "val": 15.722060380242018, "community": 21, "isOrphan": false, "closestCommunity": -1, "degree": 2}, {"id": "lib/TextUtils.ts", "label": "TextUtils.ts", "type": "service", "size_bytes": 3283, "val": 13.681238411777805, "community": 22, "isOrphan": false, "closestCommunity": -1, "degree": 4}, {"id": "lib/tools.ts", "label": "tools.ts", "type": "service", "size_bytes": 2077, "val": 13.020979938904212, "community": 22, "isOrphan": false, "closestCommunity": -1, "degree": 6}, {"id": "lib/UnifiedMicService.ts", "label": "UnifiedMicService.ts", "type": "service", "size_bytes": 11773, "val": 15.523316912312747, "community": 19, "isOrphan": false, "closestCommunity": -1, "degree": 3}, {"id": "lib/vault.ts", "label": "vault.ts", "type": "service", "size_bytes": 8829, "val": 15.108197722535829, "community": 17, "isOrphan": false, "closestCommunity": -1, "degree": 2}, {"id": "lib/wikipedia.ts", "label": "wikipedia.ts", "type": "service", "size_bytes": 7595, "val": 14.891024190149498, "community": 22, "isOrphan": false, "closestCommunity": -1, "degree": 3}, {"id": "lib/WisdomService.ts", "label": "WisdomService.ts", "type": "service", "size_bytes": 3845, "val": 13.909143047339898, "community": 21, "isOrphan": false, "closestCommunity": -1, "degree": 1}, {"id": "lib/ZenPhilosophyService.ts", "label": "ZenPhilosophyService.ts", "type": "service", "size_bytes": 4824, "val": 14.236313227042805, "community": 21, "isOrphan": false, "closestCommunity": -1, "degree": 3}, {"id": "plugins/withIosCxxStandard.js", "label": "withIosCxxStandard.js", "type": "file", "size_bytes": 2295, "val": 13.164906926675688, "community": 23, "isOrphan": true, "closestCommunity": 24, "degree": 0}, {"id": "plugins/withIosEntitlements.js", "label": "withIosEntitlements.js", "type": "file", "size_bytes": 1096, "val": 12.099347810403193, "community": 24, "isOrphan": true, "closestCommunity": 23, "degree": 0}, {"id": "scripts/reset-project.js", "label": "reset-project.js", "type": "file", "size_bytes": 3608, "val": 13.817383427897234, "community": 25, "isOrphan": true, "closestCommunity": 0, "degree": 0}, {"id": "src/config/ModelConfig.ts", "label": "ModelConfig.ts", "type": "file", "size_bytes": 5366, "val": 14.389900172773064, "community": 19, "isOrphan": false, "closestCommunity": -1, "degree": 2}, {"id": "types/index.ts", "label": "index.ts", "type": "file", "size_bytes": 983, "val": 11.94251450533924, "community": 21, "isOrphan": false, "closestCommunity": -1, "degree": 2}], "links": [{"source": "app/_layout.tsx", "target": "contexts/ThemeContext.tsx", "type": "import"}, {"source": "app/_layout.tsx", "target": "components/MemoryProvider.tsx", "type": "import"}, {"source": "app/_layout.tsx", "target": "contexts/LanguageContext.tsx", "type": "import"}, {"source": "app/_layout.tsx", "target": "contexts/VoiceContext.tsx", "type": "import"}, {"source": "app/_layout.tsx", "target": "contexts/LlmContext.tsx", "type": "import"}, {"source": "app/_layout.tsx", "target": "components/GlobalDownloadBanner.tsx", "type": "import"}, {"source": "app/_layout.tsx", "target": "contexts/ProfileContext.tsx", "type": "import"}, {"source": "app/_layout.tsx", "target": "contexts/GlobalModalsContext.tsx", "type": "import"}, {"source": "app/(tabs)/index.tsx", "target": "components/MatrixRain.tsx", "type": "import"}, {"source": "app/(tabs)/index.tsx", "target": "components/ui/icon-symbol.tsx", "type": "import"}, {"source": "app/(tabs)/index.tsx", "target": "components/MemoryProvider.tsx", "type": "import"}, {"source": "app/(tabs)/index.tsx", "target": "components/modals/OnboardingModal.tsx", "type": "import"}, {"source": "app/(tabs)/index.tsx", "target": "components/modals/VoiceOverlay.tsx", "type": "import"}, {"source": "app/(tabs)/index.tsx", "target": "components/SanctuaryHeader.tsx", "type": "import"}, {"source": "app/(tabs)/index.tsx", "target": "components/KebabMenuOverlay.tsx", "type": "import"}, {"source": "app/(tabs)/index.tsx", "target": "components/ui/WhispAvatar.tsx", "type": "import"}, {"source": "app/(tabs)/index.tsx", "target": "db/zenGardenSchema.ts", "type": "import"}, {"source": "app/(tabs)/index.tsx", "target": "hooks/useTodos.ts", "type": "import"}, {"source": "app/(tabs)/index.tsx", "target": "components/ui/MarqueeText.tsx", "type": "import"}, {"source": "app/(tabs)/index.tsx", "target": "contexts/LanguageContext.tsx", "type": "import"}, {"source": "app/(tabs)/index.tsx", "target": "contexts/ThemeContext.tsx", "type": "import"}, {"source": "app/(tabs)/index.tsx", "target": "contexts/LlmContext.tsx", "type": "import"}, {"source": "app/(tabs)/index.tsx", "target": "contexts/VoiceContext.tsx", "type": "import"}, {"source": "app/(tabs)/index.tsx", "target": "contexts/ProfileContext.tsx", "type": "import"}, {"source": "app/(tabs)/index.tsx", "target": "contexts/GlobalModalsContext.tsx", "type": "import"}, {"source": "app/(tabs)/index.tsx", "target": "hooks/useAgentEngine.ts", "type": "import"}, {"source": "app/(tabs)/index.tsx", "target": "hooks/useAppLlm.ts", "type": "import"}, {"source": "app/(tabs)/index.tsx", "target": "lib/SettingsService.ts", "type": "import"}, {"source": "app/(tabs)/index.tsx", "target": "lib/SpeechFilter.ts", "type": "import"}, {"source": "app/(tabs)/index.tsx", "target": "hooks/useFileAttachment.ts", "type": "import"}, {"source": "app/(tabs)/index.tsx", "target": "hooks/useInteractiveVoice.ts", "type": "import"}, {"source": "app/(tabs)/index.tsx", "target": "hooks/useVoice.ts", "type": "import"}, {"source": "app/(tabs)/index.tsx", "target": "lib/vault.ts", "type": "import"}, {"source": "app/(tabs)/index.tsx", "target": "components/SanctuaryUI.tsx", "type": "import"}, {"source": "app/(tabs)/index.tsx", "target": "lib/UnifiedMicService.ts", "type": "import"}, {"source": "app/(tabs)/index.tsx", "target": "constants/NeuralConstants.ts", "type": "import"}, {"source": "app/(tabs)/index.tsx", "target": "components/ui/MessageItem.tsx", "type": "import"}, {"source": "app/(tabs)/index.tsx", "target": "components/ui/CognitiveNode.tsx", "type": "import"}, {"source": "app/(tabs)/index.tsx", "target": "components/VoiceNoteOverlay.tsx", "type": "import"}, {"source": "app/(tabs)/index.tsx", "target": "components/ModelLoaderPanel.tsx", "type": "import"}, {"source": "app/(tabs)/index.tsx", "target": "components/ChatInputBar.tsx", "type": "import"}, {"source": "app/(tabs)/index.tsx", "target": "components/MessageContextMenu.tsx", "type": "import"}, {"source": "app/(tabs)/settings.tsx", "target": "components/MatrixRain.tsx", "type": "import"}, {"source": "app/(tabs)/settings.tsx", "target": "components/ui/icon-symbol.tsx", "type": "import"}, {"source": "app/(tabs)/settings.tsx", "target": "components/MemoryProvider.tsx", "type": "import"}, {"source": "app/(tabs)/settings.tsx", "target": "constants/Themes.ts", "type": "import"}, {"source": "app/(tabs)/settings.tsx", "target": "components/SanctuaryUI.tsx", "type": "import"}, {"source": "app/(tabs)/settings.tsx", "target": "contexts/LanguageContext.tsx", "type": "import"}, {"source": "app/(tabs)/settings.tsx", "target": "contexts/ThemeContext.tsx", "type": "import"}, {"source": "app/(tabs)/settings.tsx", "target": "contexts/LlmContext.tsx", "type": "import"}, {"source": "app/(tabs)/settings.tsx", "target": "components/SanctuaryHeader.tsx", "type": "import"}, {"source": "app/(tabs)/settings.tsx", "target": "components/KebabMenuOverlay.tsx", "type": "import"}, {"source": "app/(tabs)/settings.tsx", "target": "db/zenGardenSchema.ts", "type": "import"}, {"source": "app/(tabs)/settings.tsx", "target": "contexts/GlobalModalsContext.tsx", "type": "import"}, {"source": "app/(tabs)/tools.tsx", "target": "contexts/ThemeContext.tsx", "type": "import"}, {"source": "app/(tabs)/tools.tsx", "target": "contexts/LanguageContext.tsx", "type": "import"}, {"source": "app/(tabs)/tools.tsx", "target": "components/SanctuaryHeader.tsx", "type": "import"}, {"source": "app/(tabs)/tools.tsx", "target": "components/KebabMenuOverlay.tsx", "type": "import"}, {"source": "app/(tabs)/tools.tsx", "target": "db/zenGardenSchema.ts", "type": "import"}, {"source": "app/(tabs)/tools.tsx", "target": "components/MatrixRain.tsx", "type": "import"}, {"source": "app/(tabs)/tools.tsx", "target": "components/ui/icon-symbol.tsx", "type": "import"}, {"source": "app/(tabs)/tools.tsx", "target": "lib/openlibrary.ts", "type": "import"}, {"source": "app/(tabs)/tools.tsx", "target": "lib/wikipedia.ts", "type": "import"}, {"source": "app/(tabs)/tools.tsx", "target": "contexts/VoiceContext.tsx", "type": "import"}, {"source": "app/(tabs)/tools.tsx", "target": "contexts/LlmContext.tsx", "type": "import"}, {"source": "app/(tabs)/tools.tsx", "target": "lib/SettingsService.ts", "type": "import"}, {"source": "app/(tabs)/tools.tsx", "target": "hooks/useTodos.ts", "type": "import"}, {"source": "app/(tabs)/tools.tsx", "target": "components/ui/MarqueeText.tsx", "type": "import"}, {"source": "app/(tabs)/tools.tsx", "target": "contexts/GlobalModalsContext.tsx", "type": "import"}, {"source": "app/(tabs)/zengarden.tsx", "target": "components/ui/ZenGarden.tsx", "type": "import"}, {"source": "app/(tabs)/zengarden.tsx", "target": "components/MatrixRain.tsx", "type": "import"}, {"source": "app/(tabs)/zengarden.tsx", "target": "db/zenGardenSchema.ts", "type": "import"}, {"source": "app/(tabs)/zengarden.tsx", "target": "lib/ZenPhilosophyService.ts", "type": "import"}, {"source": "app/(tabs)/zengarden.tsx", "target": "contexts/ThemeContext.tsx", "type": "import"}, {"source": "app/(tabs)/zengarden.tsx", "target": "contexts/LanguageContext.tsx", "type": "import"}, {"source": "app/(tabs)/zengarden.tsx", "target": "contexts/LlmContext.tsx", "type": "import"}, {"source": "app/(tabs)/zengarden.tsx", "target": "components/SanctuaryHeader.tsx", "type": "import"}, {"source": "app/(tabs)/zengarden.tsx", "target": "components/KebabMenuOverlay.tsx", "type": "import"}, {"source": "app/(tabs)/zengarden.tsx", "target": "hooks/useCircadianCycle.ts", "type": "import"}, {"source": "app/(tabs)/zengarden.tsx", "target": "contexts/GlobalModalsContext.tsx", "type": "import"}, {"source": "app/(tabs)/_layout.tsx", "target": "components/haptic-tab.tsx", "type": "import"}, {"source": "app/(tabs)/_layout.tsx", "target": "components/ui/icon-symbol.tsx", "type": "import"}, {"source": "app/(tabs)/_layout.tsx", "target": "contexts/ThemeContext.tsx", "type": "import"}, {"source": "app/(tabs)/_layout.tsx", "target": "contexts/LanguageContext.tsx", "type": "import"}, {"source": "components/ChatInputBar.tsx", "target": "components/ui/icon-symbol.tsx", "type": "import"}, {"source": "components/ChatInputBar.tsx", "target": "constants/NeuralConstants.ts", "type": "import"}, {"source": "components/GlobalDownloadBanner.tsx", "target": "contexts/LlmContext.tsx", "type": "import"}, {"source": "components/GlobalDownloadBanner.tsx", "target": "contexts/ThemeContext.tsx", "type": "import"}, {"source": "components/GlobalDownloadBanner.tsx", "target": "contexts/LanguageContext.tsx", "type": "import"}, {"source": "components/KebabMenuOverlay.tsx", "target": "contexts/LanguageContext.tsx", "type": "import"}, {"source": "components/MatrixRain.tsx", "target": "lib/MemoryManager.ts", "type": "import"}, {"source": "components/MatrixRain.tsx", "target": "hooks/useCircadianCycle.ts", "type": "import"}, {"source": "components/MemoryProvider.tsx", "target": "lib/db.ts", "type": "import"}, {"source": "components/MessageContextMenu.tsx", "target": "components/ui/icon-symbol.tsx", "type": "import"}, {"source": "components/ModelLoaderPanel.tsx", "target": "components/ui/icon-symbol.tsx", "type": "import"}, {"source": "components/ModelLoaderPanel.tsx", "target": "components/SanctuaryUI.tsx", "type": "import"}, {"source": "components/ModelLoaderPanel.tsx", "target": "lib/SettingsService.ts", "type": "import"}, {"source": "components/ModelLoaderPanel.tsx", "target": "hooks/useAppLlm.ts", "type": "import"}, {"source": "components/SanctuaryHeader.tsx", "target": "components/ui/icon-symbol.tsx", "type": "import"}, {"source": "components/SanctuaryHeader.tsx", "target": "contexts/ThemeContext.tsx", "type": "import"}, {"source": "components/SanctuaryHeader.tsx", "target": "contexts/LanguageContext.tsx", "type": "import"}, {"source": "components/SanctuaryHeader.tsx", "target": "contexts/LlmContext.tsx", "type": "import"}, {"source": "components/SanctuaryUI.tsx", "target": "constants/Themes.ts", "type": "import"}, {"source": "components/SanctuaryUI.tsx", "target": "contexts/LanguageContext.tsx", "type": "import"}, {"source": "components/SentinelTraceBuffer.tsx", "target": "components/MemoryProvider.tsx", "type": "import"}, {"source": "components/VoiceNoteOverlay.tsx", "target": "components/ui/icon-symbol.tsx", "type": "import"}, {"source": "components/modals/IntroModal.tsx", "target": "components/ui/icon-symbol.tsx", "type": "import"}, {"source": "components/modals/OnboardingModal.tsx", "target": "components/ui/icon-symbol.tsx", "type": "import"}, {"source": "components/modals/OnboardingModal.tsx", "target": "components/modals/PsyTestModal.tsx", "type": "import"}, {"source": "components/modals/OnboardingModal.tsx", "target": "lib/PromptService.ts", "type": "import"}, {"source": "components/modals/OnboardingModal.tsx", "target": "lib/MemoryManager.ts", "type": "import"}, {"source": "components/modals/ProfileModal.tsx", "target": "lib/PromptService.ts", "type": "import"}, {"source": "components/modals/ProfileModal.tsx", "target": "components/ui/icon-symbol.tsx", "type": "import"}, {"source": "components/modals/ProfileModal.tsx", "target": "components/ui/SnowflakeChart.tsx", "type": "import"}, {"source": "components/modals/ProfileModal.tsx", "target": "components/modals/PsyTestModal.tsx", "type": "import"}, {"source": "components/modals/PsyTestModal.tsx", "target": "components/ui/icon-symbol.tsx", "type": "import"}, {"source": "components/modals/VaultExplorerModal.tsx", "target": "components/ui/icon-symbol.tsx", "type": "import"}, {"source": "components/modals/VaultExplorerModal.tsx", "target": "lib/vault.ts", "type": "import"}, {"source": "components/modals/VoiceOverlay.tsx", "target": "components/ui/icon-symbol.tsx", "type": "import"}, {"source": "components/modals/VoicePickerModal.tsx", "target": "components/ui/icon-symbol.tsx", "type": "import"}, {"source": "components/modals/VoiceSettingsModal.tsx", "target": "components/ui/icon-symbol.tsx", "type": "import"}, {"source": "components/ui/CognitiveNode.tsx", "target": "components/ui/icon-symbol.tsx", "type": "import"}, {"source": "components/ui/MessageItem.tsx", "target": "components/ui/icon-symbol.tsx", "type": "import"}, {"source": "components/ui/MessageItem.tsx", "target": "components/ui/CognitiveNode.tsx", "type": "import"}, {"source": "components/ui/ZenGarden.tsx", "target": "hooks/useCircadianCycle.ts", "type": "import"}, {"source": "components/ui/ZenGarden.tsx", "target": "contexts/ThemeContext.tsx", "type": "import"}, {"source": "contexts/GlobalModalsContext.tsx", "target": "components/modals/ProfileModal.tsx", "type": "import"}, {"source": "contexts/GlobalModalsContext.tsx", "target": "components/modals/IntroModal.tsx", "type": "import"}, {"source": "contexts/GlobalModalsContext.tsx", "target": "components/modals/VaultExplorerModal.tsx", "type": "import"}, {"source": "contexts/GlobalModalsContext.tsx", "target": "components/modals/VoiceSettingsModal.tsx", "type": "import"}, {"source": "contexts/GlobalModalsContext.tsx", "target": "components/modals/TestsMenuModal.tsx", "type": "import"}, {"source": "contexts/GlobalModalsContext.tsx", "target": "components/modals/PsyTestModal.tsx", "type": "import"}, {"source": "contexts/GlobalModalsContext.tsx", "target": "contexts/ProfileContext.tsx", "type": "import"}, {"source": "contexts/GlobalModalsContext.tsx", "target": "contexts/ThemeContext.tsx", "type": "import"}, {"source": "contexts/GlobalModalsContext.tsx", "target": "contexts/LanguageContext.tsx", "type": "import"}, {"source": "contexts/GlobalModalsContext.tsx", "target": "components/MemoryProvider.tsx", "type": "import"}, {"source": "contexts/LlmContext.tsx", "target": "src/config/ModelConfig.ts", "type": "import"}, {"source": "contexts/LlmContext.tsx", "target": "hooks/useAppLlm.ts", "type": "import"}, {"source": "contexts/LlmContext.tsx", "target": "contexts/LanguageContext.tsx", "type": "import"}, {"source": "contexts/ProfileContext.tsx", "target": "components/MemoryProvider.tsx", "type": "import"}, {"source": "contexts/ThemeContext.tsx", "target": "constants/Themes.ts", "type": "import"}, {"source": "contexts/VoiceContext.tsx", "target": "hooks/useVoice.ts", "type": "import"}, {"source": "contexts/VoiceContext.tsx", "target": "contexts/LanguageContext.tsx", "type": "import"}, {"source": "hooks/useAgentEngine.ts", "target": "hooks/useAppLlm.ts", "type": "import"}, {"source": "hooks/useAgentEngine.ts", "target": "hooks/useDocumentProcessor.ts", "type": "import"}, {"source": "hooks/useAgentEngine.ts", "target": "lib/systemPrompt.ts", "type": "import"}, {"source": "hooks/useAgentEngine.ts", "target": "lib/PromptService.ts", "type": "import"}, {"source": "hooks/useAgentEngine.ts", "target": "lib/tools.ts", "type": "import"}, {"source": "hooks/useAgentEngine.ts", "target": "lib/hardware.ts", "type": "import"}, {"source": "hooks/useAgentEngine.ts", "target": "lib/SentinelService.ts", "type": "import"}, {"source": "hooks/useAgentEngine.ts", "target": "lib/FactExtractionService.ts", "type": "import"}, {"source": "hooks/useAgentEngine.ts", "target": "lib/WisdomService.ts", "type": "import"}, {"source": "hooks/useAgentEngine.ts", "target": "lib/ContextFoldingService.ts", "type": "import"}, {"source": "hooks/useAgentEngine.ts", "target": "lib/KnowledgeManager.ts", "type": "import"}, {"source": "hooks/useAgentEngine.ts", "target": "db/zenGardenSchema.ts", "type": "import"}, {"source": "hooks/useAgentEngine.ts", "target": "lib/SemanticService.ts", "type": "import"}, {"source": "hooks/useAgentEngine.ts", "target": "types/index.ts", "type": "import"}, {"source": "hooks/useAppLlm.ts", "target": "lib/MemoryManager.ts", "type": "import"}, {"source": "hooks/useAppLlm.ts", "target": "lib/hardware.ts", "type": "import"}, {"source": "hooks/useAppLlm.ts", "target": "src/config/ModelConfig.ts", "type": "import"}, {"source": "hooks/useAppLlm.ts", "target": "lib/CPUSemaphore.ts", "type": "import"}, {"source": "hooks/useAppLlm.ts", "target": "lib/SettingsService.ts", "type": "import"}, {"source": "hooks/useDocumentProcessor.ts", "target": "lib/PromptService.ts", "type": "import"}, {"source": "hooks/useDocumentProcessor.ts", "target": "hooks/useFileAttachment.ts", "type": "import"}, {"source": "hooks/useDocumentProcessor.ts", "target": "lib/hardware.ts", "type": "import"}, {"source": "hooks/useFileAttachment.ts", "target": "lib/PdfToImage.ts", "type": "import"}, {"source": "hooks/useInteractiveVoice.ts", "target": "hooks/useVoice.ts", "type": "import"}, {"source": "hooks/useInteractiveVoice.ts", "target": "lib/CPUSemaphore.ts", "type": "import"}, {"source": "hooks/useInteractiveVoice.ts", "target": "lib/UnifiedMicService.ts", "type": "import"}, {"source": "hooks/useInteractiveVoice.ts", "target": "lib/SpeechFilter.ts", "type": "import"}, {"source": "hooks/useInteractiveVoice.ts", "target": "lib/hardware.ts", "type": "import"}, {"source": "hooks/useInteractiveVoice.ts", "target": "hooks/useSafeState.ts", "type": "import"}, {"source": "hooks/useTodos.ts", "target": "db/todoSchema.ts", "type": "import"}, {"source": "hooks/useVoice.ts", "target": "lib/hardware.ts", "type": "import"}, {"source": "hooks/useVoice.ts", "target": "lib/UnifiedMicService.ts", "type": "import"}, {"source": "hooks/useVoice.ts", "target": "lib/SpeechFilter.ts", "type": "import"}, {"source": "hooks/useVoice.ts", "target": "lib/SettingsService.ts", "type": "import"}, {"source": "hooks/useVoice.ts", "target": "lib/CloudTTSService.ts", "type": "import"}, {"source": "hooks/useVoice.ts", "target": "hooks/useSafeState.ts", "type": "import"}, {"source": "lib/BraveLlmSearch.ts", "target": "lib/IdentityRotator.ts", "type": "import"}, {"source": "lib/BraveLlmSearch.ts", "target": "lib/TextUtils.ts", "type": "import"}, {"source": "lib/BraveLlmSearch.ts", "target": "lib/SettingsService.ts", "type": "import"}, {"source": "lib/db.ts", "target": "db/syntacticMemorySchema.ts", "type": "import"}, {"source": "lib/db.ts", "target": "db/zenGardenSchema.ts", "type": "import"}, {"source": "lib/db.ts", "target": "db/knowledgeGraphSchema.ts", "type": "import"}, {"source": "lib/db.ts", "target": "db/todoSchema.ts", "type": "import"}, {"source": "lib/FactExtractionService.ts", "target": "lib/grammars.ts", "type": "import"}, {"source": "lib/FactExtractionService.ts", "target": "lib/KnowledgeManager.ts", "type": "import"}, {"source": "lib/FactExtractionService.ts", "target": "lib/KnowledgeGraphService.ts", "type": "import"}, {"source": "lib/FactExtractionService.ts", "target": "lib/ZenPhilosophyService.ts", "type": "import"}, {"source": "lib/KnowledgeGraphService.ts", "target": "lib/LouvainCommunity.ts", "type": "import"}, {"source": "lib/MemoryManager.ts", "target": "lib/hardware.ts", "type": "import"}, {"source": "lib/openlibrary.ts", "target": "lib/IdentityRotator.ts", "type": "import"}, {"source": "lib/openlibrary.ts", "target": "lib/TextUtils.ts", "type": "import"}, {"source": "lib/PromptService.ts", "target": "hooks/useAppLlm.ts", "type": "import"}, {"source": "lib/PromptService.ts", "target": "lib/systemPrompt.ts", "type": "import"}, {"source": "lib/PromptService.ts", "target": "types/index.ts", "type": "import"}, {"source": "lib/SentinelService.ts", "target": "lib/TextUtils.ts", "type": "import"}, {"source": "lib/tools.ts", "target": "lib/wikipedia.ts", "type": "import"}, {"source": "lib/tools.ts", "target": "lib/TextUtils.ts", "type": "import"}, {"source": "lib/tools.ts", "target": "lib/BraveLlmSearch.ts", "type": "import"}, {"source": "lib/tools.ts", "target": "lib/openlibrary.ts", "type": "import"}, {"source": "lib/tools.ts", "target": "lib/SentinelService.ts", "type": "import"}, {"source": "lib/wikipedia.ts", "target": "lib/IdentityRotator.ts", "type": "import"}, {"source": "lib/ZenPhilosophyService.ts", "target": "db/zenGardenSchema.ts", "type": "import"}], "communities": [{"id": 0, "name": "[Config] Cluster 0"}, {"id": 1, "name": "[Config] Cluster 1"}, {"id": 2, "name": "[Core] Cluster 2"}, {"id": 3, "name": "[Config] Cluster 3"}, {"id": 4, "name": "[Config] Cluster 4"}, {"id": 5, "name": "[Native Bridge] Cpp"}, {"id": 6, "name": "[Services] Aidiary"}, {"id": 7, "name": "[Native Bridge] Aidiary"}, {"id": 8, "name": "[Native Bridge] Aidiary"}, {"id": 9, "name": "[Native Bridge] Aidiary"}, {"id": 10, "name": "[Native Bridge] Aidiary"}, {"id": 11, "name": "[Native Bridge] Aidiary"}, {"id": 12, "name": "[Native Bridge] Aidiary"}, {"id": 13, "name": "[Native Bridge] Aidiary"}, {"id": 14, "name": "[Native Bridge] Plugins"}, {"id": 15, "name": "[Native Bridge] Plugins"}, {"id": 16, "name": "[UI] Components"}, {"id": 17, "name": "[UI] Modals"}, {"id": 18, "name": "[Hooks] Hooks"}, {"id": 19, "name": "[Services] Lib"}, {"id": 20, "name": "[Database] Db"}, {"id": 21, "name": "[Services] Lib"}, {"id": 22, "name": "[Services] Lib"}, {"id": 23, "name": "[Core] Plugins"}, {"id": 24, "name": "[Core] Plugins"}, {"id": 25, "name": "[Core] Scripts"}]};
+        
+        graphData.nodes.sort((a, b) => {
+            if (a.isOrphan !== b.isOrphan) {
+                return a.isOrphan ? 1 : -1;
+            }
+            return b.degree - a.degree;
+        });
+        
+        const getCommunityColor = (id) => {
+            if (id === -1) return {h: 210, s: 10, l: 60};
+            const hue = (id * 360) / Math.max(1, graphData.communities.length);
+            return {h: hue, s: 85, l: 60};
+        };
+        const getCommunityColorString = (id) => {
+            const c = getCommunityColor(id);
+            return `hsl(${c.h}, ${c.s}%, ${c.l}%)`;
+        };
+
+        const perspectivesConfig = {
+            ai: {
+                getCategories: () => {
+                    const list = graphData.communities.map(c => ({
+                        id: c.id,
+                        name: c.name,
+                        colorData: getCommunityColor(c.id),
+                        color: getCommunityColorString(c.id)
+                    }));
+                    list.push({
+                        id: -1,
+                        name: 'Otros (Sin comunidad / Huérfanos)',
+                        colorData: getCommunityColor(-1),
+                        color: getCommunityColorString(-1)
+                    });
+                    return list;
+                },
+                getNodeCategoryId: (node) => {
+                    return (node.isOrphan && node.closestCommunity !== -1) ? node.closestCommunity : node.community;
+                }
+            },
+            semantic: {
+                getCategories: () => [
+                    { id: 0, name: '1. Núcleo de Inferencia (C++)', colorData: { h: 0, s: 85, l: 60 }, color: 'hsl(0, 85%, 60%)' },
+                    { id: 1, name: '2. Envoltura Nativa (Android)', colorData: { h: 217, s: 85, l: 60 }, color: 'hsl(217, 85%, 60%)' },
+                    { id: 2, name: '3. Infraestructura de Datos (SQLite)', colorData: { h: 158, s: 85, l: 60 }, color: 'hsl(158, 85%, 60%)' },
+                    { id: 3, name: '4. Búsqueda Externa (APIs)', colorData: { h: 38, s: 85, l: 60 }, color: 'hsl(38, 85%, 60%)' },
+                    { id: 4, name: '5. Núcleos Integrativos Multicapa', colorData: { h: 271, s: 85, l: 60 }, color: 'hsl(271, 85%, 60%)' },
+                    { id: 5, name: '6. Capa de Orquestación (TS/React Native)', colorData: { h: 215, s: 15, l: 60 }, color: 'hsl(215, 15%, 60%)' }
+                ],
+                getNodeCategoryId: (node) => {
+                    const id = node.id.toLowerCase();
+                    if (id.endsWith('.cpp') || id.endsWith('.h') || id.endsWith('.hpp') || id.includes('/cpp/') || id.includes('/jni/')) return 0;
+                    if ((id.endsWith('.kt') || id.endsWith('.java')) && id.includes('android/')) return 1;
+                    if (id.includes('db/') || id.includes('schema') || id.includes('memoryprovider')) return 2;
+                    if (id.includes('search') || id.includes('wikipedia') || id.includes('openlibrary')) return 3;
+                    if (id.includes('useagentengine') || id.includes('app/(tabs)/index.tsx') || id.includes('llmcontext')) return 4;
+                    return 5;
+                }
+            },
+            folder: {
+                getCategories: () => [
+                    { id: 0, name: 'android/', colorData: { h: 158, s: 85, l: 60 }, color: 'hsl(158, 85%, 60%)' },
+                    { id: 1, name: 'components/', colorData: { h: 217, s: 85, l: 60 }, color: 'hsl(217, 85%, 60%)' },
+                    { id: 2, name: 'hooks/', colorData: { h: 38, s: 85, l: 60 }, color: 'hsl(38, 85%, 60%)' },
+                    { id: 3, name: 'lib/', colorData: { h: 330, s: 85, l: 60 }, color: 'hsl(330, 85%, 60%)' },
+                    { id: 4, name: 'app/', colorData: { h: 271, s: 85, l: 60 }, color: 'hsl(271, 85%, 60%)' },
+                    { id: 5, name: 'contexts/', colorData: { h: 188, s: 85, l: 60 }, color: 'hsl(188, 85%, 60%)' },
+                    { id: 6, name: 'db/', colorData: { h: 84, s: 85, l: 60 }, color: 'hsl(84, 85%, 60%)' },
+                    { id: 7, name: 'Otros (Raíz / Config)', colorData: { h: 215, s: 15, l: 60 }, color: 'hsl(215, 15%, 60%)' }
+                ],
+                getNodeCategoryId: (node) => {
+                    const id = node.id.toLowerCase();
+                    if (id.startsWith('android/')) return 0;
+                    if (id.startsWith('components/')) return 1;
+                    if (id.startsWith('hooks/')) return 2;
+                    if (id.startsWith('lib/')) return 3;
+                    if (id.startsWith('app/')) return 4;
+                    if (id.startsWith('contexts/')) return 5;
+                    if (id.startsWith('db/')) return 6;
+                    return 7;
+                }
+            },
+            cohesion: {
+                getCategories: () => [
+                    { id: 2, name: 'Núcleos Centrales (Alto Acoplamiento)', colorData: { h: 0, s: 85, l: 60 }, color: 'hsl(0, 85%, 60%)' },
+                    { id: 1, name: 'Sistemas Integrados (Cohesión Media)', colorData: { h: 43, s: 85, l: 60 }, color: 'hsl(43, 85%, 60%)' },
+                    { id: 0, name: 'Partículas Periféricas (Uso Global)', colorData: { h: 217, s: 85, l: 60 }, color: 'hsl(217, 85%, 60%)' }
+                ],
+                getNodeCategoryId: (node) => {
+                    const deg = node.degree;
+                    if (deg > 10) return 2;
+                    if (deg >= 3) return 1;
+                    return 0;
+                }
+            },
+            orphans: {
+                getCategories: () => [
+                    { id: 0, name: 'Partículas Durmientes / Reusables', colorData: { h: 343, s: 85, l: 60 }, color: 'hsl(343, 85%, 60%)' },
+                    { id: 1, name: 'Componentes Activos', colorData: { h: 215, s: 15, l: 30 }, color: 'hsl(215, 15%, 30%)' }
+                ],
+                getNodeCategoryId: (node) => {
+                    return node.degree === 0 ? 0 : 1;
+                }
+            }
+        };
+
+        let currentPerspective = 'ai';
+        let activeFilters = new Set();
+
+        function applyPerspectiveColors() {
+            const config = perspectivesConfig[currentPerspective];
+            const categories = config.getCategories();
+            const categoriesMap = new Map(categories.map(c => [c.id, c]));
+
+            graphData.nodes.forEach(node => {
+                const catId = config.getNodeCategoryId(node);
+                const cat = categoriesMap.get(catId) || { colorData: { h: 210, s: 10, l: 60 }, color: 'hsl(210, 10%, 60%)' };
+                node.colorData = cat.colorData;
+                node.color = cat.color;
+            });
+        }
+
+        applyPerspectiveColors();
+
+        let selectedNode = null;
+        let highlightedNodes = new Set();
+        let highlightedLinks = new Set();
+
+        const elem = document.getElementById('graph');
+        const Graph = ForceGraph()(elem)
+            .graphData(graphData)
+            .nodeId('id')
+            .nodeVal('val')
+            .backgroundColor('#020206')
+            .onRenderFramePre((ctx, globalScale) => {
+                ctx.save();
+                ctx.globalCompositeOperation = 'screen';
+                
+                const centers = {};
+                const counts = {};
+                const config = perspectivesConfig[currentPerspective];
+                
+                graphData.nodes.forEach(node => {
+                    const catId = config.getNodeCategoryId(node);
+                    if (!centers[catId]) {
+                        centers[catId] = { x: 0, y: 0 };
+                        counts[catId] = 0;
+                    }
+                    centers[catId].x += node.x || 0;
+                    centers[catId].y += node.y || 0;
+                    counts[catId]++;
+                });
+                
+                Object.keys(centers).forEach(cId => {
+                    const count = counts[cId];
+                    if (count > 2) {
+                        const cx = centers[cId].x / count;
+                        const cy = centers[cId].y / count;
+                        const cloudRadius = Math.max(160, count * 22);
+                        
+                        const categories = config.getCategories();
+                        const cat = categories.find(c => String(c.id) === String(cId));
+                        const colorData = cat ? cat.colorData : { h: 210, s: 10, l: 60 };
+                        
+                        const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, cloudRadius);
+                        grad.addColorStop(0, `hsla(${colorData.h}, 20%, 90%, 0.22)`);
+                        grad.addColorStop(0.4, `hsla(${colorData.h}, 15%, 85%, 0.08)`);
+                        grad.addColorStop(1, `hsla(${colorData.h}, 10%, 85%, 0)`);
+                        
+                        ctx.beginPath();
+                        ctx.arc(cx, cy, cloudRadius, 0, 2 * Math.PI, false);
+                        ctx.fillStyle = grad;
+                        ctx.fill();
+                    }
+                });
+                ctx.restore();
+            })
+            .nodeLabel(node => `<strong>${node.id}</strong><br/><span class="text-gray-400">${node.type} | ${(node.size_bytes/1024).toFixed(1)} KB</span>`)
+            .nodeCanvasObject((node, ctx, globalScale) => {
+                if (node.x === undefined || node.y === undefined) return;
+                
+                const isHighlighted = highlightedNodes.size === 0 || highlightedNodes.has(node.id);
+                ctx.save();
+                ctx.globalCompositeOperation = 'screen';
+                const baseRadius = Math.max(2.0, (node.val || 3) * 0.65);
+                const auraRadius = baseRadius * 4.5;
+                
+                if (isHighlighted) {
+                    const glowGrad = ctx.createRadialGradient(node.x, node.y, 0, node.x, node.y, auraRadius);
+                    glowGrad.addColorStop(0, `hsla(${node.colorData.h}, ${node.colorData.s}%, ${node.colorData.l}%, 0.25)`);
+                    glowGrad.addColorStop(0.4, `hsla(${node.colorData.h}, ${node.colorData.s}%, ${node.colorData.l}%, 0.08)`);
+                    glowGrad.addColorStop(1, `hsla(${node.colorData.h}, ${node.colorData.s}%, ${node.colorData.l}%, 0)`);
+                    
+                    ctx.beginPath();
+                    ctx.arc(node.x, node.y, auraRadius, 0, 2 * Math.PI, false);
+                    ctx.fillStyle = glowGrad;
+                    ctx.fill();
+                }
+                ctx.restore();
+                
+                ctx.beginPath();
+                ctx.arc(node.x, node.y, baseRadius, 0, 2 * Math.PI, false);
+                
+                if (isHighlighted) {
+                    const sphereGrad = ctx.createRadialGradient(node.x - baseRadius * 0.25, node.y - baseRadius * 0.25, 0, node.x, node.y, baseRadius);
+                    sphereGrad.addColorStop(0, '#ffffff');
+                    sphereGrad.addColorStop(0.2, `hsl(${node.colorData.h}, ${node.colorData.s}%, 85%)`);
+                    sphereGrad.addColorStop(0.7, `hsl(${node.colorData.h}, ${node.colorData.s}%, 55%)`);
+                    sphereGrad.addColorStop(1, `hsl(${node.colorData.h}, ${node.colorData.s}%, 30%)`);
+                    ctx.fillStyle = sphereGrad;
+                } else {
+                    ctx.fillStyle = 'rgba(255, 255, 255, 0.06)';
+                }
+                
+                ctx.fill();
+                if (isHighlighted) {
+                    ctx.strokeStyle = `rgba(255, 255, 255, 0.35)`;
+                    ctx.lineWidth = 0.5;
+                    ctx.stroke();
+                }
+            })
+            .linkWidth(link => highlightedLinks.has(link) ? 3.5 : 0.3)
+            .linkColor(link => highlightedLinks.has(link) ? '#a78bfa' : 'rgba(255, 255, 255, 0.015)')
+            .linkDirectionalParticles(link => highlightedLinks.has(link) ? 3 : 0)
+            .linkDirectionalParticleWidth(2)
+            .linkDirectionalParticleSpeed(0.005)
+            .onNodeClick(node => selectNode(node))
+            .onBackgroundClick(() => clearHighlight());
+            
+        function communityOrbitForce() {
+            let nodes = [];
+            function force(alpha) {
+                const config = perspectivesConfig[currentPerspective];
+                const centers = {};
+                const counts = {};
+                
+                nodes.forEach(node => {
+                    const catId = config.getNodeCategoryId(node);
+                    if (!centers[catId]) {
+                        centers[catId] = { x: 0, y: 0 };
+                        counts[catId] = 0;
+                    }
+                    centers[catId].x += node.x || 0;
+                    centers[catId].y += node.y || 0;
+                    counts[catId]++;
+                });
+                
+                Object.keys(centers).forEach(cId => {
+                    if (counts[cId] > 0) {
+                        centers[cId].x /= counts[cId];
+                        centers[cId].y /= counts[cId];
+                    }
+                });
+                
+                const strength = 0.08 * alpha;
+                nodes.forEach(node => {
+                    const catId = config.getNodeCategoryId(node);
+                    const center = centers[catId];
+                    if (center) {
+                        const dx = node.x - center.x;
+                        const dy = node.y - center.y;
+                        const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+                        node.vx -= dx * (100 / dist) * strength;
+                        node.vy -= dy * (100 / dist) * strength;
+                    }
+                });
+            }
+            force.initialize = _ => { nodes = _; };
+            return force;
+        }
+
+        Graph.d3Force('charge', d3.forceManyBody().strength(-55));
+        Graph.d3Force('x', d3.forceX(0).strength(0.012));
+        Graph.d3Force('y', d3.forceY(0).strength(0.012));
+        Graph.d3Force('orbit', communityOrbitForce());
+
+        function updateGraphFilter() {
+            const config = perspectivesConfig[currentPerspective];
+            const filteredNodes = graphData.nodes.filter(node => activeFilters.has(config.getNodeCategoryId(node)));
+            const filteredNodeIds = new Set(filteredNodes.map(n => n.id));
+            const filteredLinks = graphData.links.filter(l => 
+                filteredNodeIds.has(typeof l.source === 'object' ? l.source.id : l.source) &&
+                filteredNodeIds.has(typeof l.target === 'object' ? l.target.id : l.target)
+            );
+            Graph.graphData({ nodes: filteredNodes, links: filteredLinks });
+        }
+
+        const listContainer = document.getElementById('communitiesList');
+        const masterCheckbox = document.getElementById('masterCheckbox');
+
+        function rebuildLegend() {
+            listContainer.innerHTML = '';
+            const config = perspectivesConfig[currentPerspective];
+            const categories = config.getCategories();
+            
+            if (activeFilters.size === 0) {
+                categories.forEach(c => activeFilters.add(c.id));
+            }
+            
+            if (masterCheckbox) {
+                const checkedCount = categories.filter(c => activeFilters.has(c.id)).length;
+                masterCheckbox.checked = (checkedCount === categories.length);
+                masterCheckbox.indeterminate = (checkedCount > 0 && checkedCount < categories.length);
+            }
+
+            categories.forEach(cat => {
+                const count = graphData.nodes.filter(node => config.getNodeCategoryId(node) === cat.id).length;
+                
+                const div = document.createElement('div');
+                div.className = 'flex items-center justify-between';
+                div.innerHTML = `
+                    <label class="flex items-center gap-2 cursor-pointer max-w-[75%]">
+                        <input type="checkbox" ${activeFilters.has(cat.id) ? 'checked' : ''} onchange="toggleCategoryFilter('${cat.id}', this.checked)" class="rounded border-white/10 bg-transparent text-indigo-600 focus:ring-0 w-3.5 h-3.5" />
+                        <span class="w-3.5 h-3.5 rounded-full flex-shrink-0" style="background-color: ${cat.color}"></span>
+                        <span class="font-semibold text-gray-300 truncate" title="${cat.name}">${cat.name}</span>
+                    </label>
+                    <span class="text-[10px] text-gray-500 bg-white/5 px-2 py-0.5 rounded-full flex-shrink-0">
+                        ${count} files
+                    </span>
+                `;
+                listContainer.appendChild(div);
+            });
+        }
+
+        function toggleCategoryFilter(catId, isChecked) {
+            const id = isNaN(catId) ? catId : Number(catId);
+            if (isChecked) {
+                activeFilters.add(id);
+            } else {
+                activeFilters.delete(id);
+            }
+            
+            if (masterCheckbox) {
+                const categories = perspectivesConfig[currentPerspective].getCategories();
+                const checkedCount = categories.filter(c => activeFilters.has(c.id)).length;
+                masterCheckbox.checked = (checkedCount === categories.length);
+                masterCheckbox.indeterminate = (checkedCount > 0 && checkedCount < categories.length);
+            }
+            
+            updateGraphFilter();
+        }
+
+        function toggleAllCommunities(isChecked) {
+            const checkboxes = listContainer.querySelectorAll('input[type="checkbox"]');
+            checkboxes.forEach(cb => {
+                cb.checked = isChecked;
+            });
+            
+            const categories = perspectivesConfig[currentPerspective].getCategories();
+            if (isChecked) {
+                categories.forEach(c => activeFilters.add(c.id));
+            } else {
+                activeFilters.clear();
+            }
+            updateGraphFilter();
+        }
+
+        function changePerspective(perspective) {
+            currentPerspective = perspective;
+            activeFilters.clear();
+            applyPerspectiveColors();
+            rebuildLegend();
+            updateGraphFilter();
+            Graph.nodeColor(Graph.nodeColor());
+        }
+
+        rebuildLegend();
+
+        function selectNode(node) {
+            selectedNode = node;
+            Graph.centerAt(node.x, node.y, 800);
+            Graph.zoom(3.5, 800);
+
+            highlightedNodes.clear();
+            highlightedLinks.clear();
+            highlightedNodes.add(node.id);
+            
+            const incoming = [];
+            const outgoing = [];
+
+            graphData.links.forEach(link => {
+                const sId = typeof link.source === 'object' ? link.source.id : link.source;
+                const tId = typeof link.target === 'object' ? link.target.id : link.target;
+                
+                if (sId === node.id) {
+                    highlightedNodes.add(tId);
+                    highlightedLinks.add(link);
+                    outgoing.push(tId);
+                }
+                if (tId === node.id) {
+                    highlightedNodes.add(sId);
+                    highlightedLinks.add(link);
+                    incoming.push(sId);
+                }
+            });
+
+            const sortNodes = (idA, idB) => {
+                const a = graphData.nodes.find(n => n.id === idA);
+                const b = graphData.nodes.find(n => n.id === idB);
+                if (!a || !b) return 0;
+                return b.degree - a.degree;
+            };
+            incoming.sort(sortNodes);
+            outgoing.sort(sortNodes);
+
+            Graph.nodeColor(Graph.nodeColor());
+
+            const detailPanel = document.getElementById('detailContent');
+            detailPanel.innerHTML = `
+                <div class="w-full text-left flex flex-col gap-4">
+                    <div>
+                        <div class="text-[10px] uppercase tracking-wider font-bold text-indigo-400 mb-1">FILE TYPE & COMMUNITY</div>
+                        <div class="flex gap-2 items-center">
+                            <span class="px-2 py-0.5 rounded bg-white/5 border border-white/10 text-xs font-semibold text-gray-300 capitalize">${node.type}</span>
+                            <span class="px-2 py-0.5 rounded text-xs font-semibold text-white flex items-center gap-1.5" style="background-color: ${node.color}">
+                                <span class="w-1.5 h-1.5 rounded-full bg-white"></span>
+                                Category ${node.community}
+                            </span>
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <div class="text-[10px] uppercase tracking-wider font-bold text-indigo-400 mb-1">RELATIVE PATH</div>
+                        <div class="text-sm font-semibold text-gray-100 bg-black/20 p-2.5 rounded-xl border border-white/5 break-all">${node.id}</div>
+                    </div>
+
+                    <div class="flex gap-4">
+                        <div class="flex-1">
+                            <div class="text-[10px] uppercase tracking-wider font-bold text-indigo-400 mb-1">FILE SIZE</div>
+                            <div class="text-lg font-bold text-gray-100">${(node.size_bytes/1024).toFixed(1)} <span class="text-xs text-gray-400">KB</span></div>
+                        </div>
+                    </div>
+
+                    <div>
+                        <div class="text-[10px] uppercase tracking-wider font-bold text-indigo-400 mb-2">DEPENDENCIES (OUTGOING - ${outgoing.length})</div>
+                        <div class="flex flex-col gap-1.5 max-h-40 overflow-y-auto">
+                            ${outgoing.map(o => `<button onclick="jumpToNode('${o}')" class="text-left text-xs bg-white/5 hover:bg-indigo-500/10 hover:text-indigo-300 p-2 rounded-lg border border-white/5 truncate">${o.split('/').pop()}</button>`).join('') || '<span class="text-xs text-gray-500 italic">No outgoing connections</span>'}
+                        </div>
+                    </div>
+
+                    <div>
+                        <div class="text-[10px] uppercase tracking-wider font-bold text-indigo-400 mb-2">DEPENDENTS (INCOMING - ${incoming.length})</div>
+                        <div class="flex flex-col gap-1.5 max-h-40 overflow-y-auto">
+                            ${incoming.map(i => `<button onclick="jumpToNode('${i}')" class="text-left text-xs bg-white/5 hover:bg-purple-500/10 hover:text-purple-300 p-2 rounded-lg border border-white/5 truncate">${i.split('/').pop()}</button>`).join('') || '<span class="text-xs text-gray-500 italic">No incoming connections</span>'}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function jumpToNode(nodeId) {
+            const node = graphData.nodes.find(n => n.id === nodeId);
+            if (node) selectNode(node);
+        }
+
+        function clearHighlight() {
+            highlightedNodes.clear();
+            highlightedLinks.clear();
+            selectedNode = null;
+            Graph.nodeColor(Graph.nodeColor());
+            
+            const detailPanel = document.getElementById('detailContent');
+            detailPanel.innerHTML = `
+                <span class="text-4xl mb-4">💡</span>
+                <p class="text-sm">Click any node in the graph to inspect its details, attributes, and dependencies.</p>
+            `;
+        }
+
+        const searchInput = document.getElementById('searchInput');
+        const suggestionsBox = document.getElementById('searchSuggestions');
+
+        function handleSearch(query) {
+            if (!query.trim()) {
+                suggestionsBox.classList.add('hidden');
+                return;
+            }
+            const matches = graphData.nodes.filter(n => 
+                n.id.toLowerCase().includes(query.toLowerCase()) || 
+                n.label.toLowerCase().includes(query.toLowerCase())
+            ).slice(0, 5);
+
+            if (matches.length > 0) {
+                suggestionsBox.innerHTML = matches.map(m => `
+                    <div onclick="selectSearch('${m.id}')" class="px-4 py-2 hover:bg-white/10 cursor-pointer text-xs flex justify-between items-center border-b border-white/5">
+                        <span class="font-semibold text-gray-200 truncate pr-4">${m.id}</span>
+                        <span class="text-[10px] px-1.5 py-0.5 rounded bg-white/5 text-gray-400 capitalize flex-shrink-0">${m.type}</span>
+                    </div>
+                `).join('');
+                suggestionsBox.classList.remove('hidden');
+            } else {
+                suggestionsBox.innerHTML = '<div class="px-4 py-3 text-xs text-gray-500 italic">No files found</div>';
+                suggestionsBox.classList.remove('hidden');
+            }
+        }
+
+        function selectSearch(nodeId) {
+            searchInput.value = '';
+            suggestionsBox.classList.add('hidden');
+            jumpToNode(nodeId);
+        }
+
+        document.addEventListener('click', (e) => {
+            if (!searchInput.contains(e.target) && !suggestionsBox.contains(e.target)) {
+                suggestionsBox.classList.add('hidden');
+            }
+        });
+
+    </script>
+</body>
+</html>
