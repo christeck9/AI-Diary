@@ -428,7 +428,8 @@ def generate_html_visualizer(G, communities, output_path):
             orphans: {{
                 getCategories: () => [
                     {{ id: 0, name: 'Partículas Durmientes / Reusables', colorData: {{ h: 343, s: 85, l: 60 }}, color: 'hsl(343, 85%, 60%)' }},
-                    {{ id: 1, name: 'Componentes Activos', colorData: {{ h: 215, s: 15, l: 30 }}, color: 'hsl(215, 15%, 30%)' }}
+                    {{ id: 1, name: 'Componentes Activos', colorData: {{ h: 215, s: 15, l: 30 }}, color: 'hsl(215, 15%, 30%)' }},
+                    {{ id: 2, name: '💤 Componentes Basura / Obsoletos', colorData: {{ h: 0, s: 85, l: 50 }}, color: 'hsl(0, 85%, 50%)' }}
                 ],
                 getNodeCategoryId: (node) => {{
                     return node.degree === 0 ? 0 : 1;
