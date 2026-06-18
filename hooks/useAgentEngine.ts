@@ -227,7 +227,7 @@ export const useAgentEngine = (
       goal: (userProfile as any).longTermGoal,
       date: currentDate,
       year: "2026",
-      identity: activeModel?.labelEs || "AI Balance CORE",
+      identity: activeModel?.labelEs || "Anima Balance",
     };
 
     const arch = getSanctuaryArchitecture();

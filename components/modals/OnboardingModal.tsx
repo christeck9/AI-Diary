@@ -66,12 +66,8 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
             : `Your phone has ${ramGB} GB in RAM, your phone is not able to run this APP.`;
         } else if (ramGB < 6) {
           ramDetectionText = lang === 'es'
-            ? `Tu teléfono tiene ${ramGB} GB de RAM, puedes ejecutar AI Light Core`
-            : `Your phone has ${ramGB} GB in RAM you can run AI Light Core`;
-        } else if (ramGB < 8) {
-          ramDetectionText = lang === 'es'
-            ? `Tu teléfono tiene ${ramGB} GB de RAM, puedes ejecutar AI Light Core & AI Balanced Core`
-            : `Your phone has ${ramGB} GB in RAM you can run AI Light Core & AI Balanced Core`;
+            ? `Tu teléfono tiene ${ramGB} GB de RAM, puedes ejecutar Anima Light & Anima Balance`
+            : `Your phone has ${ramGB} GB in RAM you can run Anima Light & Anima Balance`;
         } else {
           ramDetectionText = lang === 'es'
             ? `Tu teléfono tiene ${ramGB} GB de RAM, puedes ejecutar cualquiera de nuestros modelos.`
@@ -130,8 +126,8 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
                 marginBottom: 4 
               }}>
                 {lang === 'es'
-                  ? 'AI Light Core requiere 4GB en RAM (solo texto y voz)'
-                  : 'AI Light Core requires 4GB in RAM (only text and voice)'}
+                  ? 'Anima Light requiere 4GB en RAM (solo texto y voz)'
+                  : 'Anima Light requires 4GB in RAM (only text and voice)'}
               </Text>
               <Text style={{ 
                 color: colors.textSecondary, 
@@ -140,8 +136,8 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
                 marginBottom: 4 
               }}>
                 {lang === 'es'
-                  ? 'AI Balanced Core requiere 6GB en RAM (multimedia)'
-                  : 'AI Balanced Core requires 6GB in RAM (multimedia)'}
+                  ? 'Anima Balance requiere 4GB en RAM (multimedia)'
+                  : 'Anima Balance requires 4GB in RAM (multimedia)'}
               </Text>
               <Text style={{ 
                 color: colors.textSecondary, 
@@ -149,8 +145,8 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
                 fontFamily: Platform.select({ ios: 'Courier', android: 'monospace' })
               }}>
                 {lang === 'es'
-                  ? 'AI Deepmind Core requiere 8GB en RAM (multimedia)'
-                  : 'AI Deepmind Core requires 8GB in RAM (multimedia)'}
+                  ? 'Anima Deepmind requiere 6GB en RAM (multimedia)'
+                  : 'Anima Deepmind requires 6GB in RAM (multimedia)'}
               </Text>
             </View>
 
@@ -186,8 +182,8 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
               fontStyle: 'italic'
             }}>
               {lang === 'es'
-                ? 'Nota: El nivel gratuito es solo AI Light Core y un nivel de Pruebas Psicológicas, pero eso es básicamente el 100% de cómo puedes usar esta aplicación como Diario, memoria de todos los registros y salida de los mismos. ¡Disfruta! Para los probadores, estan abiertas todos los modelos. ¡Gracias!'
-                : 'Note: Free tier is only AI Light Core and one tier of Psychological Tests but that basically is 100% of how you can use this app as a Diary, memory of all records and output of them. Enjoy! For testers, all models are open. Thanks!'}
+                ? 'Nota: El nivel gratuito es solo Anima Light y un nivel de Pruebas Psicológicas, pero eso es básicamente el 100% de cómo puedes usar esta aplicación como Diario, memoria de todos los registros y salida de los mismos. ¡Disfruta! Para los probadores, estan abiertas todos los modelos. ¡Gracias!'
+                : 'Note: Free tier is only Anima Light and one tier of Psychological Tests but that basically is 100% of how you can use this app as a Diary, memory of all records and output of them. Enjoy! For testers, all models are open. Thanks!'}
             </Text>
 
             {/* Action Button */}
@@ -224,8 +220,8 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
           </Text>
           <Text style={{ color: colors.textSecondary, textAlign: 'center', marginBottom: 15, fontSize: 11, lineHeight: 15 }}>
             {lang === 'es'
-              ? 'Una aplicación privada impulsada por IA que utiliza el hardware de tu teléfono para funcionar. Se recomienda tener al menos 8 GB de RAM y un procesador de 64 bits para ejecutarla. No requiere todo el poder del mundo para correr una IA. La desventaja es que no es tan rápida como las basadas en servidores.'
-              : 'An AI-powered private application that uses your phone\'s hardware to work. It\'s recommended to have at least 8 GB of RAM and a 64-bit processor to run it. It doesn\'t use all the power in the world to run an AI. The drawback is that it\'s not as fast as server-based ones.'}
+              ? 'Una aplicación privada impulsada por IA que utiliza el hardware de tu teléfono para funcionar. Se recomienda tener al menos 6 GB de RAM y un procesador de 64 bits para ejecutarla de manera óptima (o al menos 4 GB para Anima Balance). No requiere todo el poder del mundo para correr una IA. La desventaja es que no es tan rápida como las basadas en servidores.'
+              : 'An AI-powered private application that uses your phone\'s hardware to work. It\'s recommended to have at least 6 GB of RAM and a 64-bit processor to run it optimally (or at least 4 GB for Anima Balance). It doesn\'t use all the power in the world to run an AI. The drawback is that it\'s not as fast as server-based ones.'}
           </Text>
           <Text style={{ color: colors.textSecondary, marginBottom: 5 }}>{lang === 'es' ? '¿Cómo debemos llamarte?' : 'What should we call you?'}</Text>
           <TextInput style={[styles.input, { borderColor: colors.border, marginBottom: 15, width: '100%', minHeight: 45, borderRadius: 8, borderWidth: 1, color: colors.textPrimary }]} value={userProfile.nickname || ''} onChangeText={t => setUserProfile({...userProfile, nickname: t})} />

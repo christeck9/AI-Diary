@@ -19,8 +19,8 @@ export interface ModelDefinition {
 export const MODEL_LIST: ModelDefinition[] = [
   {
     id: 'llama3.2-1b-q4',
-    labelEs: 'AI Light Core',
-    labelEn: 'AI Light Core',
+    labelEs: 'Anima Light',
+    labelEn: 'Anima Light',
     sizeMB: 840,
     descEs: 'Núcleo Ligero — Especial para teléfonos básicos. Sin soporte de imágenes.',
     descEn: 'Light Core — Optimized for older phones. No image support.',
@@ -29,8 +29,8 @@ export const MODEL_LIST: ModelDefinition[] = [
   },
   {
     id: 'gemma3-4b-q4',
-    labelEs: 'AI Balance Core',
-    labelEn: 'AI Balance Core',
+    labelEs: 'Anima Balance',
+    labelEn: 'Anima Balance',
     sizeMB: 2374,
     mmprojSizeMB: 812,
     descEs: 'Núcleo Diario — Veloz y estable.',
@@ -41,15 +41,15 @@ export const MODEL_LIST: ModelDefinition[] = [
     mmprojUrl: 'https://huggingface.co/bartowski/google_gemma-3-4b-it-GGUF/resolve/main/mmproj-google_gemma-3-4b-it-f16.gguf',
   },
   {
-    id: 'gemma4-e2b-q3',
-    labelEs: 'AI Deepmind Core',
-    labelEn: 'AI Deepmind Core',
-    sizeMB: 3078,
-    mmprojSizeMB: 931,
-    descEs: 'Sabio Profundo — Razonamiento superior.',
-    descEn: 'Deep Sage — Superior reasoning.',
-    fileName: 'google_gemma-4-E2B-it-Q3_K_M.gguf',
-    url: 'https://huggingface.co/bartowski/google_gemma-4-E2B-it-GGUF/resolve/main/google_gemma-4-E2B-it-Q3_K_M.gguf',
+    id: 'gemma4-e2b-qat',
+    labelEs: 'Anima Deepmind',
+    labelEn: 'Anima Deepmind',
+    sizeMB: 2500,
+    mmprojSizeMB: 940,
+    descEs: 'Sabio Profundo — Razonamiento superior acelerado con QAT.',
+    descEn: 'Deep Sage — Superior reasoning accelerated with QAT.',
+    fileName: 'gemma-4-E2B-it-qat-UD-Q4_K_XL.gguf',
+    url: 'https://huggingface.co/unsloth/gemma-4-E2B-it-qat-GGUF/resolve/main/gemma-4-E2B-it-qat-UD-Q4_K_XL.gguf',
     mmprojFileName: 'mmproj-google_gemma-4-E2B-it-f16.gguf',
     mmprojUrl: 'https://huggingface.co/bartowski/google_gemma-4-E2B-it-GGUF/resolve/main/mmproj-google_gemma-4-E2B-it-f16.gguf',
   },
@@ -80,7 +80,7 @@ export const MODEL_CONFIG = {
 
     // Sampling parameters
     temperature: 0.1, // Reducido para evitar verborrea
-    top_p: 0.85,
+    top_p: 1.0, // Disabled to let min_p operate freely
     min_p: 0.05,
     repeat_penalty: 1.05,
   },
@@ -93,7 +93,7 @@ export const MODEL_CONFIG = {
 
     // Sampling parameters
     temperature: 0.7, // Gemma 3 4B base temperature for standard Sanctuary mode
-    top_p: 0.95,
+    top_p: 1.0, // Disabled to let min_p operate freely
     min_p: 0.05,
     repeat_penalty: 1.0, // Disabled repeat penalty to avoid cut-offs and word starvation
   },
