@@ -76,6 +76,7 @@ export function useInteractiveVoice(
   const liveTranscriptRef = useRef('');
   const lastPrefillTextRef = useRef('');
   const prefillTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const lastTranscriptUpdateRef = useRef<number>(0);
 
   // Processing Timer State
   const [processingTimeElapsed, setProcessingTimeElapsed] = useSafeState(0);
@@ -89,6 +90,15 @@ export function useInteractiveVoice(
       cpuSemaphore.resume('mic_recording');
     }
     setVoiceStateInternal(newState);
+  }, []);
+
+  // 🛡️ Cleanup al desmontar para evitar deadlock del semáforo de CPU
+  useEffect(() => {
+    return () => {
+      if (voiceStateRef.current === 'RECORDING') {
+        cpuSemaphore.resume('mic_recording');
+      }
+    };
   }, []);
 
   // Interval hook to update processing timer
@@ -183,10 +193,12 @@ export function useInteractiveVoice(
         setVoiceState('SPEAKING');
       }
 
-      // Skip preload lookup for first sentence — speak immediately to minimize TTFS
-      const preloadedUri = isFirstSentenceRef.current
-        ? null
-        : (preloadedMapRef.current[nextSentence] || null);
+      // Use preload if available (covers first + subsequent sentences for cloud TTS).
+      // For local/native TTS, preloadSpeech returns null so this falls back safely.
+      const preloadMapEntry = preloadedMapRef.current[nextSentence];
+      const preloadedUri = (preloadMapEntry && preloadMapEntry !== 'pending')
+        ? preloadMapEntry
+        : null;
 
       delete preloadedMapRef.current[nextSentence];
 
@@ -253,6 +265,12 @@ export function useInteractiveVoice(
       const hw = await getHardwareConfig();
       const whisperThreads = Math.max(2, Math.floor(hw.threads / 2));
       
+      // 🛡️ Post-await check to prevent race conditions
+      if ((voiceStateRef.current as VoiceState) !== 'RECORDING') {
+        console.warn('[WALKIE_TALKIE] State changed during initialization. Aborting mic start.');
+        return;
+      }
+      
       // Using Silero VAD configured via WALKIE_TALKIE_CONFIG
       // VAD is lightweight and processes in small increments - assign 1 thread
       const options = {
@@ -275,19 +293,7 @@ export function useInteractiveVoice(
         (text, isCapturing, detectedLang, sliceIndex) => {
           if (!text) return;
 
-          const cleanText = text
-            .replace(/\[BLANK_AUDIO\]/gi, '')
-            .replace(/\[silence\]/gi, '')
-            .replace(/\[\s*SILENCE\s*\]/gi, '')
-            .replace(/\(silence\)/gi, '')
-            .replace(/\b(silence)\b/gi, '')
-            .replace(/\b(blank_audio)\b/gi, '')
-            .replace(/pauses\s*\(silence\.?\s*microphone\s*is\s*waiting\.?\s*speak\s*to\s*start\.?/gi, '')
-            .replace(/microphone\s*is\s*waiting/gi, '')
-            .replace(/speak\s*to\s*start/gi, '')
-            .replace(/\bpauses\b/gi, '')
-            .replace(/\s+/g, ' ')
-            .trim();
+          const cleanText = SpeechFilter.cleanWhisperText(text);
 
           if (!cleanText) return;
 
@@ -301,7 +307,11 @@ export function useInteractiveVoice(
 
           const concatenated = transcribedSlices.filter(Boolean).join(' ').trim();
 
-          setLiveTranscript(concatenated);
+          const now = Date.now();
+          if (!isCapturing || now - lastTranscriptUpdateRef.current > 150) {
+            setLiveTranscript(concatenated);
+            lastTranscriptUpdateRef.current = now;
+          }
           liveTranscriptRef.current = concatenated;
         }
       );
@@ -381,6 +391,19 @@ export function useInteractiveVoice(
           if (voice.isMuted || voiceStateRef.current === 'MUTED') return;
           if (sentenceQueueRef.current.includes(trimmed)) return;
           sentenceQueueRef.current.push(trimmed);
+          // Cloud TTS Early-Preload: start synthesizing the first sentence
+          // immediately on arrival so audio is ready before processSpeechQueue needs it.
+          // Native TTS: preloadSpeech returns null → no effect on primary TTS system.
+          if (isFirstSentenceRef.current && voice.preloadSpeech && !preloadedMapRef.current[trimmed]) {
+            preloadedMapRef.current[trimmed] = 'pending';
+            voice.preloadSpeech(trimmed).then((uri: string | null) => {
+              if (uri) {
+                preloadedMapRef.current[trimmed] = uri;
+              } else {
+                delete preloadedMapRef.current[trimmed];
+              }
+            });
+          }
           processSpeechQueue();
         },
         () => {

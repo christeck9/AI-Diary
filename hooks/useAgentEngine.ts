@@ -82,7 +82,7 @@ export const useAgentEngine = (
   const [isProcessing, setIsProcessing] = useState(false);
   const [isSearchingWeb, setIsSearchingWeb] = useState(false);
   const [searchingStep, setSearchingStep] = useState<'idle' | 'searching' | 'processing' | 'synthesizing'>('idle');
-  const [processingPhase, setProcessingPhase] = useState<'idle' | 'reading_file' | 'indexing' | 'generating'>('idle');
+  const [processingPhase, setProcessingPhase] = useState<'idle' | 'reading_file' | 'indexing' | 'generating' | 'thinking'>('idle');
   // Gemma 4 reasoning indicator: true while the model is inside <|think|>...</|think|> block.
   // Prevents the TTS from firing and signals the UI to show a "Thinking..." indicator.
   const [isThinking, setIsThinking] = useState(false);
@@ -219,7 +219,7 @@ export const useAgentEngine = (
         console.error('[AGENT_ENGINE] Error processing attachments:', e);
       }
     }
-    setProcessingPhase('indexing');
+    setProcessingPhase('thinking');
 
     const currentDate = new Date().toLocaleDateString(lang === 'es' ? 'es-ES' : 'en-US');
     const contextData = {
@@ -235,8 +235,8 @@ export const useAgentEngine = (
     // ═══ Speech Pipelining Configuration ═══ Do not modify this withoug expressed permission from Chris. Chris 6/4/26
     const FIRST_CHUNK_MIN_WORDS = 5;   // Minimum words before first TTS dispatch
     const FIRST_CHUNK_MAX_WORDS = 8;   // Hard cap — force flush even without delimiter
-    const FLUSH_TIMEOUT_MS = 2500;     // Max silence: flush accumulated text after 2.5s
-    const MIN_FLUSH_LENGTH = 15;       // Minimum chars to justify a timeout flush
+    const FLUSH_TIMEOUT_MS = 1200;     // Reduced for cloud TTS latency compensation (was 2500ms)
+    const MIN_FLUSH_LENGTH = 8;        // Lower threshold to avoid blocking short natural responses (was 15)
 
     let isFirstSpeechChunk = true;
     let lastSentenceEmitTime = Date.now();
@@ -268,7 +268,7 @@ export const useAgentEngine = (
     const complexityMap: Record<number, PromptComplexity> = {
       1: PromptComplexity.LOW,
       2: PromptComplexity.MEDIUM,
-      3: PromptComplexity.MEDIUM,
+      3: PromptComplexity.HIGH,
       4: PromptComplexity.HIGH
     };
     const complexity = complexityMap[consciousness] || PromptComplexity.MEDIUM;
@@ -279,10 +279,17 @@ export const useAgentEngine = (
 
     let ragContext = '';
     if (!isZenMode && db) {
+      setProcessingPhase('indexing');
       console.log('[AGENT_ENGINE] 🚀 Early Routing: BALANCE/DEEP active. Fetching Wisdom context (FTS5) and Semantic Context (RAG)...');
       const ftsContext = await WisdomService.getWisdomContext(db, userText);
       const semanticContext = await require('../lib/SemanticService').SemanticService.getSemanticContext(db, userText, generateEmbeddings);
       ragContext = ftsContext + '\n' + semanticContext;
+      
+      // 🗜️ Truncate RAG context for Llama to prevent context window saturation
+      if (arch === 'llama' && ragContext.length > 600) {
+        console.log('[AGENT_ENGINE] 🗜️ Truncating RAG context to 600 chars for Llama stability.');
+        ragContext = ragContext.substring(0, 600) + '...';
+      }
     } else {
       console.log('[AGENT_ENGINE] ⚡ Early Routing: ZEN/Greeting active. Bypassing Wisdom context.');
     }
@@ -314,9 +321,9 @@ export const useAgentEngine = (
         }));
 
         // 🛡️ Context Guillotine (Anti-Drift Measure)
-        // Restrict history to ~12000 chars to avoid memory overflow which pushes 
+        // Restrict history to ~12000 chars (or 4000 for Llama) to avoid memory overflow which pushes 
         // the System Prompt out of the context window and causes instant behavioral drift.
-        const MAX_HISTORY_CHARS = 12000;
+        const MAX_HISTORY_CHARS = arch === 'llama' ? 4000 : 12000;
         let currentChars = 0;
         const safeHistory: typeof mappedHistory = [];
         for (let i = mappedHistory.length - 1; i >= 0; i--) {
@@ -345,7 +352,8 @@ export const useAgentEngine = (
       lang as any,
       ragContext, // 🔱 Injecting persistent memory
       attachedFile?.type === 'image' ? 1 : (processedImages ? processedImages.length : 0),
-      foldedContext // 🗜️ Injecting folded episodic memory
+      foldedContext, // 🗜️ Injecting folded episodic memory
+      consciousness
     );
 
     let fullResponse = '';
@@ -391,7 +399,7 @@ export const useAgentEngine = (
         liveData: searchResult || 'SENTINEL_NULL_DATA',
         timestamp: new Date().toISOString().split('T')[0]
       };
-      
+
       pendingToolResponse = SentinelService.buildHandshakeInjection(injectedContext, userText, arch, lang);
       toolRounds = 1;
       searchResult = null; // Clear so it doesn't trigger the secondary check
@@ -400,10 +408,10 @@ export const useAgentEngine = (
     try {
       let currentPrompt = formattedPrompt;
       if (pendingToolResponse) {
-          const cleanPromptBase = formattedPrompt
-            .replace(/<(start_of_turn|\|turn\|)>model\n?$/i, '')
-            .replace(/<\|start_header_id\|>assistant<\|end_header_id\|>\n*\n*$/i, '');
-          currentPrompt = cleanPromptBase + pendingToolResponse;
+        const cleanPromptBase = formattedPrompt
+          .replace(/<(start_of_turn|\|turn\|)>model\n?$/i, '')
+          .replace(/<\|start_header_id\|>assistant<\|end_header_id\|>\n*\n*$/i, '');
+        currentPrompt = cleanPromptBase + pendingToolResponse;
       }
 
       // Fix #5: Persist sentence offset across tool rounds to prevent sentence
@@ -470,8 +478,8 @@ export const useAgentEngine = (
             // When the think block opens, raise isThinking so the UI can show a reasoning indicator.
             // When it closes (or first real text arrives after the block), lower isThinking.
             if (arch === 'gemma4') {
-              const hasThinkOpen = /<(?:\|?\s*think\s*\|?)>/i.test(fullResponse);
-              const hasThinkClose = /<\/(?:\|?think\|?)>/i.test(fullResponse);
+              const hasThinkOpen = /<(?:\|?\s*think\s*\|?|\|?thought\|?|\|channel>thought)>/i.test(fullResponse);
+              const hasThinkClose = /<\/(?:\|?think\|?|\|?thought\|?)>|<(?:think|thought|channel)\|>/i.test(fullResponse);
               const thinkingNow = hasThinkOpen && !hasThinkClose;
               if (thinkingNow !== isThinkingRef.current) {
                 isThinkingRef.current = thinkingNow;
@@ -522,7 +530,7 @@ export const useAgentEngine = (
                 }
               } else {
                 // ═══ MODE B: Clause-Based Trigger (all subsequent chunks) ═══
-                const delimiters = ['.', '?', '!', '\n', ',', ':'];
+                const delimiters = ['.', '?', '!', '\n', ';', ':'];
                 let idx = globalSentenceOffset;
                 while (idx < cleanText.length) {
                   const char = cleanText[idx];
@@ -619,7 +627,8 @@ export const useAgentEngine = (
             // LOGIC-02 FIX: Use roundResponse for the live bubble, NOT fullResponse.
             // fullResponse accumulates ALL rounds — using it here causes prior-round
             // text to bleed into the current round's display while the model streams.
-            const throttleRate = voiceState !== 'IDLE' ? 8 : 3;
+            // Voice mode: 4 tokens (was 8) — smoother text flow while cloud TTS plays
+            const throttleRate = voiceState !== 'IDLE' ? 4 : 3;
             if (tokenCountRef.current % throttleRate === 0) {
               setMessagesUI((prev: any) => {
                 const last = prev[prev.length - 1];
@@ -750,7 +759,7 @@ export const useAgentEngine = (
           if (zenMatch) {
             try {
               zenPayload = JSON.parse(zenMatch[1].trim());
-            } catch(e) {
+            } catch (e) {
               console.warn('[AGENT_ENGINE] Failed to parse Zen Garden JSON:', e);
             }
             // Strip the <zen> block from the fullResponse so it's completely hidden
@@ -762,19 +771,19 @@ export const useAgentEngine = (
           // 🌿 Persist Zen Garden state if payload exists
           if (zenPayload && zenPayload.plant && zenPayload.plant !== 'none') {
             try {
-               const cat = zenPayload.category || null;
-               const lbl = zenPayload.label || null;
-               if (zenPayload.plant === 'seed') {
-                  await plantSeed(db, modelResponseId, cat, lbl);
-               } else {
-                  await growFlora(db, zenPayload.plant, modelResponseId, cat, lbl);
-               }
-               if (zenPayload.attribute && typeof zenPayload.value === 'number') {
-                  await updateTreeAttribute(db, zenPayload.attribute, zenPayload.value);
-               }
-               console.log(`[AGENT_ENGINE] 🌿 Zen Garden Updated: ${zenPayload.plant} / ${zenPayload.attribute} +${zenPayload.value} (${cat}:${lbl})`);
+              const cat = zenPayload.category || null;
+              const lbl = zenPayload.label || null;
+              if (zenPayload.plant === 'seed') {
+                await plantSeed(db, modelResponseId, cat, lbl);
+              } else {
+                await growFlora(db, zenPayload.plant, modelResponseId, cat, lbl);
+              }
+              if (zenPayload.attribute && typeof zenPayload.value === 'number') {
+                await updateTreeAttribute(db, zenPayload.attribute, zenPayload.value);
+              }
+              console.log(`[AGENT_ENGINE] 🌿 Zen Garden Updated: ${zenPayload.plant} / ${zenPayload.attribute} +${zenPayload.value} (${cat}:${lbl})`);
             } catch (e) {
-               console.error('[AGENT_ENGINE] Error saving Zen Garden state:', e);
+              console.error('[AGENT_ENGINE] Error saving Zen Garden state:', e);
             }
           }
 
