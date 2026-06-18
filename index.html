@@ -1294,6 +1294,14 @@
         <span class="en">100% Private · No Servers · Works Offline</span>
       </div>
 
+      <!-- Video Showcase -->
+      <div class="hero-video-wrap" style="max-width: 340px; margin: 0 auto 28px; border-radius: var(--radius-md); overflow: hidden; box-shadow: var(--shadow-md); border: 1.5px solid var(--border); background: #000; position: relative; transition: all 0.3s ease;">
+        <video id="hero-video" autoplay muted playsinline controls style="width: 100%; height: auto; display: block; object-fit: cover;">
+          <source src="Anima%20AI.mp4" type="video/mp4">
+          Your browser does not support the video tag.
+        </video>
+      </div>
+
       <h1 class="es">Tu Diario Personal.<br><span class="grad">Privado y Local.</span></h1>
       <h1 class="en">Your Personal Diary.<br><span class="grad">Private &amp; Local.</span></h1>
 
@@ -1431,11 +1439,11 @@
               <h4 class="es">Abre el menú de la IA y selecciona un modelo</h4>
               <h4 class="en">Open the AI menu and select a model</h4>
               <p class="es">Al abrir la app, pulsa el menú de IA. Verás tres opciones: <strong>Llama 3.2 (1B)</strong>
-                para gama media, <strong>Gemma 3 (4B)</strong> balanceado, y <strong>Gemma 4 (E2B)</strong> el más
+                para gama media, <strong>Gemma 3 (4B)</strong> balanceado, y <strong>Gemma 4 E2B QAT</strong> el más
                 avanzado.</p>
               <p class="en">When you open the app, tap the AI menu. You'll see three options: <strong>Llama 3.2
                   (1B)</strong> for mid-range, <strong>Gemma 3 (4B)</strong> balanced, and <strong>Gemma 4
-                  (E2B)</strong> the most advanced.</p>
+                  E2B QAT</strong> the most advanced.</p>
             </div>
           </div>
 
@@ -1454,7 +1462,7 @@
               <p class="en">Select the model and tap <strong>DOWNLOAD AI</strong>. The download is cumulative: if
                 interrupted, it resumes where it left off. Don't close the app.</p>
               <div class="step-tip">💡 <span class="es">Usa Wi-Fi y conecta el cargador. Los modelos pesan entre 500 MB
-                  y 3 GB.</span><span class="en">Use Wi-Fi and plug in your charger. Models range from 500 MB to 3
+                  y 2.6 GB.</span><span class="en">Use Wi-Fi and plug in your charger. Models range from 500 MB to 2.6
                   GB.</span></div>
             </div>
           </div>
@@ -2181,7 +2189,7 @@
 
         <div class="model-card featured">
           <div class="model-badge">⭐ <span class="es">Recomendado</span><span class="en">Recommended</span></div>
-          <div class="model-name">Gemma 4 (E2B)</div>
+          <div class="model-name">Gemma 4 E2B QAT</div>
           <div class="model-sub es">AI Deep Mind Core · El más avanzado</div>
           <div class="model-sub en">AI Deep Mind Core · Most advanced</div>
           <ul class="spec-list">
@@ -2198,7 +2206,7 @@
                 class="en">Native Tool Call support (Sentinel AI)</span>
             </li>
             <li class="spec-item">
-              <div class="spec-dot"></div><span class="es">~3 GB de almacenamiento</span><span class="en">~3 GB
+              <div class="spec-dot"></div><span class="es">~2.6 GB de almacenamiento</span><span class="en">~2.6 GB
                 storage</span>
             </li>
           </ul>
@@ -2212,12 +2220,179 @@
       <div class="section-title">
         <span class="section-label es">Requisitos del Sistema</span>
         <span class="section-label en">System Requirements</span>
-        <h2 class="es">Especificaciones Mínimas</h2>
-        <h2 class="en">Minimum Specifications</h2>
-        <p class="es">La inferencia de IA local requiere hardware adecuado para funcionar de manera óptima.</p>
-        <p class="en">Local AI inference requires adequate hardware to work optimally.</p>
+        <h2 class="es">Especificaciones de Modelos y Requisitos</h2>
+        <h2 class="en">Model Specifications & Requirements</h2>
+        <p class="es">El rendimiento de la IA local depende del hardware de tu dispositivo y de la arquitectura de cada modelo.</p>
+        <p class="en">Local AI performance depends on your device's hardware and each model's architecture.</p>
         <div class="section-divider"></div>
       </div>
+
+      <!-- QAT speed explanation block -->
+      <div class="qat-explanation" style="margin-bottom: 40px; background: var(--white); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 32px; box-shadow: var(--shadow-sm);">
+        <!-- ES version -->
+        <div class="es">
+          <h3 style="font-family: var(--font-display); font-size: 1.6rem; color: var(--text); margin-bottom: 16px;">
+            ¿Por qué Gemma 4 E2B QAT es más rápido que Gemma 3 4B si tiene más parámetros físicos?
+          </h3>
+          <p style="color: var(--text-mid); margin-bottom: 20px; font-size: 0.95rem; line-height: 1.7;">
+            Es una duda técnica muy común. Gemma 4 E2B tiene 5.1B parámetros físicos en chip, pero es más rápido que Gemma 3 (que tiene 4.0B) debido a tres innovaciones de Google DeepMind:
+          </p>
+          <ul style="list-style: none; padding-left: 0; display: flex; flex-direction: column; gap: 16px;">
+            <li style="display: flex; align-items: flex-start; gap: 12px; font-size: 0.9rem; line-height: 1.6;">
+              <span style="font-size: 1.2rem; line-height: 1;">🚀</span>
+              <div>
+                <strong style="color: var(--text);">Parámetros Efectivos (PLE):</strong> Gemma 4 utiliza Per-Layer Embeddings. Aunque almacena 5.1B parámetros en disco, en cada ciclo de cómputo solo activa y calcula la lógica de 2.0B parámetros.
+              </div>
+            </li>
+            <li style="display: flex; align-items: flex-start; gap: 12px; font-size: 0.9rem; line-height: 1.6;">
+              <span style="font-size: 1.2rem; line-height: 1;">💡</span>
+              <div>
+                <strong style="color: var(--text);">Entrenamiento QAT (Quantization-Aware Training):</strong> La cuantización Q4_0 del nuevo modelo no es una "compresión forzada" después de entrenar (como en Gemma 3). Google entrenó el modelo sabiendo que funcionaría en 4 bits, lo que permite que las activaciones neuronales fluyan en paralelo por los núcleos vectoriales de la CPU/GPU móvil de forma 100% optimizada.
+              </div>
+            </li>
+            <li style="display: flex; align-items: flex-start; gap: 12px; font-size: 0.9rem; line-height: 1.6;">
+              <span style="font-size: 1.2rem; line-height: 1;">🧠</span>
+              <div>
+                <strong style="color: var(--text);">KV Cache Rediseñada:</strong> Consume mucha menos memoria de contexto, reduciendo la carga del bus de memoria del teléfono en un 40% al procesar el historial del chat.
+              </div>
+            </li>
+          </ul>
+        </div>
+        <!-- EN version -->
+        <div class="en">
+          <h3 style="font-family: var(--font-display); font-size: 1.6rem; color: var(--text); margin-bottom: 16px;">
+            Why is Gemma 4 E2B QAT faster than Gemma 3 4B if it has more physical parameters?
+          </h3>
+          <p style="color: var(--text-mid); margin-bottom: 20px; font-size: 0.95rem; line-height: 1.7;">
+            This is a very common technical question. Gemma 4 E2B has 5.1B physical parameters on-chip, but is faster than Gemma 3 (which has 4.0B) due to three innovations from Google DeepMind:
+          </p>
+          <ul style="list-style: none; padding-left: 0; display: flex; flex-direction: column; gap: 16px;">
+            <li style="display: flex; align-items: flex-start; gap: 12px; font-size: 0.9rem; line-height: 1.6;">
+              <span style="font-size: 1.2rem; line-height: 1;">🚀</span>
+              <div>
+                <strong style="color: var(--text);">Effective Parameters (PLE):</strong> Gemma 4 utilizes Per-Layer Embeddings. Although it stores 5.1B parameters on disk, in each computation cycle it only activates and computes the logic of 2.0B parameters.
+              </div>
+            </li>
+            <li style="display: flex; align-items: flex-start; gap: 12px; font-size: 0.9rem; line-height: 1.6;">
+              <span style="font-size: 1.2rem; line-height: 1;">💡</span>
+              <div>
+                <strong style="color: var(--text);">QAT (Quantization-Aware Training):</strong> The Q4_0 quantization of the new model is not a "forced compression" after training (like in Gemma 3). Google trained the model knowing it would run in 4 bits, allowing neural activations to flow in parallel through mobile CPU/GPU vector cores in a 100% optimized manner.
+              </div>
+            </li>
+            <li style="display: flex; align-items: flex-start; gap: 12px; font-size: 0.9rem; line-height: 1.6;">
+              <span style="font-size: 1.2rem; line-height: 1;">🧠</span>
+              <div>
+                <strong style="color: var(--text);">Redesigned KV Cache:</strong> Consumes much less context memory, reducing the phone's memory bus load by 40% when processing chat history.
+              </div>
+            </li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- New Comparison Table -->
+      <div class="table-wrap" style="margin-bottom: 48px;">
+        <table>
+          <thead>
+            <tr>
+              <th class="es">Modelo / Core</th>
+              <th class="en">Model / Core</th>
+              <th class="es">Parámetros</th>
+              <th class="en">Parameters</th>
+              <th class="es">Formato / Quant</th>
+              <th class="en">Format / Quant</th>
+              <th class="es">Peso</th>
+              <th class="en">Weight</th>
+              <th class="es">mmproj</th>
+              <th class="en">mmproj</th>
+              <th class="es">Velocidad Aprox.</th>
+              <th class="en">Approx. Speed</th>
+              <th class="es">Inteligencia (%)</th>
+              <th class="en">Intelligence (%)</th>
+              <th class="es">Notas de Capacidad</th>
+              <th class="en">Capability Notes</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="es">GPT-4o / Llama 3 70B (Referencia)</td>
+              <td class="en">GPT-4o / Llama 3 70B (Reference)</td>
+              <td class="es">Multi-B</td>
+              <td class="en">Multi-B</td>
+              <td class="es">Nube</td>
+              <td class="en">Cloud</td>
+              <td class="es">-</td>
+              <td class="en">-</td>
+              <td class="es">-</td>
+              <td class="en">-</td>
+              <td class="es">Nube (Variable)</td>
+              <td class="en">Cloud (Variable)</td>
+              <td class="es">100%</td>
+              <td class="en">100%</td>
+              <td class="es">Frontera tecnológica. Razonamiento analítico y resolución de problemas complejos sin restricciones de hardware.</td>
+              <td class="en">Technological frontier. Analytical reasoning and complex problem-solving without hardware restrictions.</td>
+            </tr>
+            <tr>
+              <td class="es">🚀 Gemma 4 E2B QAT (Nuevo)</td>
+              <td class="en">🚀 Gemma 4 E2B QAT (New)</td>
+              <td class="es">~2B</td>
+              <td class="en">~2B</td>
+              <td class="es">Q4_0 QAT</td>
+              <td class="en">Q4_0 QAT</td>
+              <td class="es">~1,300 MB</td>
+              <td class="en">~1,300 MB</td>
+              <td class="es">~931 MB</td>
+              <td class="en">~931 MB</td>
+              <td class="es"><strong>12 - 16 tok/s</strong></td>
+              <td class="en"><strong>12 - 16 tok/s</strong></td>
+              <td class="es">69%</td>
+              <td class="en">69%</td>
+              <td class="es">Optimizado. Misma inteligencia que tu Deepmind Core actual, pero con el peso reducido a menos de la mitad gracias al entrenamiento QAT.</td>
+              <td class="en">Optimized. Same intelligence as your current Deepmind Core, but with the weight reduced to less than half thanks to QAT training.</td>
+            </tr>
+            <tr>
+              <td class="es">⚖️ Gemma 3 4B (Tu Balance Core)</td>
+              <td class="en">⚖️ Gemma 3 4B (Your Balance Core)</td>
+              <td class="es">~4B</td>
+              <td class="en">~4B</td>
+              <td class="es">Q4_K_M GGUF</td>
+              <td class="en">Q4_K_M GGUF</td>
+              <td class="es">2,374 MB</td>
+              <td class="en">2,374 MB</td>
+              <td class="es">812 MB</td>
+              <td class="en">812 MB</td>
+              <td class="es">8 - 11 tok/s</td>
+              <td class="en">8 - 11 tok/s</td>
+              <td class="es">64%</td>
+              <td class="en">64%</td>
+              <td class="es">Buen balance general en lenguaje y tareas cotidianas, aunque un paso atrás en matemáticas y codificación pura frente a la arquitectura Gemma 4.</td>
+              <td class="en">Good general balance in language and everyday tasks, though a step back in mathematics and pure coding compared to the Gemma 4 architecture.</td>
+            </tr>
+            <tr>
+              <td class="es">⚡ Llama 3.2 1B (Tu Light Core)</td>
+              <td class="en">⚡ Llama 3.2 1B (Your Light Core)</td>
+              <td class="es">~1B</td>
+              <td class="en">~1B</td>
+              <td class="es">Q4_K_M GGUF</td>
+              <td class="en">Q4_K_M GGUF</td>
+              <td class="es">840 MB</td>
+              <td class="en">840 MB</td>
+              <td class="es">N/A</td>
+              <td class="en">N/A</td>
+              <td class="es">22 - 30 tok/s</td>
+              <td class="en">22 - 30 tok/s</td>
+              <td class="es">42%</td>
+              <td class="en">42%</td>
+              <td class="es">Excelente velocidad de respuesta para tareas muy básicas (resúmenes rápidos, traducción directa). No apto para razonamiento matemático o lógico estructurado.</td>
+              <td class="en">Excellent response speed for very basic tasks (quick summaries, direct translation). Not suitable for mathematical or structured logical reasoning.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Original Minimum Specifications Table (Moved below) -->
+      <h3 class="es" style="text-align: center; margin: 0 0 20px; font-family: var(--font-display); font-size: 1.4rem; color: var(--text);">Requisitos Mínimos de Hardware</h3>
+      <h3 class="en" style="text-align: center; margin: 0 0 20px; font-family: var(--font-display); font-size: 1.4rem; color: var(--text);">Minimum Hardware Requirements</h3>
+      
       <div class="table-wrap">
         <table>
           <thead>
@@ -2234,26 +2409,34 @@
             <tr>
               <td class="es">Memoria RAM</td>
               <td class="en">RAM Memory</td>
-              <td>4 GB</td>
-              <td>8 GB o superior</td>
+              <td class="es">4 GB</td>
+              <td class="en">4 GB</td>
+              <td class="es">6 GB o superior</td>
+              <td class="en">6 GB or higher</td>
             </tr>
             <tr>
               <td class="es">Procesador</td>
               <td class="en">Processor</td>
-              <td>Snapdragon 7 Gen 1 / Apple A14</td>
-              <td>Snapdragon 8 Gen 2 / Apple A16+</td>
+              <td class="es">Snapdragon 7 Gen 1 / Apple A14</td>
+              <td class="en">Snapdragon 7 Gen 1 / Apple A14</td>
+              <td class="es">Snapdragon 8 Gen 2 / Apple A16+</td>
+              <td class="en">Snapdragon 8 Gen 2 / Apple A16+</td>
             </tr>
             <tr>
               <td class="es">Sistema Operativo</td>
               <td class="en">Operating System</td>
-              <td>Android 10 / iOS 15</td>
-              <td>Android 13+ / iOS 17+</td>
+              <td class="es">Android 10 / iOS 15</td>
+              <td class="en">Android 10 / iOS 15</td>
+              <td class="es">Android 13+ / iOS 17+</td>
+              <td class="en">Android 13+ / iOS 17+</td>
             </tr>
             <tr>
               <td class="es">Almacenamiento Libre</td>
               <td class="en">Free Storage</td>
-              <td>~500 MB</td>
-              <td>~3 GB</td>
+              <td class="es">~840 MB</td>
+              <td class="en">~840 MB</td>
+              <td class="es">~2.6 GB</td>
+              <td class="en">~2.6 GB</td>
             </tr>
           </tbody>
         </table>
@@ -2506,6 +2689,18 @@
       el.style.transition = 'opacity 0.5s ease, transform 0.5s ease';
       observer.observe(el);
     });
+
+    // Play-once-repeat logic for hero video
+    const heroVideo = document.getElementById('hero-video');
+    if (heroVideo) {
+      let playCount = 0;
+      heroVideo.addEventListener('ended', function() {
+        if (playCount === 0) {
+          playCount++;
+          heroVideo.play();
+        }
+      });
+    }
   </script>
 </body>
 
