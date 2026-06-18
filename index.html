@@ -2689,18 +2689,6 @@
       el.style.transition = 'opacity 0.5s ease, transform 0.5s ease';
       observer.observe(el);
     });
-
-    // Play-once-repeat logic for hero video
-    const heroVideo = document.getElementById('hero-video');
-    if (heroVideo) {
-      let playCount = 0;
-      heroVideo.addEventListener('ended', function() {
-        if (playCount === 0) {
-          playCount++;
-          heroVideo.play();
-        }
-      });
-    }
   </script>
 </body>
 
