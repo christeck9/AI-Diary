@@ -11,7 +11,7 @@ import Animated, {
 import { IconSymbol } from './ui/icon-symbol';
 import { useAppTheme } from '../contexts/ThemeContext';
 import { useLanguage } from '../contexts/LanguageContext';
-import { useLlm } from '../contexts/LlmContext';
+import { useLlmState } from '../contexts/LlmContext';
 
 interface SanctuaryHeaderProps {
   onVoicePress?: () => void;
@@ -50,7 +50,7 @@ export const SanctuaryHeader = ({
 }: SanctuaryHeaderProps) => {
   const { colors, activeTheme } = useAppTheme();
   const { lang, setLang } = useLanguage();
-  const { deviceRAM } = useLlm();
+  const { deviceRAM } = useLlmState();
 
   const kebabBtnRef = useRef<TouchableOpacity>(null);
 
@@ -180,7 +180,7 @@ export const SanctuaryHeader = ({
                   fontSize: 10, 
                   fontWeight: 'bold', 
                   color: lang === 'en' ? (activeTheme === 'matrix' ? '#000000' : '#FFFFFF') : colors.textSecondary 
-                }}>EN</Text>
+                }}>ENG</Text>
               </TouchableOpacity>
               <TouchableOpacity 
                 onPress={() => setLang('es')}
@@ -195,7 +195,7 @@ export const SanctuaryHeader = ({
                   fontSize: 10, 
                   fontWeight: 'bold', 
                   color: lang === 'es' ? (activeTheme === 'matrix' ? '#000000' : '#FFFFFF') : colors.textSecondary 
-                }}>ES</Text>
+                }}>ESP</Text>
               </TouchableOpacity>
             </View>
           </View>

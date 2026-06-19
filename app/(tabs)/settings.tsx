@@ -14,14 +14,32 @@ import { useAppTheme } from '../../contexts/ThemeContext';
 import { useRouter } from 'expo-router';
 
 import * as Haptics from 'expo-haptics';
-import { useLlm } from '../../contexts/LlmContext';
+import { useLlmState, useLlmActions } from '../../contexts/LlmContext';
 import { runOnJS } from 'react-native-reanimated';
 
 import { SanctuaryHeader } from '../../components/SanctuaryHeader';
+import { KebabMenuOverlay } from '../../components/KebabMenuOverlay';
 import { useFocusEffect } from '@react-navigation/native';
 import { getAnimaMessage } from '../../db/zenGardenSchema';
+import { useGlobalModals } from '../../contexts/GlobalModalsContext';
+import { settingsService } from '../../lib/SettingsService';
+import { cloudTTSService } from '../../lib/CloudTTSService';
 
-
+const OPENAI_VOICES = ['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer'];
+const GOOGLE_VOICES = {
+  es: [
+    { name: 'es-419-Chirp3-HD-Aoede', label: 'Chirp 3 HD (Latinoamérica)' },
+    { name: 'es-ES-Chirp3-HD-Aoede', label: 'Chirp 3 HD (España - Aoede)' },
+    { name: 'es-ES-Chirp3-HD-Kore', label: 'Chirp 3 HD (España - Kore)' },
+    { name: 'es-MX-Studio-B', label: 'Studio Femenina (México)' }
+  ],
+  en: [
+    { name: 'en-US-Chirp3-HD-Aoede', label: 'Chirp 3 HD (US - Aoede)' },
+    { name: 'en-US-Chirp3-HD-Zephyr', label: 'Chirp 3 HD (US - Zephyr)' },
+    { name: 'en-US-Chirp3-HD-Charon', label: 'Chirp 3 HD (US - Charon)' },
+    { name: 'en-US-Studio-O', label: 'Studio Femenina (US)' }
+  ]
+};
 
 type ScannedModel = {
   id: string;
@@ -38,6 +56,7 @@ export default function SettingsScreen() {
 
   const { lang, setLang, t } = useLanguage();
   const db = useSQLiteContext();
+  const { openModal } = useGlobalModals();
   const [animaMessage, setAnimaMessage] = useState('');
 
   const fetchAnimaMessage = useCallback(async () => {
@@ -61,8 +80,8 @@ export default function SettingsScreen() {
     }, [fetchAnimaMessage])
   );
 
-  const [showWipeModal, setShowWipeModal] = useState(false);
-  const [wipeInputText, setWipeInputText] = useState('');
+  const [showResetModal, setShowResetModal] = useState(false);
+  const [resetInputText, setResetInputText] = useState('');
   const [useCloudTTS, setUseCloudTTS] = useState(false);
   const [cloudProvider, setCloudProvider] = useState<'openai' | 'google'>('openai');
   const [cloudTTSKey, setCloudTTSKey] = useState('');
@@ -71,6 +90,12 @@ export default function SettingsScreen() {
   const [gpuTurbo, setGpuTurbo] = useState(false);
   const [isApiStored, setIsApiStored] = useState(false);
   const [tempApiKey, setTempApiKey] = useState('');
+  const [isOpenAIStored, setIsOpenAIStored] = useState(false);
+  const [tempOpenAIKey, setTempOpenAIKey] = useState('');
+  const [isGoogleStored, setIsGoogleStored] = useState(false);
+  const [tempGoogleKey, setTempGoogleKey] = useState('');
+  const [openAIVoice, setOpenAIVoice] = useState('alloy');
+  const [googleVoiceName, setGoogleVoiceName] = useState('');
 
   const [showStorageMenu, setShowStorageMenu] = useState(false);
   const [scannedModels, setScannedModels] = useState<ScannedModel[]>([]);
@@ -113,15 +138,16 @@ export default function SettingsScreen() {
         ]
       );
     } else {
-      router.replace('/');
+      openModal(action as any);
     }
-  }, [lang, db, router]);
+  }, [lang, db, openModal]);
   const [freeDiskMB, setFreeDiskMB] = useState(0);
   const [totalDiskMB, setTotalDiskMB] = useState(0);
 
   
   // Extraemos funciones de LLM para el Force Reload
-  const { loadModel, resetToHome, status, activeModel, selectModel, AVAILABLE_MODELS, getModelStatus, downloadModel } = useLlm();
+  const { status, activeModel, AVAILABLE_MODELS } = useLlmState();
+  const { loadModel, resetToHome, selectModel, getModelStatus, downloadModel } = useLlmActions();
   const [modelStatuses, setModelStatuses] = useState<Record<string, { status: 'missing' | 'outdated' | 'current', localSizeMB: number, remoteSizeMB: number, integrity: boolean }>>({});
   const [isCheckingModels, setIsCheckingModels] = useState(false);
 
@@ -144,36 +170,79 @@ export default function SettingsScreen() {
         try { await SecureStore.deleteItemAsync('brave_search_api_key'); } catch (_) {}
       }
 
-      // --- Layer 2: app_settings.json (always runs, even if SecureStore failed above) ---
+      let secureOpenAIKey: string | null = null;
       try {
-        const settingsPath = `${FileSystem.documentDirectory}app_settings.json`;
-        const info = await FileSystem.getInfoAsync(settingsPath);
-        if (info.exists) {
-          const content = await FileSystem.readAsStringAsync(settingsPath);
-          const settings = JSON.parse(content);
-          if (isMounted) {
-            if (settings.cloudTTSKey) setCloudTTSKey(settings.cloudTTSKey);
-            if (settings.openAIKey) setOpenAIKey(settings.openAIKey);
-            if (settings.cloudProvider) setCloudProvider(settings.cloudProvider);
-            if (settings.useCloudTTS) setUseCloudTTS(true);
-            if (settings.manualEcoMode) setManualEcoMode(true);
-            if (settings.gpuTurbo ?? settings.experimentalTurbo) setGpuTurbo(true);
+        secureOpenAIKey = await SecureStore.getItemAsync('openai_tts_api_key');
+        if (secureOpenAIKey && secureOpenAIKey.trim() && isMounted) {
+          setIsOpenAIStored(true);
+        }
+      } catch (e) {
+        console.warn('[SecureStore] KeyStore error reading OpenAI API key — clearing corrupted entry:', e);
+        try { await SecureStore.deleteItemAsync('openai_tts_api_key'); } catch (_) {}
+      }
 
-            // Backup fallback: if Brave key is in app_settings.json but not in SecureStore (e.g. after upgrade),
-            // restore it to SecureStore. Do NOT delete it from app_settings.json to preserve it as a backup.
-            if (settings.braveApiKey && settings.braveApiKey.trim()) {
-              if (isMounted) setIsApiStored(true);
-              if (!secureKey) {
-                try {
-                  await SecureStore.setItemAsync('brave_search_api_key', settings.braveApiKey.trim());
-                } catch (e) {
-                  console.warn('[SecureStore] Could not restore Brave API key to SecureStore:', e);
-                }
+      let secureGoogleKey: string | null = null;
+      try {
+        secureGoogleKey = await SecureStore.getItemAsync('google_tts_api_key');
+        if (secureGoogleKey && secureGoogleKey.trim() && isMounted) {
+          setIsGoogleStored(true);
+        }
+      } catch (e) {
+        console.warn('[SecureStore] KeyStore error reading Google API key — clearing corrupted entry:', e);
+        try { await SecureStore.deleteItemAsync('google_tts_api_key'); } catch (_) {}
+      }
+
+      // --- Layer 2: settingsService (always runs, even if SecureStore failed above) ---
+      try {
+        const settings = await settingsService.get();
+        if (isMounted) {
+          if (settings.cloudTTSKey) setCloudTTSKey(settings.cloudTTSKey);
+          if (settings.openAIKey) setOpenAIKey(settings.openAIKey);
+          if (settings.cloudProvider) setCloudProvider(settings.cloudProvider);
+          if (settings.useCloudTTS) setUseCloudTTS(true);
+          if (settings.manualEcoMode) setManualEcoMode(true);
+          if (settings.gpuTurbo ?? settings.experimentalTurbo) setGpuTurbo(true);
+          if (settings.openAIVoice) setOpenAIVoice(settings.openAIVoice);
+          if (settings.googleVoiceName) setGoogleVoiceName(settings.googleVoiceName);
+
+          // Backup fallback: if Brave key is in settings but not in SecureStore (e.g. after upgrade),
+          // restore it to SecureStore. Do NOT delete it from settings to preserve it as a backup.
+          if (settings.braveApiKey && settings.braveApiKey.trim()) {
+            if (isMounted) setIsApiStored(true);
+            if (!secureKey) {
+              try {
+                await SecureStore.setItemAsync('brave_search_api_key', settings.braveApiKey.trim());
+              } catch (e) {
+                console.warn('[SecureStore] Could not restore Brave API key to SecureStore:', e);
+              }
+            }
+          }
+
+          // Backup fallback for OpenAI Key
+          if (settings.openAIKey && settings.openAIKey.trim()) {
+            if (isMounted) setIsOpenAIStored(true);
+            if (!secureOpenAIKey) {
+              try {
+                await SecureStore.setItemAsync('openai_tts_api_key', settings.openAIKey.trim());
+              } catch (e) {
+                console.warn('[SecureStore] Could not restore OpenAI API key to SecureStore:', e);
+              }
+            }
+          }
+
+          // Backup fallback for Google Cloud Key
+          if (settings.cloudTTSKey && settings.cloudTTSKey.trim()) {
+            if (isMounted) setIsGoogleStored(true);
+            if (!secureGoogleKey) {
+              try {
+                await SecureStore.setItemAsync('google_tts_api_key', settings.cloudTTSKey.trim());
+              } catch (e) {
+                console.warn('[SecureStore] Could not restore Google API key to SecureStore:', e);
               }
             }
           }
         }
-      } catch (e) { console.error('[Settings] Error loading app_settings.json:', e); }
+      } catch (e) { console.error('[Settings] Error loading settings via service:', e); }
     };
     loadSettings();
     return () => { isMounted = false; };
@@ -181,25 +250,19 @@ export default function SettingsScreen() {
 
   const saveSettings = async (updates: any) => {
     try {
-      const settingsPath = `${FileSystem.documentDirectory}app_settings.json`;
-      const info = await FileSystem.getInfoAsync(settingsPath);
-      let current = {};
-      if (info.exists) {
-        const content = await FileSystem.readAsStringAsync(settingsPath);
-        current = JSON.parse(content);
-      }
-      const updated = { ...current, ...updates };
-      await FileSystem.writeAsStringAsync(settingsPath, JSON.stringify(updated));
+      await settingsService.set(updates);
     } catch (e) { console.error('Save error', e); }
   };
 
-  const executeWipe = async () => {
+  const executeMasterReset = async () => {
     try {
       // 0. Borrar API keys de almacenamiento seguro
       await SecureStore.deleteItemAsync('brave_search_api_key');
+      await SecureStore.deleteItemAsync('openai_tts_api_key');
+      await SecureStore.deleteItemAsync('google_tts_api_key');
 
       if (db) {
-        // 1. Limpieza de Bases de Datos (Tierra Quemada)
+        // 1. Limpieza de Bases de Datos (Borrado de Fábrica)
         await db.runAsync('DELETE FROM messages');
         await db.runAsync('DELETE FROM sentinel_audit'); // 🛡️ Borrar rastro del Sentinel
         await db.runAsync('DELETE FROM user_profile');
@@ -207,6 +270,15 @@ export default function SettingsScreen() {
         await db.runAsync('DELETE FROM memory_synthesis');
         await db.runAsync('DELETE FROM memory_fts');
         await db.runAsync('DELETE FROM onboarding_status');
+        await db.runAsync('DELETE FROM knowledge_base');
+        await db.runAsync('DELETE FROM kg_nodes');
+        await db.runAsync('DELETE FROM kg_edges');
+        await db.runAsync('DELETE FROM kg_communities');
+        await db.runAsync('DELETE FROM document_chunks');
+        await db.runAsync('DELETE FROM zen_flora');
+        await db.runAsync('DELETE FROM zen_tree');
+        await db.runAsync('DELETE FROM session_folding');
+        await db.runAsync('DELETE FROM todos');
         
         // 2. Limpieza de Archivos y Modelos (Deep Clean)
         const docs = await FileSystem.readDirectoryAsync(FileSystem.documentDirectory!);
@@ -233,9 +305,38 @@ export default function SettingsScreen() {
     }
   };
 
-  const handlePanicWipe = () => {
-    setWipeInputText('');
-    setShowWipeModal(true);
+  const handleMasterReset = () => {
+    Alert.alert(
+      lang === 'es' ? 'PELIGRO: BORRADO TOTAL' : 'WARNING: TOTAL WIPE',
+      lang === 'es' 
+        ? '¿Estás seguro de que deseas borrar todas tus conversaciones, perfiles, diarios y datos de la aplicación? Esta acción es definitiva e irreversible.'
+        : 'Are you sure you want to delete all conversations, profiles, journals, and application data? This action is final and irreversible.',
+      [
+        { text: lang === 'es' ? 'Cancelar' : 'Cancel', style: 'cancel' },
+        {
+          text: lang === 'es' ? 'Borrar Memoria' : 'Wipe Memory',
+          style: 'destructive',
+          onPress: () => {
+            Alert.alert(
+              lang === 'es' ? 'CONFIRMACIÓN DE SEGURIDAD' : 'SAFETY CONFIRMATION',
+              lang === 'es'
+                ? '¿Realmente deseas borrar todo? Se eliminará toda tu información de forma permanente. No se podrá deshacer.'
+                : 'Do you really want to wipe everything? All your information will be permanently deleted. This cannot be undone.',
+              [
+                { text: lang === 'es' ? 'Cancelar' : 'Cancel', style: 'cancel' },
+                {
+                  text: lang === 'es' ? 'BORRAR TODO' : 'WIPE ALL',
+                  style: 'destructive',
+                  onPress: async () => {
+                    await executeMasterReset();
+                  }
+                }
+              ]
+            );
+          }
+        }
+      ]
+    );
   };
 
 
@@ -349,6 +450,7 @@ export default function SettingsScreen() {
   };
 
   return (
+    <>
       <SafeAreaView style={[styles.container, { backgroundColor: activeTheme === 'matrix' ? '#000000' : colors.background }]}>
         {activeTheme === 'matrix' && <MatrixRain />}
 
@@ -671,60 +773,393 @@ export default function SettingsScreen() {
                   </View>
 
                   {cloudProvider === 'openai' ? (
-                    <View style={{ gap: 6 }}>
-                      <Text style={{ color: colors.textSecondary, fontSize: 12, fontWeight: 'bold' }}>OpenAI API Key</Text>
-                      <TextInput
-                        style={{
-                          backgroundColor: 'rgba(0,0,0,0.15)',
-                          color: colors.textPrimary,
-                          padding: 12,
-                          borderRadius: 8,
-                          fontSize: 13,
+                    <View style={{ gap: 12 }}>
+                      {!isOpenAIStored ? (
+                        <View style={{ gap: 6 }}>
+                          <Text style={{ color: colors.textSecondary, fontSize: 12, fontWeight: 'bold' }}>OpenAI API Key</Text>
+                          <View style={{ flexDirection: 'row', gap: 10, alignItems: 'center' }}>
+                            <TextInput
+                              style={{
+                                flex: 1,
+                                backgroundColor: 'rgba(0,0,0,0.15)',
+                                color: colors.textPrimary,
+                                padding: 12,
+                                borderRadius: 8,
+                                fontSize: 13,
+                                borderWidth: 1,
+                                borderColor: colors.border,
+                                fontFamily: Platform.select({ ios: 'Courier', android: 'monospace' })
+                              }}
+                              placeholder="sk-..."
+                              placeholderTextColor={colors.textSecondary}
+                              secureTextEntry={true}
+                              autoCapitalize="none"
+                              autoCorrect={false}
+                              value={tempOpenAIKey}
+                              onChangeText={setTempOpenAIKey}
+                            />
+                            <TouchableOpacity
+                              style={{
+                                backgroundColor: colors.primary,
+                                paddingVertical: 12,
+                                paddingHorizontal: 16,
+                                borderRadius: 8,
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                              }}
+                              onPress={async () => {
+                                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                                if (!tempOpenAIKey.trim()) {
+                                  Alert.alert(
+                                    lang === 'es' ? 'Error' : 'Error',
+                                    lang === 'es' ? 'Por favor ingresa una clave válida.' : 'Please enter a valid key.'
+                                  );
+                                  return;
+                                }
+                                try {
+                                  await SecureStore.setItemAsync('openai_tts_api_key', tempOpenAIKey.trim());
+                                  await saveSettings({ openAIKey: tempOpenAIKey.trim() });
+                                  cloudTTSService.clearCache();
+                                  setIsOpenAIStored(true);
+                                  setTempOpenAIKey('');
+                                  Alert.alert(
+                                    lang === 'es' ? 'Éxito' : 'Success',
+                                    lang === 'es' ? 'Clave de OpenAI guardada de forma segura.' : 'OpenAI key stored securely.'
+                                  );
+                                } catch (e) {
+                                  Alert.alert(
+                                    lang === 'es' ? 'Error' : 'Error',
+                                    lang === 'es' ? 'No se pudo guardar la clave.' : 'Could not store key.'
+                                  );
+                                }
+                              }}
+                            >
+                              <Text style={{ color: 'black', fontWeight: 'bold', fontSize: 13 }}>
+                                {lang === 'es' ? 'Guardar' : 'Store API'}
+                              </Text>
+                            </TouchableOpacity>
+                          </View>
+                          <Text style={{ color: colors.textSecondary, fontSize: 10, fontStyle: 'italic' }}>
+                            {lang === 'es' ? 'La clave de OpenAI se encripta localmente.' : 'OpenAI API key is encrypted locally.'}
+                          </Text>
+                        </View>
+                      ) : (
+                        <View style={{
+                          backgroundColor: 'rgba(46, 125, 50, 0.1)',
+                          borderRadius: 10,
                           borderWidth: 1,
-                          borderColor: colors.border
-                        }}
-                        placeholder="sk-..."
-                        placeholderTextColor={colors.textSecondary}
-                        secureTextEntry={true}
-                        autoCapitalize="none"
-                        autoCorrect={false}
-                        value={openAIKey}
-                        onChangeText={async (val) => {
-                          setOpenAIKey(val);
-                          await saveSettings({ openAIKey: val });
-                        }}
-                      />
-                      <Text style={{ color: colors.textSecondary, fontSize: 10, fontStyle: 'italic' }}>
-                        {lang === 'es' ? 'Requiere una clave de OpenAI activa.' : 'Requires an active OpenAI API key.'}
-                      </Text>
+                          borderColor: 'rgba(46, 125, 50, 0.3)',
+                          padding: 12,
+                          gap: 12
+                        }}>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                            <IconSymbol name="checkmark.circle.fill" size={18} color="#2e7d32" />
+                            <Text style={{ color: '#2e7d32', fontWeight: 'bold', fontSize: 13 }}>
+                              {lang === 'es' ? '✓ Clave API de OpenAI almacenada' : '✓ OpenAI API stored'}
+                            </Text>
+                          </View>
+                          <View style={{ flexDirection: 'row', gap: 10 }}>
+                            <TouchableOpacity
+                              style={{
+                                flex: 1,
+                                borderWidth: 1,
+                                borderColor: colors.border,
+                                borderRadius: 8,
+                                paddingVertical: 8,
+                                alignItems: 'center',
+                                backgroundColor: colors.surface
+                              }}
+                              onPress={() => {
+                                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                                setIsOpenAIStored(false);
+                              }}
+                            >
+                              <Text style={{ color: colors.textPrimary, fontSize: 12, fontWeight: '600' }}>
+                                {lang === 'es' ? 'Cambiar Clave' : 'Change Key'}
+                              </Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                              style={{
+                                flex: 1,
+                                borderWidth: 1,
+                                borderColor: '#d32f2f',
+                                borderRadius: 8,
+                                paddingVertical: 8,
+                                alignItems: 'center',
+                                backgroundColor: 'rgba(211, 47, 47, 0.05)'
+                              }}
+                              onPress={async () => {
+                                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                                Alert.alert(
+                                  lang === 'es' ? 'Eliminar Clave' : 'Remove Key',
+                                  lang === 'es' 
+                                    ? '¿Estás seguro de que deseas eliminar la clave API de OpenAI?' 
+                                    : 'Are you sure you want to remove the OpenAI API key?',
+                                  [
+                                    { text: lang === 'es' ? 'Cancelar' : 'Cancel', style: 'cancel' },
+                                    {
+                                      text: lang === 'es' ? 'Eliminar' : 'Remove',
+                                      style: 'destructive',
+                                      onPress: async () => {
+                                        try {
+                                          await SecureStore.deleteItemAsync('openai_tts_api_key');
+                                          await saveSettings({ openAIKey: undefined });
+                                          cloudTTSService.clearCache();
+                                          setIsOpenAIStored(false);
+                                        } catch (e) {
+                                          Alert.alert('Error', lang === 'es' ? 'No se pudo eliminar la clave.' : 'Could not remove key.');
+                                        }
+                                      }
+                                    }
+                                  ]
+                                );
+                              }}
+                            >
+                              <Text style={{ color: '#d32f2f', fontSize: 12, fontWeight: '600' }}>
+                                {lang === 'es' ? 'Eliminar Clave' : 'Remove Key'}
+                              </Text>
+                            </TouchableOpacity>
+                          </View>
+                        </View>
+                      )}
+
+                      {/* --- OpenAI Voices Selector --- */}
+                      <View style={{ marginTop: 5 }}>
+                        <Text style={{ color: colors.textSecondary, fontSize: 11, fontWeight: 'bold', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                          {lang === 'es' ? 'Selecciona Voz de OpenAI' : 'Select OpenAI Voice'}
+                        </Text>
+                        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                          {OPENAI_VOICES.map((v) => {
+                            const isSelected = openAIVoice === v;
+                            return (
+                              <TouchableOpacity
+                                key={v}
+                                onPress={async () => {
+                                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                                  setOpenAIVoice(v);
+                                  await saveSettings({ openAIVoice: v });
+                                }}
+                                style={{
+                                  paddingVertical: 8,
+                                  paddingHorizontal: 12,
+                                  borderRadius: 20,
+                                  borderWidth: 1,
+                                  borderColor: isSelected ? colors.primary : colors.border,
+                                  backgroundColor: isSelected ? 'rgba(125, 132, 168, 0.15)' : 'transparent'
+                                }}
+                              >
+                                <Text style={{
+                                  fontSize: 12,
+                                  fontWeight: isSelected ? 'bold' : 'normal',
+                                  color: isSelected ? colors.primary : colors.textSecondary,
+                                  textTransform: 'capitalize'
+                                }}>
+                                  {v}
+                                </Text>
+                              </TouchableOpacity>
+                            );
+                          })}
+                        </View>
+                      </View>
                     </View>
                   ) : (
-                    <View style={{ gap: 6 }}>
-                      <Text style={{ color: colors.textSecondary, fontSize: 12, fontWeight: 'bold' }}>Google Cloud API Key</Text>
-                      <TextInput
-                        style={{
-                          backgroundColor: 'rgba(0,0,0,0.15)',
-                          color: colors.textPrimary,
-                          padding: 12,
-                          borderRadius: 8,
-                          fontSize: 13,
+                    <View style={{ gap: 12 }}>
+                      {!isGoogleStored ? (
+                        <View style={{ gap: 6 }}>
+                          <Text style={{ color: colors.textSecondary, fontSize: 12, fontWeight: 'bold' }}>Google Cloud API Key</Text>
+                          <View style={{ flexDirection: 'row', gap: 10, alignItems: 'center' }}>
+                            <TextInput
+                              style={{
+                                flex: 1,
+                                backgroundColor: 'rgba(0,0,0,0.15)',
+                                color: colors.textPrimary,
+                                padding: 12,
+                                borderRadius: 8,
+                                fontSize: 13,
+                                borderWidth: 1,
+                                borderColor: colors.border,
+                                fontFamily: Platform.select({ ios: 'Courier', android: 'monospace' })
+                              }}
+                              placeholder="AIzaSy..."
+                              placeholderTextColor={colors.textSecondary}
+                              secureTextEntry={true}
+                              autoCapitalize="none"
+                              autoCorrect={false}
+                              value={tempGoogleKey}
+                              onChangeText={setTempGoogleKey}
+                            />
+                            <TouchableOpacity
+                              style={{
+                                backgroundColor: colors.primary,
+                                paddingVertical: 12,
+                                paddingHorizontal: 16,
+                                borderRadius: 8,
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                              }}
+                              onPress={async () => {
+                                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                                if (!tempGoogleKey.trim()) {
+                                  Alert.alert(
+                                    lang === 'es' ? 'Error' : 'Error',
+                                    lang === 'es' ? 'Por favor ingresa una clave válida.' : 'Please enter a valid key.'
+                                  );
+                                  return;
+                                }
+                                try {
+                                  await SecureStore.setItemAsync('google_tts_api_key', tempGoogleKey.trim());
+                                  await saveSettings({ cloudTTSKey: tempGoogleKey.trim() });
+                                  cloudTTSService.clearCache();
+                                  setIsGoogleStored(true);
+                                  setTempGoogleKey('');
+                                  Alert.alert(
+                                    lang === 'es' ? 'Éxito' : 'Success',
+                                    lang === 'es' ? 'Clave de Google Cloud guardada de forma segura.' : 'Google Cloud key stored securely.'
+                                  );
+                                } catch (e) {
+                                  Alert.alert(
+                                    lang === 'es' ? 'Error' : 'Error',
+                                    lang === 'es' ? 'No se pudo guardar la clave.' : 'Could not store key.'
+                                  );
+                                }
+                              }}
+                            >
+                              <Text style={{ color: 'black', fontWeight: 'bold', fontSize: 13 }}>
+                                {lang === 'es' ? 'Guardar' : 'Store API'}
+                              </Text>
+                            </TouchableOpacity>
+                          </View>
+                          <Text style={{ color: colors.textSecondary, fontSize: 10, fontStyle: 'italic' }}>
+                            {lang === 'es' ? 'La clave se encripta de forma segura mediante hardware.' : 'The key is securely encrypted using system hardware.'}
+                          </Text>
+                        </View>
+                      ) : (
+                        <View style={{
+                          backgroundColor: 'rgba(46, 125, 50, 0.1)',
+                          borderRadius: 10,
                           borderWidth: 1,
-                          borderColor: colors.border
-                        }}
-                        placeholder="AIzaSy..."
-                        placeholderTextColor={colors.textSecondary}
-                        secureTextEntry={true}
-                        autoCapitalize="none"
-                        autoCorrect={false}
-                        value={cloudTTSKey}
-                        onChangeText={async (val) => {
-                          setCloudTTSKey(val);
-                          await saveSettings({ cloudTTSKey: val });
-                        }}
-                      />
-                      <Text style={{ color: colors.textSecondary, fontSize: 10, fontStyle: 'italic' }}>
-                        {lang === 'es' ? 'Requiere habilitar Text-to-Speech API en Google Cloud Console.' : 'Requires enabling Text-to-Speech API in Google Cloud Console.'}
-                      </Text>
+                          borderColor: 'rgba(46, 125, 50, 0.3)',
+                          padding: 12,
+                          gap: 12
+                        }}>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                            <IconSymbol name="checkmark.circle.fill" size={18} color="#2e7d32" />
+                            <Text style={{ color: '#2e7d32', fontWeight: 'bold', fontSize: 13 }}>
+                              {lang === 'es' ? '✓ Clave API de Google Cloud almacenada' : '✓ Google Cloud API stored'}
+                            </Text>
+                          </View>
+                          <View style={{ flexDirection: 'row', gap: 10 }}>
+                            <TouchableOpacity
+                              style={{
+                                flex: 1,
+                                borderWidth: 1,
+                                borderColor: colors.border,
+                                borderRadius: 8,
+                                paddingVertical: 8,
+                                alignItems: 'center',
+                                backgroundColor: colors.surface
+                              }}
+                              onPress={() => {
+                                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                                setIsGoogleStored(false);
+                              }}
+                            >
+                              <Text style={{ color: colors.textPrimary, fontSize: 12, fontWeight: '600' }}>
+                                {lang === 'es' ? 'Cambiar Clave' : 'Change Key'}
+                              </Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                              style={{
+                                flex: 1,
+                                borderWidth: 1,
+                                borderColor: '#d32f2f',
+                                borderRadius: 8,
+                                paddingVertical: 8,
+                                alignItems: 'center',
+                                backgroundColor: 'rgba(211, 47, 47, 0.05)'
+                              }}
+                              onPress={async () => {
+                                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                                Alert.alert(
+                                  lang === 'es' ? 'Eliminar Clave' : 'Remove Key',
+                                  lang === 'es' 
+                                    ? '¿Estás seguro de que deseas eliminar la clave API de Google Cloud?' 
+                                    : 'Are you sure you want to remove the Google Cloud API key?',
+                                  [
+                                    { text: lang === 'es' ? 'Cancelar' : 'Cancel', style: 'cancel' },
+                                    {
+                                      text: lang === 'es' ? 'Eliminar' : 'Remove',
+                                      style: 'destructive',
+                                      onPress: async () => {
+                                        try {
+                                          await SecureStore.deleteItemAsync('google_tts_api_key');
+                                          await saveSettings({ cloudTTSKey: undefined });
+                                          cloudTTSService.clearCache();
+                                          setIsGoogleStored(false);
+                                        } catch (e) {
+                                          Alert.alert('Error', lang === 'es' ? 'No se pudo eliminar la clave.' : 'Could not remove key.');
+                                        }
+                                      }
+                                    }
+                                  ]
+                                );
+                              }}
+                            >
+                              <Text style={{ color: '#d32f2f', fontSize: 12, fontWeight: '600' }}>
+                                {lang === 'es' ? 'Eliminar Clave' : 'Remove Key'}
+                              </Text>
+                            </TouchableOpacity>
+                          </View>
+                        </View>
+                      )}
+
+                      {/* --- Google Cloud Voices Selector --- */}
+                      <View style={{ marginTop: 5 }}>
+                        <Text style={{ color: colors.textSecondary, fontSize: 11, fontWeight: 'bold', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                          {lang === 'es' ? 'Selecciona Voz de Google Cloud' : 'Select Google Cloud Voice'}
+                        </Text>
+                        <View style={{ gap: 6 }}>
+                          {(GOOGLE_VOICES[lang as 'es' | 'en'] || GOOGLE_VOICES.es).map((item) => {
+                            const isSelected = googleVoiceName === item.name || (!googleVoiceName && item.name === (lang === 'es' ? 'es-419-Chirp3-HD-Aoede' : 'en-US-Chirp3-HD-Aoede'));
+                            return (
+                              <TouchableOpacity
+                                key={item.name}
+                                onPress={async () => {
+                                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                                  setGoogleVoiceName(item.name);
+                                  await saveSettings({ googleVoiceName: item.name });
+                                }}
+                                style={{
+                                  paddingVertical: 10,
+                                  paddingHorizontal: 12,
+                                  borderRadius: 8,
+                                  borderWidth: 1,
+                                  borderColor: isSelected ? colors.primary : colors.border,
+                                  backgroundColor: isSelected ? 'rgba(125, 132, 168, 0.1)' : 'transparent',
+                                  flexDirection: 'row',
+                                  alignItems: 'center',
+                                  justifyContent: 'space-between'
+                                }}
+                              >
+                                <Text style={{
+                                  fontSize: 12,
+                                  fontWeight: isSelected ? 'bold' : 'normal',
+                                  color: isSelected ? colors.primary : colors.textPrimary
+                                }}>
+                                  {item.label}
+                                </Text>
+                                <Text style={{
+                                  fontSize: 9,
+                                  color: colors.textSecondary,
+                                  fontFamily: Platform.select({ ios: 'Courier', android: 'monospace' })
+                                }}>
+                                  {item.name.includes('Chirp3') ? 'Chirp 3 HD' : 'Studio'}
+                                </Text>
+                              </TouchableOpacity>
+                            );
+                          })}
+                        </View>
+                      </View>
                     </View>
                   )}
                 </View>
@@ -1074,7 +1509,7 @@ export default function SettingsScreen() {
                 <Text style={{ color: '#fff', fontSize: 9, opacity: 0.8 }}>{lang === 'es' ? 'Solo si cambiaste de teléfono para sincronizar el procesador.' : 'Only press if you change your phone to synchronize the processor.'}</Text>
               </TouchableOpacity>
 
-              <TouchableOpacity style={[styles.vaultButtonPanic, { marginTop: 15 }]} onPress={handlePanicWipe}>
+              <TouchableOpacity style={[styles.vaultButtonPanic, { marginTop: 15 }]} onPress={handleMasterReset}>
                 <Text style={styles.vaultButtonText}>{lang === 'es' ? 'BOTÓN DE REINICIO MAESTRO' : 'MASTER RESET BUTTON'}</Text>
                 <Text style={{ color: '#fff', fontSize: 9, opacity: 0.8 }}>{lang === 'es' ? 'Solo si deseas borrar todos los datos de esta app.' : 'Only press if you would like to wipe all data from this app.'}</Text>
               </TouchableOpacity>
@@ -1097,134 +1532,62 @@ export default function SettingsScreen() {
           </ScrollView>
         </KeyboardAvoidingView>
 
-        {/* Wipe Confirmation Modal */}
-        <Modal
-          visible={showWipeModal}
-          transparent={true}
-          animationType="fade"
-          onRequestClose={() => setShowWipeModal(false)}
-        >
-          <View style={styles.modalOverlay}>
-            <View style={[styles.modalContent, { backgroundColor: colors.surfaceSecondary, borderColor: colors.border }]}>
-              <Text style={[styles.modalTitle, { color: colors.secondary }]}>
-                {lang === 'es' ? 'PELIGRO: BORRADO TOTAL' : 'WARNING: TOTAL WIPE'}
-              </Text>
-              <Text style={[styles.modalMessage, { color: colors.textPrimary }]}>
-                {lang === 'es' ? 'Escribe "WIPE" para confirmar que deseas borrar todas tus conversaciones, perfiles y datos.'
-                  : 'Type "WIPE" to confirm you want to delete all conversations, profiles, and data.'}
-              </Text>
-              <TextInput
-                style={[styles.modalInput, { borderColor: colors.border, color: colors.textPrimary }]}
-                value={wipeInputText}
-                onChangeText={setWipeInputText}
-                autoCapitalize="characters"
-                placeholder="WIPE"
-                placeholderTextColor={colors.textSecondary}
-              />
-              <View style={styles.modalButtons}>
-                <TouchableOpacity style={[styles.modalBtn, { borderColor: colors.border }]} onPress={() => { setShowWipeModal(false); setWipeInputText(''); }}>
-                  <Text style={{ color: colors.textSecondary }}>{lang === 'es' ? 'Cancelar' : 'Cancel'}</Text>
-                </TouchableOpacity>
-                <TouchableOpacity 
-                  style={[styles.modalBtn, styles.modalBtnWipe, { backgroundColor: wipeInputText.toUpperCase() === 'WIPE' ? '#d96c6c' : colors.border }]} 
-                  disabled={wipeInputText.toUpperCase() !== 'WIPE'}
-                  onPress={async () => {
-                    setShowWipeModal(false);
-                    setWipeInputText('');
-                    await executeWipe();
-                  }}
-                >
-                  <Text style={{ color: '#FFF', fontWeight: 'bold' }}>WIPE</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </View>
-        </Modal>
-      {/* --- GLOBAL APP MENUS OVERLAY --- */}
-      <Modal visible={showLangPicker || showKebabMenu} transparent={true} animationType="fade">
+        {/* Reset Confirmation Modal removed in favor of native double Alert.alert confirmations */}
+      {/* --- LANGUAGE PICKER OVERLAY --- */}
+      <Modal visible={showLangPicker} transparent={true} animationType="fade">
         <View style={{ flex: 1, alignItems: 'flex-end', zIndex: 9999, elevation: 999 }}>
           <TouchableOpacity
             style={StyleSheet.absoluteFill}
             activeOpacity={1}
-            onPress={() => {
-              setShowLangPicker(false);
-              if (showKebabMenu) {
-                setShowKebabMenu(false);
-                stopKebabTimer();
-              }
-            }}
+            onPress={() => setShowLangPicker(false)}
           />
           {/* Language Dropdown */}
-          {showLangPicker && (
-            <View style={{
-              position: 'absolute',
-              top: Platform.OS === 'android' ? (StatusBar.currentHeight || 0) + 70 : 85,
-              right: 60,
-              backgroundColor: colors.surfaceSecondary,
-              borderColor: colors.border,
-              borderWidth: 1,
-              borderRadius: 5,
-              minWidth: 80,
-              elevation: 10,
-              shadowColor: '#000',
-              shadowOffset: { width: 0, height: 4 },
-              shadowOpacity: 0.3,
-              shadowRadius: 6,
-            }}>
-              <TouchableOpacity style={{ padding: 10, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.1)' }} onPress={() => { setLang('en'); setShowLangPicker(false); }}>
-                <Text style={{ color: lang === 'en' ? colors.primary : colors.textPrimary }}>EN</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={{ padding: 10 }} onPress={() => { setLang('es'); setShowLangPicker(false); }}>
-                <Text style={{ color: lang === 'es' ? colors.primary : colors.textPrimary }}>ES</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-          {/* Kebab Menu Dropdown */}
-          {showKebabMenu && (
-            <View style={{
-              marginTop: kebabMenuTop,
-              marginRight: 10,
-              backgroundColor: colors.surfaceSecondary,
-              borderColor: colors.border,
-              borderWidth: 1,
-              borderRadius: 8,
-              minWidth: 220,
-              overflow: 'hidden',
-              elevation: 10,
-              shadowColor: '#000',
-              shadowOffset: { width: 0, height: 4 },
-              shadowOpacity: 0.3,
-              shadowRadius: 6,
-            }}>
-              <TouchableOpacity style={{ padding: 12, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.1)', flexDirection: 'row', alignItems: 'center' }} onPress={() => { setShowKebabMenu(false); onKebabAction('profile'); }}>
-                <Text style={{ fontSize: 18, marginRight: 10 }}>👤</Text>
-                <Text style={{ color: colors.textPrimary, flex: 1 }}>{lang === 'es' ? 'Perfil del Usuario' : 'User Profile'}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={{ padding: 12, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.1)', flexDirection: 'row', alignItems: 'center' }} onPress={() => { setShowKebabMenu(false); onKebabAction('intro'); }}>
-                <Text style={{ fontSize: 18, marginRight: 10 }}>👓</Text>
-                <Text style={{ color: colors.textPrimary, flex: 1 }}>{lang === 'es' ? 'Introducción' : 'Introduction'}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={{ padding: 12, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.1)', flexDirection: 'row', alignItems: 'center' }} onPress={() => { setShowKebabMenu(false); onKebabAction('voice_settings'); }}>
-                <Text style={{ fontSize: 18, marginRight: 10 }}>🔊</Text>
-                <Text style={{ color: colors.textPrimary, flex: 1 }}>{lang === 'es' ? 'Configuración Voz Android' : 'Android Voice Settings'}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={{ padding: 12, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.1)', flexDirection: 'row', alignItems: 'center' }} onPress={() => { setShowKebabMenu(false); onKebabAction('vault'); }}>
-                <Text style={{ fontSize: 18, marginRight: 10 }}>🔒</Text>
-                <Text style={{ color: colors.textPrimary, flex: 1 }}>{lang === 'es' ? 'Encriptación de Datos' : 'Data Encryption'}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={{ padding: 12, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.1)', flexDirection: 'row', alignItems: 'center' }} onPress={() => { setShowKebabMenu(false); onKebabAction('psy'); }}>
-                <Text style={{ fontSize: 18, marginRight: 10 }}>Ψ</Text>
-                <Text style={{ color: colors.textPrimary, flex: 1 }}>{lang === 'es' ? 'Test de Personalidad' : 'Personality Test'}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={{ padding: 12, flexDirection: 'row', alignItems: 'center' }} onPress={() => { setShowKebabMenu(false); onKebabAction('clear'); }}>
-                <Text style={{ fontSize: 18, marginRight: 10 }}>🗑️</Text>
-                <Text style={{ color: colors.textPrimary, flex: 1 }}>{lang === 'es' ? 'Borrar Historial' : 'Clear History'}</Text>
-              </TouchableOpacity>
-            </View>
-          )}
+          <View style={{
+            position: 'absolute',
+            top: Platform.OS === 'android' ? (StatusBar.currentHeight || 0) + 70 : 85,
+            right: 60,
+            backgroundColor: colors.surfaceSecondary,
+            borderColor: colors.border,
+            borderWidth: 1,
+            borderRadius: 5,
+            minWidth: 80,
+            elevation: 10,
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 4 },
+            shadowOpacity: 0.3,
+            shadowRadius: 6,
+          }}>
+            <TouchableOpacity style={{ padding: 10, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.1)' }} onPress={() => { setLang('en'); setShowLangPicker(false); }}>
+              <Text style={{ color: lang === 'en' ? colors.primary : colors.textPrimary }}>ENG</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={{ padding: 10 }} onPress={() => { setLang('es'); setShowLangPicker(false); }}>
+              <Text style={{ color: lang === 'es' ? colors.primary : colors.textPrimary }}>ESP</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </Modal>
       </SafeAreaView>
+
+      {/* --- KEBAB MENU OVERLAY --- */}
+      <KebabMenuOverlay
+        visible={showKebabMenu}
+        anchorTop={kebabMenuTop}
+        onClose={() => {
+          setShowKebabMenu(false);
+          stopKebabTimer();
+        }}
+        colors={colors}
+        lang={lang}
+        menuItems={[
+          { emoji: '👤', labelEs: 'Perfil del Usuario', labelEn: 'User Profile', onPress: () => { setShowKebabMenu(false); onKebabAction('profile'); } },
+          { emoji: '👓', labelEs: 'Introducción', labelEn: 'Introduction', onPress: () => { setShowKebabMenu(false); onKebabAction('intro'); } },
+          { emoji: '🔊', labelEs: 'Configuración Voz Android', labelEn: 'Android Voice Settings', onPress: () => { setShowKebabMenu(false); onKebabAction('voice_settings'); } },
+          { emoji: '🔒', labelEs: 'Encriptación de Datos', labelEn: 'Data Encryption', onPress: () => { setShowKebabMenu(false); onKebabAction('vault'); } },
+          { emoji: 'Ψ', labelEs: 'Test de Personalidad', labelEn: 'Personality Test', onPress: () => { setShowKebabMenu(false); onKebabAction('tests_menu'); } },
+          { emoji: '🗑️', labelEs: 'Borrar Historial', labelEn: 'Clear History', onPress: () => { setShowKebabMenu(false); onKebabAction('clear'); } },
+        ]}
+      />
+    </>
   );
 }
 
