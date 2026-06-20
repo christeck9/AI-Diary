@@ -288,3 +288,13 @@ Si en el futuro el TTS presenta fallas:
 2. ¿Los límites dinámicos de `FIRST_CHUNK_MIN_WORDS` o `MIN_SENTENCE_WORDS` bajan de 3 palabras? → Garantizar un umbral mínimo de al menos 3 palabras para evitar hiccups.
 3. ¿Se eliminó `TTSSanitizer.ts` o se modificó su llamada? → Restaurar el sanitizador desde Git.
 4. ¿El motor de Google TTS recibe texto plano en lugar de SSML? → Verificar `CloudTTSService.ts`.
+
+### 10. Arquitectura de UI: Interacciones en Mensajes (Chat Bubbles)
+*Fecha de Registro: 2026-06-20*
+
+**Contexto y Problema Histórico:**
+En Android (y React Native en general), envolver componentes de texto con la propiedad `selectable={true}` dentro de componentes táctiles (`TouchableWithoutFeedback`, `TouchableOpacity`, etc.) que escuchan eventos como `onLongPress`, provoca una severa colisión en el sistema de gestos. Esto resulta en el congelamiento completo de la aplicación (UI thread freeze) al intentar invocar la selección nativa de palabras, porque el Responder de React Native y el motor de texto nativo de Android compiten por el gesto de pulsación prolongada.
+
+**Regla Estricta (Paradigma de Selección de Texto y Menús Contextuales):**
+1. **Protección de Selección Nativa:** Queda **ESTRICTAMENTE PROHIBIDO** envolver las burbujas de chat o el contenido de texto (`<Text selectable={true}>`) con componentes `Touchable` que intercepten gestos de pulsación larga o corta. El texto debe ser libre para usar la configuración nativa de Android de selección de palabras, la cual es ideal, rápida y conocida por el usuario.
+2. **Acceso al Menú Contextual:** Todas las acciones de mensaje (Copiar todo, Análisis Profundo, Reportar, Eliminar) expuestas en el `MessageContextMenu` deben invocarse **EXCLUSIVAMENTE** interactuando (con `onPress` u `onLongPress`) sobre los componentes visuales adyacentes a la burbuja de texto, específicamente los **Avatares** (`avatarAi`, `avatarUser`) u otros iconos explícitos de opciones, nunca sobre el texto mismo.

@@ -32,7 +32,7 @@ export const MessageItem = React.memo(({
   isAi: boolean,
   isLatest: boolean,
   isTyping: boolean,
-  processingPhase: 'idle' | 'reading_file' | 'indexing' | 'generating',
+  processingPhase: 'idle' | 'reading_file' | 'indexing' | 'generating' | 'thinking',
   lang: string,
   onReport: (id: string) => void,
   onLongPress: (item: Message) => void,
@@ -40,22 +40,30 @@ export const MessageItem = React.memo(({
 }) => {
 
   const innerContent = (
-    <TouchableWithoutFeedback
-      delayLongPress={400}
-      onLongPress={() => {
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy).catch(() => {});
-        onLongPress(item);
-      }}
-    >
-      <View style={[styles.messageWrapper, isAi ? styles.messageWrapperAi : styles.messageWrapperUser, item.status === 'pending' && { opacity: 0.5 }]}>
-        {isAi && (
-          <View style={[
+    <View style={[styles.messageWrapper, isAi ? styles.messageWrapperAi : styles.messageWrapperUser, item.status === 'pending' && { opacity: 0.5 }]}>
+      {isAi && (
+        <TouchableOpacity
+          activeOpacity={0.7}
+          onLongPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy).catch(() => {});
+            onLongPress(item);
+          }}
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+            onLongPress(item);
+          }}
+          style={[
             styles.avatarAi,
-            { backgroundColor: colors.surface, borderColor: colors.secondary }
-          ]}>
-            <IconSymbol name="cpu" size={20} color={colors.secondary} />
-          </View>
-        )}
+            { backgroundColor: colors.surface, borderColor: colors.secondary, padding: 0 }
+          ]}
+        >
+          <Image
+            source={require('../../assets/images/anima_spirit.png')}
+            style={{ width: 40, height: 40 }}
+            resizeMode="contain"
+          />
+        </TouchableOpacity>
+      )}
         <View style={[
           styles.messageBubble,
           isAi ? { backgroundColor: colors.surfaceSecondary, borderLeftWidth: 2, borderLeftColor: colors.secondary }
@@ -65,11 +73,11 @@ export const MessageItem = React.memo(({
             <TouchableOpacity
               activeOpacity={0.9}
               onPress={() => onImagePress(item.imageUri!)}
-              style={{ width: 220, height: 160, borderRadius: 8, overflow: 'hidden', marginBottom: 10 }}
+              style={styles.imageTouchable}
             >
               <Image
                 source={{ uri: item.imageUri }}
-                style={{ width: '100%', height: '100%' }}
+                style={styles.image}
                 resizeMode="cover"
               />
             </TouchableOpacity>
@@ -99,13 +107,13 @@ export const MessageItem = React.memo(({
                       colors={colors}
                       lang={lang}
                     />
-                    <Text selectable={false} style={[styles.messageText, { color: colors.textPrimary }]}>
+                    <Text selectable={true} style={[styles.messageText, { color: colors.textPrimary }]}>
                       <Text style={{ color: colors.secondary, fontWeight: 'bold' }}>{'> '} </Text>
                       {item.text}
                     </Text>
                   </View>
                 ) : (
-                  <Text selectable={false} style={[styles.messageText, { color: colors.textPrimary }]}>
+                  <Text selectable={true} style={[styles.messageText, { color: colors.textPrimary }]}>
                     <Text style={{ color: colors.secondary, fontWeight: 'bold' }}>{'> '} </Text>
                     {item.text}
                   </Text>
@@ -113,17 +121,60 @@ export const MessageItem = React.memo(({
               )}
             </View>
           ) : (
-            <Text selectable={false} style={[styles.messageText, { color: colors.textPrimary }]}>
+            <Text selectable={true} style={[styles.messageText, { color: colors.textPrimary }]}>
               {item.text}
             </Text>
           )}
         </View>
-        {!isAi && <View style={[styles.avatarUser, { backgroundColor: colors.surface, borderColor: colors.primary }]}><IconSymbol name="person.fill" size={20} color={colors.primary} /></View>}
+        {!isAi && (
+          <TouchableOpacity
+            activeOpacity={0.7}
+            onLongPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy).catch(() => {});
+              onLongPress(item);
+            }}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+              onLongPress(item);
+            }}
+            style={[styles.avatarUser, { backgroundColor: colors.surface, borderColor: colors.primary }]}
+          >
+            <IconSymbol name="person.fill" size={20} color={colors.primary} />
+          </TouchableOpacity>
+        )}
       </View>
-    </TouchableWithoutFeedback>
   );
 
   return innerContent;
+}, (prevProps, nextProps) => {
+  if (prevProps.item.id !== nextProps.item.id) return false;
+  if (prevProps.item.text !== nextProps.item.text) return false;
+  if (prevProps.item.status !== nextProps.item.status) return false;
+  if (prevProps.item.thoughts !== nextProps.item.thoughts) return false;
+  if (prevProps.item.tool_query !== nextProps.item.tool_query) return false;
+  if (prevProps.lang !== nextProps.lang) return false;
+  
+  // Optimize: Compare colors by their primitive values to prevent unnecessary re-renders when the parent object reference changes
+  if (
+    prevProps.colors.surface !== nextProps.colors.surface ||
+    prevProps.colors.secondary !== nextProps.colors.secondary ||
+    prevProps.colors.surfaceSecondary !== nextProps.colors.surfaceSecondary ||
+    prevProps.colors.primary !== nextProps.colors.primary ||
+    prevProps.colors.textSecondary !== nextProps.colors.textSecondary ||
+    prevProps.colors.textPrimary !== nextProps.colors.textPrimary
+  ) return false;
+
+  // Crucial performance fix: Ignore typing/phase updates if this is not the latest message
+  if (!prevProps.isLatest && !nextProps.isLatest) {
+    return true; // No need to re-render old messages just because typing state changed
+  }
+
+  // If it is the latest, check the dynamic states
+  if (prevProps.isLatest !== nextProps.isLatest) return false;
+  if (prevProps.isTyping !== nextProps.isTyping) return false;
+  if (prevProps.processingPhase !== nextProps.processingPhase) return false;
+
+  return true;
 });
 
 const styles = StyleSheet.create({
@@ -134,4 +185,6 @@ const styles = StyleSheet.create({
   avatarUser: { marginLeft: 10, padding: 8, borderRadius: 0, borderWidth: 1 },
   messageBubble: { maxWidth: '75%', padding: 15, borderRadius: 0 },
   messageText: { fontSize: 16, lineHeight: 24 },
+  imageTouchable: { width: 220, height: 160, borderRadius: 8, overflow: 'hidden', marginBottom: 10 },
+  image: { width: '100%', height: '100%' },
 });
