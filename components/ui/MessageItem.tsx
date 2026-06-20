@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, TouchableWithoutFeedback, Image, ActivityIndicator, StyleSheet } from 'react-native';
 import * as Haptics from 'expo-haptics';
+import { Swipeable } from 'react-native-gesture-handler';
 import { IconSymbol } from './icon-symbol';
 import { CognitiveNode } from './CognitiveNode';
 
@@ -23,8 +24,7 @@ export const MessageItem = React.memo(({
   isTyping,
   processingPhase,
   lang,
-  onReport,
-  onLongPress,
+  onAction,
   onImagePress
 }: {
   item: Message,
@@ -34,36 +34,48 @@ export const MessageItem = React.memo(({
   isTyping: boolean,
   processingPhase: 'idle' | 'reading_file' | 'indexing' | 'generating' | 'thinking',
   lang: string,
-  onReport: (id: string) => void,
-  onLongPress: (item: Message) => void,
+  onAction: (action: 'copy' | 'analyze' | 'report' | 'delete', item: Message) => void,
   onImagePress: (uri: string) => void,
 }) => {
 
+  const renderRightActions = () => {
+    return (
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 10, paddingBottom: 20 }}>
+        <TouchableOpacity style={styles.actionBtn} onPress={() => onAction('copy', item)}>
+          <IconSymbol name="doc.on.doc" size={22} color={colors.primary} />
+        </TouchableOpacity>
+        {isAi && (
+          <TouchableOpacity style={styles.actionBtn} onPress={() => onAction('analyze', item)}>
+            <IconSymbol name="brain.head.profile" size={22} color={colors.secondary} />
+          </TouchableOpacity>
+        )}
+        {isAi && (
+          <TouchableOpacity style={styles.actionBtn} onPress={() => onAction('report', item)}>
+            <IconSymbol name="exclamationmark.triangle" size={22} color="#D4A017" />
+          </TouchableOpacity>
+        )}
+        <TouchableOpacity style={styles.actionBtn} onPress={() => onAction('delete', item)}>
+          <IconSymbol name="trash" size={22} color="#ff3b30" />
+        </TouchableOpacity>
+      </View>
+    );
+  };
+
   const innerContent = (
-    <View style={[styles.messageWrapper, isAi ? styles.messageWrapperAi : styles.messageWrapperUser, item.status === 'pending' && { opacity: 0.5 }]}>
-      {isAi && (
-        <TouchableOpacity
-          activeOpacity={0.7}
-          onLongPress={() => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy).catch(() => {});
-            onLongPress(item);
-          }}
-          onPress={() => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
-            onLongPress(item);
-          }}
-          style={[
+    <Swipeable renderRightActions={renderRightActions} overScrollMode="never" friction={2}>
+      <View style={[styles.messageWrapper, isAi ? styles.messageWrapperAi : styles.messageWrapperUser, item.status === 'pending' && { opacity: 0.5 }]}>
+        {isAi && (
+          <View style={[
             styles.avatarAi,
             { backgroundColor: colors.surface, borderColor: colors.secondary, padding: 0 }
-          ]}
-        >
-          <Image
-            source={require('../../assets/images/anima_spirit.png')}
-            style={{ width: 40, height: 40 }}
-            resizeMode="contain"
-          />
-        </TouchableOpacity>
-      )}
+          ]}>
+            <Image
+              source={require('../../assets/images/anima_spirit.png')}
+              style={{ width: 40, height: 40 }}
+              resizeMode="contain"
+            />
+          </View>
+        )}
         <View style={[
           styles.messageBubble,
           isAi ? { backgroundColor: colors.surfaceSecondary, borderLeftWidth: 2, borderLeftColor: colors.secondary }
@@ -126,23 +138,9 @@ export const MessageItem = React.memo(({
             </Text>
           )}
         </View>
-        {!isAi && (
-          <TouchableOpacity
-            activeOpacity={0.7}
-            onLongPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy).catch(() => {});
-              onLongPress(item);
-            }}
-            onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
-              onLongPress(item);
-            }}
-            style={[styles.avatarUser, { backgroundColor: colors.surface, borderColor: colors.primary }]}
-          >
-            <IconSymbol name="person.fill" size={20} color={colors.primary} />
-          </TouchableOpacity>
-        )}
+        {!isAi && <View style={[styles.avatarUser, { backgroundColor: colors.surface, borderColor: colors.primary }]}><IconSymbol name="person.fill" size={20} color={colors.primary} /></View>}
       </View>
+    </Swipeable>
   );
 
   return innerContent;
@@ -187,4 +185,5 @@ const styles = StyleSheet.create({
   messageText: { fontSize: 16, lineHeight: 24 },
   imageTouchable: { width: 220, height: 160, borderRadius: 8, overflow: 'hidden', marginBottom: 10 },
   image: { width: '100%', height: '100%' },
+  actionBtn: { padding: 12, marginHorizontal: 2, borderRadius: 30, backgroundColor: 'rgba(0,0,0,0.05)', justifyContent: 'center', alignItems: 'center' },
 });

@@ -32,6 +32,7 @@ import { useAgentEngine } from '../../hooks/useAgentEngine';
 import type { ModelInfo } from '../../hooks/useAppLlm';
 import { settingsService } from '../../lib/SettingsService';
 import { SpeechFilter } from '../../lib/SpeechFilter';
+import { DatabaseService } from '../../lib/DatabaseService';
 
 import { useFileAttachment } from '../../hooks/useFileAttachment';
 import { useInteractiveVoice } from '../../hooks/useInteractiveVoice';
@@ -46,6 +47,7 @@ import { VoiceNoteOverlay } from '../../components/VoiceNoteOverlay';
 import { ModelLoaderPanel } from '../../components/ModelLoaderPanel';
 import { ChatInputBar } from '../../components/ChatInputBar';
 import { MessageContextMenu } from '../../components/MessageContextMenu';
+import { VisionDownloadModal } from '../../components/VisionDownloadModal';
 
 export default function NeuralLinkScreen() {
   const navigation = useNavigation();
@@ -77,6 +79,7 @@ export default function NeuralLinkScreen() {
   const { status: statusRaw,
     isDownloading,
     downloadingModel,
+    downloadingType,
     activeModel,
     AVAILABLE_MODELS,
     downloadedMB,
@@ -87,6 +90,10 @@ export default function NeuralLinkScreen() {
 
   const { selectModel,
     downloadModel,
+    downloadVisionModel,
+    checkVisionModelExists,
+    pauseDownload,
+    cancelDownload,
     loadModel,
     resetToHome,
     llamaContextRef,
@@ -96,7 +103,7 @@ export default function NeuralLinkScreen() {
     generateEmbeddings } = useLlmActions();
   const status = statusRaw as any;
 
-  const { attachedFile, isProcessing: isFileProcessing, pickDocument, clearAttachment, buildFileContext, extractTextInChunks } = useFileAttachment(lang);
+  const { attachedFile, setAttachedFile, isProcessing: isFileProcessing, pickDocument, clearAttachment, buildFileContext, extractTextInChunks } = useFileAttachment(lang);
 
   const [processingAttachedFile, setProcessingAttachedFile] = useState<any>(null);
   const [messagesLimit, setMessagesLimit] = useState(50);
@@ -405,10 +412,7 @@ export default function NeuralLinkScreen() {
       setMessages(prev => [...prev, userMsg]);
 
       // Run database inserts in parallel without awaiting to minimize latency on starting inference
-      db.runAsync('INSERT INTO messages (id, role, text, created_at) VALUES (?, ?, ?, ?)', [userMsg.id, userMsg.role, userMsg.text, userMsg.created_at ?? Date.now()])
-        .catch(e => console.error('DB Insert Error (messages):', e));
-      db.runAsync('INSERT INTO memory_fts (id, role, text) VALUES (?, ?, ?)', [userMsg.id, userMsg.role, userMsg.text])
-        .catch(e => console.error('DB Insert Error (memory_fts):', e));
+      DatabaseService.insertMessageAsync(db, userMsg.id, userMsg.role, userMsg.text);
 
       const aiResponse = await processMessage(
         text,
@@ -462,6 +466,72 @@ export default function NeuralLinkScreen() {
     }
   }, [params.startVoice, status]);
 
+  const [showVisionModal, setShowVisionModal] = useState(false);
+  const visionPromiseResolveRef = useRef<((value: boolean) => void) | null>(null);
+
+  const handleBeforeProcessImage = useCallback(async (): Promise<boolean> => {
+    if (!activeModel || !activeModel.mmprojFileName) return true;
+    const exists = await checkVisionModelExists(activeModel);
+    if (exists) return true;
+
+    return new Promise<boolean>((resolve) => {
+      visionPromiseResolveRef.current = resolve;
+      setShowVisionModal(true);
+    });
+  }, [activeModel, checkVisionModelExists]);
+
+  const handleConfirmVisionDownload = async () => {
+    setShowVisionModal(false);
+    if (visionPromiseResolveRef.current) {
+      visionPromiseResolveRef.current(false);
+      visionPromiseResolveRef.current = null;
+    }
+
+    setAttachedFile({
+      name: activeModel?.mmprojFileName || 'vision.gguf',
+      type: 'image',
+      uri: '',
+      sizeKB: activeModel?.mmprojSizeMB || 940,
+      extractedText: 'PENDING_VISION_DOWNLOAD'
+    });
+
+    try {
+      if (activeModel) {
+        await downloadVisionModel(activeModel);
+        clearAttachment();
+        Alert.alert(
+          lang === 'es' ? 'Descarga Completa' : 'Download Complete',
+          lang === 'es'
+            ? 'El soporte visual ya está listo. Puedes volver a seleccionar tu imagen.'
+            : 'Vision support is ready. You can select your image again.'
+        );
+      }
+    } catch (err: any) {
+      clearAttachment();
+      Alert.alert(
+        lang === 'es' ? 'Error de Descarga' : 'Download Error',
+        lang === 'es'
+          ? `No se pudo descargar el módulo de visión: ${err.message}`
+          : `Failed to download vision module: ${err.message}`
+      );
+    }
+  };
+
+  const handleCloseVisionModal = () => {
+    setShowVisionModal(false);
+    if (visionPromiseResolveRef.current) {
+      visionPromiseResolveRef.current(false);
+      visionPromiseResolveRef.current = null;
+    }
+  };
+
+  const handleClearAttachment = useCallback(async () => {
+    clearAttachment();
+    if (downloadingType === 'vision') {
+      await cancelDownload();
+    }
+  }, [clearAttachment, downloadingType, cancelDownload]);
+
   const handlePickDocument = async () => {
     try {
       if (voiceState !== 'IDLE') {
@@ -474,7 +544,7 @@ export default function NeuralLinkScreen() {
     } catch (e) {
       console.warn('[CHAT] Error stopping voice session before file pick:', e);
     }
-    await pickDocument();
+    await pickDocument(handleBeforeProcessImage);
   };
 
   const {
@@ -533,13 +603,13 @@ export default function NeuralLinkScreen() {
       if (processingPhase === 'reading_file') return lang === 'es' ? 'Leyendo\narchivo...' : 'Reading\nfile...';
       if (processingPhase === 'indexing') return lang === 'es' ? 'Indexando\ncontenido...' : 'Indexing\ncontent...';
       if (isSearchingWeb) return lang === 'es' ? 'Buscando\nen la web...' : 'Searching\nthe web...';
-      return lang === 'es' ? 'Pensando...' : 'Thinking...';
+      return '';
     }
     if (whispStatus === 'listening') {
       return lang === 'es' ? 'Escuchando\naudio...' : 'Listening\nto audio...';
     }
     if (whispStatus === 'speaking') {
-      return lang === 'es' ? 'Hablando...' : 'Speaking...';
+      return '';
     }
     if (whispStatus === 'tired') {
       return (lang === 'es' ? 'Batería: ' : 'Battery: ') + `${Math.round(batteryLevel * 100)}%`;
@@ -922,8 +992,7 @@ export default function NeuralLinkScreen() {
   const persistUserMessage = useCallback(async (msg: Message) => {
     if (!db) return;
     try {
-      await db.runAsync('INSERT INTO messages (id, role, text, created_at) VALUES (?, ?, ?, ?)', [msg.id, msg.role, msg.text, msg.created_at ?? Date.now()]);
-      await db.runAsync('INSERT INTO memory_fts (id, role, text) VALUES (?, ?, ?)', [msg.id, msg.role, msg.text]);
+      await DatabaseService.insertMessage(db, msg.id, msg.role, msg.text);
     } catch (e) {
       console.error('[DATABASE PERSISTENCE ERROR]:', e);
     }
@@ -1075,11 +1144,29 @@ export default function NeuralLinkScreen() {
         processingPhase={processingPhase}
         lang={lang}
         onReport={handleReportMessage}
-        onLongPress={setSelectedContextMsg}
+        onAction={(action, msg) => {
+          if (action === 'copy') {
+             ExpoClipboard.setStringAsync(msg.text);
+             Alert.alert(lang === 'es' ? "Copiado" : "Copied", lang === 'es' ? "Texto copiado al portapapeles." : "Text copied to clipboard.");
+          } else if (action === 'analyze') {
+             if (isTypingRef.current) {
+               addSystemMessage(lang === 'es' ? '⏳ Espera a que termine la respuesta actual.' : '⏳ Wait for the current response to finish.');
+               return;
+             }
+             const prompt = lang === 'es'
+               ? `Haz un análisis profundo y explícame mejor esto que dijiste: "${msg.text}"`
+               : `Do a deep analysis and explain better what you said here: "${msg.text}"`;
+             handleSend(prompt);
+          } else if (action === 'report') {
+             handleReportMessage(msg.id);
+          } else if (action === 'delete') {
+             handleDeleteMessage(msg.id);
+          }
+        }}
         onImagePress={handleImagePress}
       />
     );
-  }, [filteredMessages.length, colors, isTyping, processingPhase, lang, handleReportMessage, handleImagePress]);
+  }, [filteredMessages.length, colors, isTyping, processingPhase, lang, handleReportMessage, handleImagePress, isTypingRef, addSystemMessage, handleSend, handleDeleteMessage]);
 
   const handleDeleteMessage = useCallback(async (msgId: string) => {
     try {
@@ -1310,7 +1397,7 @@ export default function NeuralLinkScreen() {
               contentContainerStyle={styles.chatContainer}
               overScrollMode="never"
               bounces={false}
-              extraData={isTyping}
+              extraData={{ isTyping, colors, activeTheme }}
               ListHeaderComponent={
                 (!isFiltering && messages.length >= messagesLimit) ? (
                   <TouchableOpacity
@@ -1401,9 +1488,24 @@ export default function NeuralLinkScreen() {
               const userMsgId = `voice-note-${Date.now()}-${Math.random().toString(36).substring(7)}`;
               const userMsg: Message = { id: userMsgId, role: 'user', text: '🎙️ ' + cleaned, created_at: Date.now(), status: 'sent' };
               setMessages(prev => [...prev, userMsg]);
-              db.runAsync('INSERT INTO messages (id, role, text, created_at) VALUES (?, ?, ?, ?)', [userMsg.id, userMsg.role, userMsg.text, userMsg.created_at ?? Date.now()]).catch(e => console.error('DB Insert:', e));
-              db.runAsync('INSERT INTO memory_fts (id, role, text) VALUES (?, ?, ?)', [userMsg.id, userMsg.role, userMsg.text]).catch(e => console.error('DB FTS:', e));
-              processMessage(cleaned, userMsgId, setMessages, undefined, true);
+              DatabaseService.insertMessageAsync(db, userMsg.id, userMsg.role, userMsg.text);
+              startSpeechSession();
+              try {
+                await processMessage(
+                  cleaned,
+                  userMsgId,
+                  setMessages,
+                  undefined,
+                  true,
+                  consciousnessLevel,
+                  queueSpeech,
+                  clearSpeechQueue
+                );
+              } catch (e: any) {
+                console.error('[VoiceNote] processMessage error:', e);
+              } finally {
+                endSpeechSession();
+              }
             }}
           />
 
@@ -1429,28 +1531,28 @@ export default function NeuralLinkScreen() {
             dictation={dictation}
             consciousnessLevel={consciousnessLevel}
             setConsciousnessLevel={setConsciousnessLevel}
-            clearAttachment={clearAttachment}
+            clearAttachment={handleClearAttachment}
             isSearchingWeb={isSearchingWeb}
             searchingStep={searchingStep}
             isThinking={isThinking}
+            downloadPercent={downloadPercent}
+            downloadedMB={downloadedMB}
+            downloadSpeed={downloadSpeed}
+          />
+          <VisionDownloadModal
+            visible={showVisionModal}
+            onClose={handleCloseVisionModal}
+            onConfirm={handleConfirmVisionDownload}
+            modelName={activeModel?.label || 'Anima AI'}
+            sizeMB={activeModel?.mmprojSizeMB || 940}
+            colors={colors}
+            lang={lang}
           />
         </View>
 
         {/* Modales extracted to GlobalModalsContext */}
 
-        {/* CONTEXT MENU MODAL */}
-        <MessageContextMenu
-          selectedContextMsg={selectedContextMsg}
-          setSelectedContextMsg={setSelectedContextMsg}
-          colors={colors}
-          lang={lang}
-          isTypingRef={isTypingRef}
-          addSystemMessage={addSystemMessage}
-          setInputText={setInputText}
-          handleSend={handleSend}
-          handleReportMessage={handleReportMessage}
-          handleDeleteMessage={handleDeleteMessage}
-        />
+        {/* CONTEXT MENU MODAL HAS BEEN REMOVED IN FAVOR OF SWIPEABLE */}
 
         {/* FULL SCREEN IMAGE VIEWER WITH PINCH TO ZOOM */}
         <Modal visible={!!fullScreenImage} transparent={true} animationType="fade">
