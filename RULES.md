@@ -78,7 +78,7 @@ C:\AI_Diary\Rules for APK creation.md
 > 2. **Gemma 4 (E2B):** Motor de 2B optimizado con PLE. Dialecto: `<|turn|>` + Tool Response.
 > 3. **Exclusividad Móvil:** Queda prohibido el uso o mención de variantes de servidor de los modelos Gemma(31B, 26B) u otros modelos de AI.
 > 4. **Identidad de Hardware:** La App asume un entorno de recursos limitados (Android). No se deben proponer optimizaciones para hardware de escritorio.
-> 5. Para saaber como funnciona Gemma 3 y 4 leer: C:\AI-Diary\SanctuaryAIsArchitecture.md
+> 5. Para saaber como funnciona Gemma 3 y 4 leer: C:\AI-Diary\AIsArchitecture.md
 Gemma4:e2b tiene mas comandos que pudieran llegar a ser utiles si los analizas.
 > 6. **Desactivación de Servidores MCP de Inferencia:** El servidor MCP `Gemma-31b (y posiblemente toda la familia Gemma, de seguro Gemma-26b tambien),` y todas sus herramientas de visión/análisis (como `gemini-analyze-image`) han sido desactivadas de forma definitiva o indefinida por Google. Queda estrictamente prohibido intentar invocar estas herramientas de la nube, debiendo realizar cualquier análisis visual o diagnóstico de archivos gráficos mediante scripts locales en Python (con la librería Pillow) o mediante el agente del navegador (`browser_subagent`).
 > 7. **Prohibición de Unificación:** Queda terminantemente prohibido a futuros agentes intentar unificar o mezclar ambos dialectos en un solo string genérico (como `!!SEARCH`). Cada modelo está calibrado independientemente según sus pesos.
@@ -254,3 +254,37 @@ Para evitar que los modelos de IA exploren a ciegas el código base o realicen m
   uv run python SKILLS/Graphipy/scripts/graphipy.py --root c:\AI-Diary
   ```
 * **Acción ante Alertas de Integridad:** Si el reporte terminal arroja alguna alerta del tipo `[ALERT] COMPLETELY DISCONNECTED` o `[WARNING] UNUSED` en los archivos modificados, el Agente debe detenerse inmediatamente, analizar si la desconexión es legítima o si se ha roto un enlace del sistema, y proponer su corrección o eliminación al usuario.
+
+---
+
+### 9. Arquitectura del Pipeline TTS: Gestor de Velocidad Adaptativo (Velocity Manager v3)
+*Fecha de Registro: 2026-06-20*
+
+**Contexto:**
+El sistema TTS de AI Diary utiliza un **Gestor de Velocidad (Velocity Manager)** adaptativo en tiempo real. Este perfila los Tokens por Segundo (TPS) de los primeros 6 tokens generados por el LLM y ajusta dinámicamente los delimitadores y límites de acumulación de palabras para evitar tartamudeos (hiccups) sin introducir pausas artificiales molestas.
+
+**Archivos protegidos por esta regla:**
+- `hooks/useAgentEngine.ts` — Lógica de perfilado de TPS, reinicio de flush timer y segmentación dinámica (Modos: FLUID, SENTENCE_TO_SENTENCE, PUNCTUATION_TO_PUNCTUATION).
+- `hooks/useVoice.ts` — Sanitización de texto nativo (`sanitizeForNativeTTS`).
+- `lib/CloudTTSService.ts` — Configuración de API de Google TTS (SSML + audioConfig).
+- `lib/TTSSanitizer.ts` — Módulo de sanitización de texto para audio (**NO ELIMINAR**).
+
+#### ✅ PERMITIDO
+- Ajustar las reglas de asignación de velocidad (por ejemplo, los umbrales de TPS para cambiar entre modos) en `getSpeechChunkingMode` según feedback del usuario.
+- Agregar nuevos patrones de sanitización o stripeo de caracteres a `TTSSanitizer.ts`.
+- Ajustar el `speakingRate` o `pitch` en `CloudTTSService.ts` o en los coeficientes basados en `psyProfile` en `useVoice.ts`.
+- Modificar el valor de `FLUSH_TIMEOUT_MS` (tiempo de espera de inactividad de tokens antes de vaciar) siempre y cuando se mantenga el reinicio en cada token.
+
+#### 🚫 PROHIBIDO — NO HACER BAJO NINGUNA CIRCUNSTANCIA
+1. **NO desactivar el reinicio del `flushTimer` en `onTokenReceived`** (`resetFlushTimer()`). Si no se reinicia con cada token, la frase se cortará arbitrariamente a la mitad cada 1.5 - 1.8 segundos durante el streaming.
+2. **NO eliminar el perfilador de TPS ni los límites dinámicos.** Eliminar el umbral mínimo (dejando que baje a menos de 3 palabras en modo lento) provocará stutters/hiccups graves en el reproductor de voz de Android/iOS al procesar micro-frases de 1-2 palabras.
+3. **NO reemplazar `sanitizeForNativeTTS(text)` con expresiones regex inline antiguas** en `useVoice.ts` (esto hace que lea los puntos finales como la palabra "punto").
+4. **NO revertir `input: { ssml: ssmlText }` a `input: { text }`** en `CloudTTSService.ts` (Google TTS leerá los puntos y no interpretará las etiquetas de break).
+5. **NO eliminar el Anima Glitch Guard** (`if (isThinkingRef.current && !filteredText && last.text) return prev;`) en `useAgentEngine.ts` ni bajar el intervalo del actualizador de la UI por debajo de 150ms.
+
+#### ⚡ Diagnóstico Rápido — Si el TTS vuelve a fallar
+Si en el futuro el TTS presenta fallas:
+1. ¿Se eliminó `resetFlushTimer()` del flujo de tokens de `useAgentEngine.ts`? → Restablecer el reinicio por token.
+2. ¿Los límites dinámicos de `FIRST_CHUNK_MIN_WORDS` o `MIN_SENTENCE_WORDS` bajan de 3 palabras? → Garantizar un umbral mínimo de al menos 3 palabras para evitar hiccups.
+3. ¿Se eliminó `TTSSanitizer.ts` o se modificó su llamada? → Restaurar el sanitizador desde Git.
+4. ¿El motor de Google TTS recibe texto plano en lugar de SSML? → Verificar `CloudTTSService.ts`.

@@ -1,6 +1,8 @@
 import { useState, useCallback, useRef } from 'react';
 import { useAppLlm } from './useAppLlm';
 import { useDocumentProcessor } from './useDocumentProcessor';
+import { DatabaseService } from '../lib/DatabaseService';
+import { Logger } from '../lib/Logger';
 import { getGemmaSystemPrompt, PromptComplexity } from '../lib/systemPrompt';
 import * as PromptService from '../lib/PromptService';
 import { SanctuarySearchOrchestrator } from '../lib/tools';
@@ -12,6 +14,7 @@ import { contextFoldingService } from '../lib/ContextFoldingService';
 import { createKnowledgeManager } from '../lib/KnowledgeManager';
 import { plantSeed, growFlora, updateTreeAttribute } from '../db/zenGardenSchema';
 import * as SQLite from 'expo-sqlite';
+import { settingsService } from '../lib/SettingsService';
 
 import { SQLiteDatabase } from 'expo-sqlite';
 import { ModelInfo } from './useAppLlm';
@@ -89,6 +92,8 @@ export const useAgentEngine = (
   const isThinkingRef = useRef(false);
   const tokenCountRef = useRef(0);
   const isTypingRef = useRef(false);
+  const textBufferRef = useRef('');
+  const flushIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const queueRef = useRef<any[]>([]);
   const toolQueryRef = useRef('');
   const searchPromiseRef = useRef<Promise<string> | null>(null);
@@ -185,11 +190,7 @@ export const useAgentEngine = (
 
       if (db) {
         try {
-          await db.runAsync(
-            'INSERT INTO messages (id, role, text, thoughts, tool_query, created_at) VALUES (?, ?, ?, ?, ?, ?)',
-            [systemNoticeId, 'ai', safetyResponse, '[SAFETY_FILTER_BLOCK]', '', Date.now()]
-          );
-          await db.runAsync('INSERT INTO memory_fts (id, role, text) VALUES (?, ?, ?)', [systemNoticeId, 'ai', safetyResponse]);
+          await DatabaseService.insertMessage(db, systemNoticeId, 'ai', safetyResponse, '[SAFETY_FILTER_BLOCK]', '');
         } catch (e) {
           console.error('[AGENT_ENGINE] Error persisting safety response:', e);
         }
@@ -232,11 +233,42 @@ export const useAgentEngine = (
 
     const arch = getSanctuaryArchitecture();
 
-    // ═══ Speech Pipelining Configuration ═══ Do not modify this withoug expressed permission from Chris. Chris 6/4/26
-    const FIRST_CHUNK_MIN_WORDS = 5;   // Minimum words before first TTS dispatch
-    const FIRST_CHUNK_MAX_WORDS = 8;   // Hard cap — force flush even without delimiter
-    const FLUSH_TIMEOUT_MS = 1200;     // Reduced for cloud TTS latency compensation (was 2500ms)
-    const MIN_FLUSH_LENGTH = 8;        // Lower threshold to avoid blocking short natural responses (was 15)
+    // ═══ Speech Pipelining Configuration ═══ Velocity Manager (v3)
+    let useCloudTTS = false;
+    try {
+      const settings = await settingsService.get();
+      useCloudTTS = settings?.useCloudTTS || false;
+    } catch (e) {
+      console.warn('[SPEECH_PIPELINE] Error reading settings:', e);
+    }
+
+    // Dynamic Speed Profiler (TPS) state
+    let firstTokenTime = 0;
+    const tokenTimestamps: number[] = [];
+    let currentTps = 8; // Default initial guess
+
+    // Initial default TPS based on model architecture
+    if (arch === 'llama') currentTps = 15;
+    else if (arch === 'gemma3') currentTps = 4;
+    else if (arch === 'gemma4') currentTps = 6;
+
+    // Adaptive chunking settings (mutable variables, updated on token stream)
+    let FIRST_CHUNK_MIN_WORDS = 8;
+    let FIRST_CHUNK_MAX_WORDS = 15;
+    let MIN_SENTENCE_WORDS = 8;
+    const FLUSH_TIMEOUT_MS = 1500;     // Time before forcing a flush on slow models (was 1800ms)
+    const MIN_FLUSH_LENGTH = 15;       // Minimum chars to flush (was 15)
+
+    const getSpeechChunkingMode = () => {
+      if (useCloudTTS) {
+        if (currentTps >= 12) return 'FLUID';
+        if (currentTps >= 6) return 'SENTENCE_TO_SENTENCE';
+        return 'PUNCTUATION_TO_PUNCTUATION';
+      } else {
+        if (currentTps >= 8) return 'FLUID';
+        return 'PUNCTUATION_TO_PUNCTUATION';
+      }
+    };
 
     let isFirstSpeechChunk = true;
     let lastSentenceEmitTime = Date.now();
@@ -423,11 +455,37 @@ export const useAgentEngine = (
         let roundSearchTriggered = false;
         let hasAborted = false;
         roundResponse = '';
+        textBufferRef.current = '';
 
-        console.log(`[AGENT_ENGINE] 🔫 Round ${toolRounds + 1} started.`);
+        Logger.debug(`[AGENT_ENGINE] 🔫 Round ${toolRounds + 1} started.`);
 
         setProcessingPhase('generating');
         resetFlushTimer();
+
+        if (flushIntervalRef.current) {
+          clearInterval(flushIntervalRef.current);
+        }
+        flushIntervalRef.current = setInterval(() => {
+          const currentText = textBufferRef.current;
+          const filteredText = SentinelService.filterUI(currentText, arch);
+          const thoughts = SentinelService.purifyThoughts(currentText);
+          setMessagesUI((prev: any) => {
+            const last = prev[prev.length - 1];
+            if (!last) return prev;
+            // 🛡️ Anima Glitch Guard: while a Gemma 4 think block is open, filterUI returns
+            // empty string (unclosed tag regex). Don't overwrite existing text with blank —
+            // that causes the right-side dialogue to flash on/off on every 150ms tick.
+            if (isThinkingRef.current && !filteredText && last.text) return prev;
+            if (last.text === filteredText && last.thoughts === thoughts) return prev;
+            return [...prev.slice(0, -1), {
+              ...last,
+              text: filteredText,
+              tool_query: toolQueryRef.current,
+              thoughts: thoughts
+            }];
+          });
+        }, 150);
+
         await generateStreamingResponse(
           currentPrompt,
           async (partial: string) => {
@@ -474,6 +532,25 @@ export const useAgentEngine = (
             fullResponse += partial;
             tokenCountRef.current++;
 
+            // Reset the flush timer on every received token so it only triggers
+            // if the model stops streaming for too long.
+            resetFlushTimer();
+
+            // Profile generation speed (TPS) on the first 6 tokens
+            if (firstTokenTime === 0) {
+              firstTokenTime = Date.now();
+            }
+            if (tokenTimestamps.length < 6) {
+              tokenTimestamps.push(Date.now());
+              if (tokenTimestamps.length === 6) {
+                const diff = tokenTimestamps[5] - tokenTimestamps[0];
+                if (diff > 0) {
+                  currentTps = (5 * 1000) / diff;
+                  console.log(`[SPEECH_PIPELINE] 🏎️ Profiler: Measured speed = ${currentTps.toFixed(2)} TPS (model: ${arch})`);
+                }
+              }
+            }
+
             // Gemma 4 Thinking Indicator: detect <|think|> open/close tags in the streamed response.
             // When the think block opens, raise isThinking so the UI can show a reasoning indicator.
             // When it closes (or first real text arrives after the block), lower isThinking.
@@ -492,6 +569,22 @@ export const useAgentEngine = (
               const roundClean = SentinelService.filterUI(roundResponse, arch);
               const cleanText = previousRoundsCleanText + roundClean;
               const pending = cleanText.substring(globalSentenceOffset);
+
+              // Update speech pipelining parameters dynamically based on current TPS and TTS engine
+              const speechMode = getSpeechChunkingMode();
+              if (speechMode === 'PUNCTUATION_TO_PUNCTUATION') {
+                FIRST_CHUNK_MIN_WORDS = 3;
+                FIRST_CHUNK_MAX_WORDS = 10;
+                MIN_SENTENCE_WORDS = 3;
+              } else if (speechMode === 'SENTENCE_TO_SENTENCE') {
+                FIRST_CHUNK_MIN_WORDS = 6;
+                FIRST_CHUNK_MAX_WORDS = 12;
+                MIN_SENTENCE_WORDS = 6;
+              } else { // FLUID
+                FIRST_CHUNK_MIN_WORDS = 8;
+                FIRST_CHUNK_MAX_WORDS = 15;
+                MIN_SENTENCE_WORDS = 8;
+              }
 
               if (isFirstSpeechChunk) {
                 // ═══ MODE A: Word-Count Trigger (first chunk only) ═══
@@ -529,8 +622,15 @@ export const useAgentEngine = (
                   }
                 }
               } else {
-                // ═══ MODE B: Clause-Based Trigger (all subsequent chunks) ═══
-                const delimiters = ['.', '?', '!', '\n', ';', ':'];
+                // ═══ MODE B: Accumulator-Based Trigger (all subsequent chunks) ═══
+                // Dynamic delimiters and thresholds based on speed profiling
+                const strongDelimiters = speechMode === 'PUNCTUATION_TO_PUNCTUATION'
+                  ? ['.', '?', '!', '\n', ',']
+                  : ['.', '?', '!', '\n'];
+                const softDelimiters = speechMode === 'PUNCTUATION_TO_PUNCTUATION'
+                  ? [';', ':']
+                  : (speechMode === 'SENTENCE_TO_SENTENCE' ? [] : [';', ':']);
+
                 let idx = globalSentenceOffset;
                 while (idx < cleanText.length) {
                   const char = cleanText[idx];
@@ -539,14 +639,23 @@ export const useAgentEngine = (
                     idx + 1 < cleanText.length && /\d/.test(cleanText[idx + 1]);
                   const isEllipsisInProgress = char === '.' && idx + 1 < cleanText.length && cleanText[idx + 1] === '.';
 
-                  if (delimiters.includes(char) && !isNumberSeparator && !isEllipsisInProgress) {
-                    const sentence = cleanText.substring(globalSentenceOffset, idx + 1).trim();
-                    if (sentence.length > 0) {
-                      activeOnSentenceGenerated(sentence);
+                  const isStrong = strongDelimiters.includes(char) && !isNumberSeparator && !isEllipsisInProgress;
+                  const isSoft = softDelimiters.includes(char);
+
+                  if (isStrong || isSoft) {
+                    const pending = cleanText.substring(globalSentenceOffset, idx + 1).trim();
+                    const pendingWords = pending.split(/\s+/).filter(w => w.length > 0).length;
+                    // Strong delimiter: emit if ≥ MIN_SENTENCE_WORDS
+                    // Soft delimiter: emit only if ≥ MIN_SENTENCE_WORDS * 2 (commas etc. need more)
+                    const threshold = isStrong ? MIN_SENTENCE_WORDS : MIN_SENTENCE_WORDS * 2;
+                    // Hard cap: always emit if pending is very long (avoids indefinite accumulation)
+                    const hardCap = FIRST_CHUNK_MAX_WORDS * 2;
+                    if ((pendingWords >= threshold || pendingWords >= hardCap) && pending.length > 0) {
+                      activeOnSentenceGenerated(pending);
                       lastSentenceEmitTime = Date.now();
+                      globalSentenceOffset = idx + 1;
                       resetFlushTimer();
                     }
-                    globalSentenceOffset = idx + 1;
                   }
                   idx++;
                 }
@@ -623,26 +732,7 @@ export const useAgentEngine = (
               searchPromiseRef.current = null;
             }
 
-            // Throttle UI updates (every 3 tokens).
-            // LOGIC-02 FIX: Use roundResponse for the live bubble, NOT fullResponse.
-            // fullResponse accumulates ALL rounds — using it here causes prior-round
-            // text to bleed into the current round's display while the model streams.
-            // Voice mode: 4 tokens (was 8) — smoother text flow while cloud TTS plays
-            const throttleRate = voiceState !== 'IDLE' ? 4 : 3;
-            if (tokenCountRef.current % throttleRate === 0) {
-              setMessagesUI((prev: any) => {
-                const last = prev[prev.length - 1];
-                if (!last) return prev;
-                const filteredText = SentinelService.filterUI(roundResponse, arch);
-                const thoughts = SentinelService.purifyThoughts(roundResponse);
-                return [...prev.slice(0, -1), {
-                  ...last,
-                  text: filteredText,
-                  tool_query: toolQueryRef.current,
-                  thoughts: thoughts
-                }];
-              });
-            }
+            textBufferRef.current = roundResponse;
           },
           (err: any) => console.error("[ENGINE ERROR]", err),
           processedImages && processedImages.length > 0 ? processedImages : (attachedFile?.type === 'image' ? attachedFile.uri : undefined),
@@ -656,6 +746,28 @@ export const useAgentEngine = (
         if (flushTimerId) {
           clearTimeout(flushTimerId);
           flushTimerId = null;
+        }
+
+        if (flushIntervalRef.current) {
+          clearInterval(flushIntervalRef.current);
+          flushIntervalRef.current = null;
+        }
+
+        // Final UI flush of the round's accumulated text
+        if (!roundSearchTriggered) {
+          const finalRoundText = textBufferRef.current;
+          const filteredText = SentinelService.filterUI(finalRoundText, arch);
+          const thoughts = SentinelService.purifyThoughts(finalRoundText);
+          setMessagesUI((prev: any) => {
+            const last = prev[prev.length - 1];
+            if (!last) return prev;
+            return [...prev.slice(0, -1), {
+              ...last,
+              text: filteredText,
+              tool_query: toolQueryRef.current,
+              thoughts: thoughts
+            }];
+          });
         }
 
         // At the end of the round, flush any remaining un-sent text fragment.
@@ -742,6 +854,10 @@ export const useAgentEngine = (
         clearTimeout(flushTimerId);
         flushTimerId = null;
       }
+      if (flushIntervalRef.current) {
+        clearInterval(flushIntervalRef.current);
+        flushIntervalRef.current = null;
+      }
 
       let finalText = '';
       if (db && fullResponse.length > 0) {
@@ -799,12 +915,14 @@ export const useAgentEngine = (
             }];
           });
 
-          await db.runAsync(
-            'INSERT INTO messages (id, role, text, thoughts, tool_query, created_at) VALUES (?, ?, ?, ?, ?, ?)',
-            [modelResponseId, 'ai', finalText, finalThoughts, toolQueryRef.current, Date.now()]
+          await DatabaseService.insertMessage(
+            db,
+            modelResponseId,
+            'ai',
+            finalText,
+            finalThoughts,
+            toolQueryRef.current
           );
-          // Update FTS5 for fast searches
-          await db.runAsync('INSERT INTO memory_fts (id, role, text) VALUES (?, ?, ?)', [modelResponseId, 'ai', finalText]);
           console.log(`[AGENT_ENGINE] 💾 Forensic Memory Saved (${arch}): ${modelResponseId}`);
         } catch (e) {
           console.error('[AGENT_ENGINE] Error persisting AI response:', e);
