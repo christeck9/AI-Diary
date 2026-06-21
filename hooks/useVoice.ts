@@ -15,6 +15,8 @@ import { micService } from '../lib/UnifiedMicService';
 import { Asset } from 'expo-asset';
 import { SpeechFilter } from '../lib/SpeechFilter';
 import { settingsService } from '../lib/SettingsService';
+import { cloudTTSService } from '../lib/CloudTTSService';
+import { sanitizeForNativeTTS } from '../lib/TTSSanitizer';
 
 // ── Model URLs ──
 const WHISPER_MODEL_URL = 'https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-tiny.bin';
@@ -63,13 +65,13 @@ export function useVoice(lang: string = 'en', psyProfile?: { O: number, C: numbe
   const [selectedOfflineVoiceId, setSelectedOfflineVoiceId] = useSafeState<string | null>('default');
   const [selectedOfflineSpeakerId, setSelectedOfflineSpeakerId] = useSafeState<number>(0);
   const whisperContextRef = useRef<any>(null);
-  const stopFnRef = useRef<(() => void) | null>(null);
   const soundRef = useRef<Audio.Sound | null>(null);
 
   // ── Mutex & Debounce Refs for VAD Sensitivity Changes ──
   const vadDebounceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isRestartingVadRef = useRef<boolean>(false);
   const pendingVadLevelRef = useRef<number | null>(null);
+  const lastTranscriptUpdateRef = useRef<number>(0);
 
   // ── Dictation Callbacks Refs for Safe Restart ──
   const dictationCallbacksRef = useRef<{
@@ -117,6 +119,7 @@ export function useVoice(lang: string = 'en', psyProfile?: { O: number, C: numbe
     const loadVoices = async () => {
       try {
         const voices = await Speech.getAvailableVoicesAsync();
+        console.log(`[VOICE] Loaded ${voices.length} native TTS voices. Languages:`, Array.from(new Set(voices.map(v => v.language))).slice(0, 10));
         setAvailableVoices(voices);
       } catch (e) {
         console.warn('[VOICE] Speech.getAvailableVoicesAsync failed:', e);
@@ -143,7 +146,12 @@ export function useVoice(lang: string = 'en', psyProfile?: { O: number, C: numbe
     loadSettings();
 
     return () => {
-      if (stopFnRef.current) stopFnRef.current();
+      micService.stopListening('USE_VOICE_HOOK');
+      if (vadDebounceTimeoutRef.current) clearTimeout(vadDebounceTimeoutRef.current);
+      if (soundRef.current) {
+        soundRef.current.unloadAsync().catch(() => {});
+        soundRef.current = null;
+      }
     };
   }, []);
 
@@ -168,71 +176,14 @@ export function useVoice(lang: string = 'en', psyProfile?: { O: number, C: numbe
       return null;
     }
 
-    const cleanText = text
-      .replace(/\[SISTEMA\].*$/gm, '')
-      .replace(/\[SYSTEM\].*$/gm, '')
-      .replace(/█/g, '')
-      .replace(/```[\s\S]*?```/g, '')
-      .replace(/\*\*/g, '')
-      .replace(/\*/g, '')
-      .trim();
+    const cleanText = sanitizeForNativeTTS(text);
 
     if (!cleanText) return null;
 
     try {
       const settings = await getSettings();
-      let useCloud = settings.useCloudTTS || false;
-      let gKey = settings.cloudTTSKey || '';
-      let oKey = settings.openAIKey || '';
-      let cloudProvider = settings.cloudProvider || 'openai';
-
-      if (useCloud && !isMuted) {
-        if (cloudProvider === 'openai' && oKey) {
-          const response = await fetch('https://api.openai.com/v1/audio/speech', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${oKey}`
-            },
-            body: JSON.stringify({
-              model: 'tts-1',
-              input: cleanText,
-              voice: 'alloy'
-            })
-          });
-
-          const blob = await response.blob();
-          const reader = new FileReader();
-          const base64: string = await new Promise((resolve) => {
-            reader.onloadend = () => resolve(reader.result as string);
-            reader.readAsDataURL(blob);
-          });
-          const base64Data = base64.split(',')[1];
-          const uri = `${FileSystem.cacheDirectory}speech_preload_${Date.now()}.mp3`;
-          await FileSystem.writeAsStringAsync(uri, base64Data, { encoding: FileSystem.EncodingType.Base64 });
-          return uri;
-        }
-
-        if (cloudProvider === 'google' && gKey) {
-          const response = await fetch(`https://texttospeech.googleapis.com/v1/text:synthesize?key=${gKey}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              input: { text: cleanText },
-              voice: {
-                languageCode: lang === 'es' ? 'es-MX' : 'en-US',
-                name: lang === 'es' ? 'es-MX-Neural2-A' : 'en-US-Neural2-F'
-              },
-              audioConfig: { audioEncoding: 'MP3' }
-            })
-          });
-          const data = await response.json();
-          if (data.audioContent) {
-            const uri = `${FileSystem.cacheDirectory}speech_preload_${Date.now()}.mp3`;
-            await FileSystem.writeAsStringAsync(uri, data.audioContent, { encoding: FileSystem.EncodingType.Base64 });
-            return uri;
-          }
-        }
+      if (!isMuted) {
+        return await cloudTTSService.synthesize(cleanText, lang, settings as any, 'speech_preload');
       }
     } catch (e) {
       console.error('[VOICE] preloadSpeech Error:', e);
@@ -260,14 +211,7 @@ export function useVoice(lang: string = 'en', psyProfile?: { O: number, C: numbe
       return;
     }
 
-    const cleanText = text
-      .replace(/\[SISTEMA\].*$/gm, '')
-      .replace(/\[SYSTEM\].*$/gm, '')
-      .replace(/█/g, '')
-      .replace(/```[\s\S]*?```/g, '')
-      .replace(/\*\*/g, '')
-      .replace(/\*/g, '')
-      .trim();
+    const cleanText = sanitizeForNativeTTS(text);
 
     if (!cleanText) {
       safeOnDone();
@@ -298,13 +242,35 @@ export function useVoice(lang: string = 'en', psyProfile?: { O: number, C: numbe
     if (onDone) {
       const wordsCount = cleanText.split(/\s+/).length;
       const timeoutMs = Math.max(3500, wordsCount * 600 + 3000);
-      fallbackTimeoutId = setTimeout(() => {
+      fallbackTimeoutId = setTimeout(async () => {
         console.warn(`[VOICE_ROBUSTNESS] Speech fallback timeout reached (${timeoutMs}ms) for: "${cleanText.substring(0, 30)}...". Forcing safeOnDone.`);
+        try {
+          const settings = await getSettings();
+          if (!settings.useCloudTTS && selectedVoiceId) {
+            console.warn('[VOICE_ROBUSTNESS] Native TTS timed out. The selected voice might be corrupted. Reverting to default system voice.');
+            setSelectedVoiceId('');
+          }
+        } catch (e) { }
         safeOnDone();
       }, timeoutMs);
     }
 
     const performSpeak = async () => {
+      try {
+        await Audio.setAudioModeAsync({
+          allowsRecordingIOS: false,
+          playsInSilentModeIOS: true,
+          staysActiveInBackground: true,
+          shouldDuckAndroid: true,
+          interruptionModeAndroid: InterruptionModeAndroid.DuckOthers,
+          interruptionModeIOS: InterruptionModeIOS.DuckOthers,
+          playThroughEarpieceAndroid: false,
+        });
+        console.log('[VOICE] Audio mode configured for playback speaker.');
+      } catch (modeErr) {
+        console.warn('[VOICE] setAudioModeAsync error before speak:', modeErr);
+      }
+
       const playAudio = async (uri: string) => {
         try {
           if (soundRef.current) {
@@ -318,8 +284,22 @@ export function useVoice(lang: string = 'en', psyProfile?: { O: number, C: numbe
           }
           const { sound } = await Audio.Sound.createAsync({ uri }, { shouldPlay: true });
           soundRef.current = sound;
-          sound.setOnPlaybackStatusUpdate((status: any) => {
-            if (status.didJustFinish) {
+          sound.setOnPlaybackStatusUpdate(async (status: any) => {
+            if (status.isLoaded) {
+              if (status.didJustFinish) {
+                safeOnDone();
+                try {
+                  if (soundRef.current === sound) {
+                     soundRef.current = null;
+                  }
+                  await sound.unloadAsync();
+                  await cloudTTSService.cleanupAudioFile(uri);
+                } catch (e) {
+                  console.warn('[VOICE] Auto-cleanup error:', e);
+                }
+              }
+            } else if (status.error) {
+              console.error('[VOICE] Playback error:', status.error);
               safeOnDone();
             }
           });
@@ -340,67 +320,11 @@ export function useVoice(lang: string = 'en', psyProfile?: { O: number, C: numbe
 
       try {
         const settings = await getSettings();
-
-        let useCloud = settings.useCloudTTS || false;
-        let gKey = settings.cloudTTSKey || '';
-        let oKey = settings.openAIKey || '';
-        let cloudProvider = settings.cloudProvider || 'openai';
-
-        if (useCloud) {
-          if (isMuted) {
-            safeOnDone();
-            return;
-          }
-
-          // --- OPENAI ENGINE ---
-          if (cloudProvider === 'openai' && oKey) {
-            const response = await fetch('https://api.openai.com/v1/audio/speech', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${oKey}`
-              },
-              body: JSON.stringify({
-                model: 'tts-1',
-                input: cleanText,
-                voice: 'alloy'
-              })
-            });
-
-            const blob = await response.blob();
-            const reader = new FileReader();
-            const base64: string = await new Promise((resolve) => {
-              reader.onloadend = () => resolve(reader.result as string);
-              reader.readAsDataURL(blob);
-            });
-            const base64Data = base64.split(',')[1];
-            const uri = `${FileSystem.cacheDirectory}speech_o.mp3`;
-            await FileSystem.writeAsStringAsync(uri, base64Data, { encoding: FileSystem.EncodingType.Base64 });
+        if (settings.useCloudTTS && !isMuted) {
+          const uri = await cloudTTSService.synthesize(cleanText, lang, settings as any, 'speech_live');
+          if (uri) {
             await playAudio(uri);
             return;
-          }
-
-          // --- GOOGLE CLOUD ENGINE ---
-          if (cloudProvider === 'google' && gKey) {
-            const response = await fetch(`https://texttospeech.googleapis.com/v1/text:synthesize?key=${gKey}`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                input: { text: cleanText },
-                voice: {
-                  languageCode: lang === 'es' ? 'es-MX' : 'en-US',
-                  name: lang === 'es' ? 'es-MX-Neural2-A' : 'en-US-Neural2-F'
-                },
-                audioConfig: { audioEncoding: 'MP3' }
-              })
-            });
-            const data = await response.json();
-            if (data.audioContent) {
-              const uri = `${FileSystem.cacheDirectory}speech_g.mp3`;
-              await FileSystem.writeAsStringAsync(uri, data.audioContent, { encoding: FileSystem.EncodingType.Base64 });
-              await playAudio(uri);
-              return;
-            }
           }
         }
       } catch (e) {
@@ -416,10 +340,20 @@ export function useVoice(lang: string = 'en', psyProfile?: { O: number, C: numbe
 
       console.log('[VOICE] Using native TTS.');
 
+      let targetLanguage = lang === 'es' ? 'es-MX' : 'en-US';
+      if (availableVoices && availableVoices.length > 0) {
+        const matchingVoice = availableVoices.find(v => v.language.toLowerCase().startsWith(lang.toLowerCase()));
+        if (matchingVoice) {
+          targetLanguage = matchingVoice.language;
+          console.log(`[VOICE] Dynamic local language fallback selected: "${targetLanguage}"`);
+        }
+      }
+
       const speechOptions: Speech.SpeechOptions = {
-        language: lang === 'es' ? 'es-MX' : 'en-US',
+        language: targetLanguage,
         rate: speechOptionsLocal.rate,
         pitch: speechOptionsLocal.pitch,
+        volume: 1.0,
         onDone: () => {
           safeOnDone();
         },
@@ -433,8 +367,18 @@ export function useVoice(lang: string = 'en', psyProfile?: { O: number, C: numbe
         },
       };
 
-      if (selectedVoiceId) {
-        speechOptions.voice = selectedVoiceId;
+      let targetVoiceId: string | undefined = undefined;
+      if (selectedVoiceId && availableVoices.length > 0) {
+        const voiceExists = availableVoices.some(v => v.identifier === selectedVoiceId);
+        if (voiceExists) {
+          targetVoiceId = selectedVoiceId;
+        } else {
+          console.warn(`[VOICE] Selected voice ID "${selectedVoiceId}" is not available locally. Falling back to default.`);
+        }
+      }
+
+      if (targetVoiceId) {
+        speechOptions.voice = targetVoiceId;
       }
 
       try {
@@ -624,19 +568,7 @@ export function useVoice(lang: string = 'en', psyProfile?: { O: number, C: numbe
           if (!text) return;
 
           // Filter out typical Whisper silence/noise tags and repeating silence hallucinations
-          const cleanText = text
-            .replace(/\[BLANK_AUDIO\]/gi, '')
-            .replace(/\[silence\]/gi, '')
-            .replace(/\[\s*SILENCE\s*\]/gi, '')
-            .replace(/\(silence\)/gi, '')
-            .replace(/\b(silence)\b/gi, '')
-            .replace(/\b(blank_audio)\b/gi, '')
-            .replace(/pauses\s*\(silence\.?\s*microphone\s*is\s*waiting\.?\s*speak\s*to\s*start\.?/gi, '')
-            .replace(/microphone\s*is\s*waiting/gi, '')
-            .replace(/speak\s*to\s*start/gi, '')
-            .replace(/\bpauses\b/gi, '')
-            .replace(/\s+/g, ' ')
-            .trim();
+          const cleanText = SpeechFilter.cleanWhisperText(text);
 
           if (!cleanText) return;
 
@@ -652,7 +584,11 @@ export function useVoice(lang: string = 'en', psyProfile?: { O: number, C: numbe
           // Concatenate all slices in order of their index
           const concatenated = transcribedSlices.filter(Boolean).join(' ').trim();
 
-          setTranscript(concatenated);
+          const now = Date.now();
+          if (!isCapturing || now - lastTranscriptUpdateRef.current > 150) {
+            setTranscript(concatenated);
+            lastTranscriptUpdateRef.current = now;
+          }
 
           if (!isCapturing && onSpeechEnd) {
             onSpeechEnd(concatenated);
@@ -705,29 +641,34 @@ export function useVoice(lang: string = 'en', psyProfile?: { O: number, C: numbe
         }
 
         // Mutex Loop: Safely process the hardware restart and apply any pending levels that came in during the restart
-        let currentLevelToApply = level;
-
         while (true) {
-          isRestartingVadRef.current = true;
-          pendingVadLevelRef.current = null; // Clear pending state before starting the cycle
+          try {
+            isRestartingVadRef.current = true;
+            pendingVadLevelRef.current = null; // Clear pending state before starting the cycle
 
-          setIsInitializing(true);
-          await stopListening();
-          // Ensure native audio session fully unbinds
-          await new Promise(resolve => setTimeout(resolve, 300));
-          await startListening(
-            dictationCallbacksRef.current.onSpeechStart,
-            dictationCallbacksRef.current.onSpeechEnd,
-            dictationCallbacksRef.current.onProgress
-          );
-          setIsInitializing(false);
+            setIsInitializing(true);
+            await stopListening();
+            // Ensure native audio session fully unbinds
+            await new Promise(resolve => setTimeout(resolve, 300));
+            await startListening(
+              dictationCallbacksRef.current.onSpeechStart,
+              dictationCallbacksRef.current.onSpeechEnd,
+              dictationCallbacksRef.current.onProgress
+            );
+            setIsInitializing(false);
 
-          if (pendingVadLevelRef.current !== null) {
-            // Another change arrived while we were restarting. Repeat the cycle with the new level.
-            currentLevelToApply = pendingVadLevelRef.current;
-          } else {
-            // Clean exit, release the lock
+            if (pendingVadLevelRef.current !== null) {
+              // Another change arrived while we were restarting. Repeat the cycle with the new level.
+              // vadLevelRef is already updated synchronously in setVadLevel, so next loop will pick it up.
+            } else {
+              // Clean exit, release the lock
+              isRestartingVadRef.current = false;
+              break;
+            }
+          } catch (e) {
+            console.error('[USE_VOICE] Error inside VAD restart loop:', e);
             isRestartingVadRef.current = false;
+            setIsInitializing(false);
             break;
           }
         }

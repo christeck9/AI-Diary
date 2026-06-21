@@ -1132,6 +1132,16 @@ export default function NeuralLinkScreen() {
     return messages.filter(m => m.text.trim() !== '' || (m.role === 'ai' && isTyping && m === messages[messages.length - 1]));
   }, [messages, isTyping]);
 
+  const handleDeleteMessage = useCallback(async (msgId: string) => {
+    try {
+      if (db) {
+        await db.runAsync('DELETE FROM messages WHERE id = ?', [msgId]);
+        await db.runAsync('DELETE FROM memory_fts WHERE id = ?', [msgId]);
+      }
+      setMessages(prev => prev.filter(m => m.id !== msgId));
+    } catch (e) { console.error('Delete error:', e); }
+  }, [db]);
+
   const renderMessage = useCallback(({ item, index }: { item: Message, index: number }) => {
     const isLatest = index === filteredMessages.length - 1;
     return (
@@ -1143,7 +1153,6 @@ export default function NeuralLinkScreen() {
         isTyping={isTyping}
         processingPhase={processingPhase}
         lang={lang}
-        onReport={handleReportMessage}
         onAction={(action, msg) => {
           if (action === 'copy') {
              ExpoClipboard.setStringAsync(msg.text);
@@ -1167,16 +1176,6 @@ export default function NeuralLinkScreen() {
       />
     );
   }, [filteredMessages.length, colors, isTyping, processingPhase, lang, handleReportMessage, handleImagePress, isTypingRef, addSystemMessage, handleSend, handleDeleteMessage]);
-
-  const handleDeleteMessage = useCallback(async (msgId: string) => {
-    try {
-      if (db) {
-        await db.runAsync('DELETE FROM messages WHERE id = ?', [msgId]);
-        await db.runAsync('DELETE FROM memory_fts WHERE id = ?', [msgId]);
-      }
-      setMessages(prev => prev.filter(m => m.id !== msgId));
-    } catch (e) { console.error('Delete error:', e); }
-  }, [db]);
 
   const onKebabAction = useCallback(async (action: string) => {
     if (action === 'intro') openModal('intro');

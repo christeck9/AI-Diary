@@ -42,27 +42,31 @@ export const MessageItem = React.memo(({
     return (
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 10, paddingBottom: 20 }}>
         <TouchableOpacity style={styles.actionBtn} onPress={() => onAction('copy', item)}>
-          <IconSymbol name="doc.on.doc" size={22} color={colors.primary} />
+          <IconSymbol name="doc.on.doc" size={20} color={colors.primary} />
+          <Text style={[styles.actionLabel, { color: colors.primary }]}>{lang === 'es' ? 'Copiar' : 'Copy'}</Text>
         </TouchableOpacity>
         {isAi && (
           <TouchableOpacity style={styles.actionBtn} onPress={() => onAction('analyze', item)}>
-            <IconSymbol name="brain.head.profile" size={22} color={colors.secondary} />
+            <IconSymbol name="brain.head.profile" size={20} color={colors.secondary} />
+            <Text style={[styles.actionLabel, { color: colors.secondary }]}>{lang === 'es' ? 'Analizar' : 'Analyze'}</Text>
           </TouchableOpacity>
         )}
         {isAi && (
           <TouchableOpacity style={styles.actionBtn} onPress={() => onAction('report', item)}>
-            <IconSymbol name="exclamationmark.triangle" size={22} color="#D4A017" />
+            <IconSymbol name="exclamationmark.triangle" size={20} color="#D4A017" />
+            <Text style={[styles.actionLabel, { color: '#D4A017' }]}>{lang === 'es' ? 'Reportar' : 'Report'}</Text>
           </TouchableOpacity>
         )}
         <TouchableOpacity style={styles.actionBtn} onPress={() => onAction('delete', item)}>
-          <IconSymbol name="trash" size={22} color="#ff3b30" />
+          <IconSymbol name="trash" size={20} color="#ff3b30" />
+          <Text style={[styles.actionLabel, { color: '#ff3b30' }]}>{lang === 'es' ? 'Borrar' : 'Delete'}</Text>
         </TouchableOpacity>
       </View>
     );
   };
 
   const innerContent = (
-    <Swipeable renderRightActions={renderRightActions} overScrollMode="never" friction={2}>
+    <Swipeable renderRightActions={renderRightActions} friction={2}>
       <View style={[styles.messageWrapper, isAi ? styles.messageWrapperAi : styles.messageWrapperUser, item.status === 'pending' && { opacity: 0.5 }]}>
         {isAi && (
           <View style={[
@@ -185,5 +189,20 @@ const styles = StyleSheet.create({
   messageText: { fontSize: 16, lineHeight: 24 },
   imageTouchable: { width: 220, height: 160, borderRadius: 8, overflow: 'hidden', marginBottom: 10 },
   image: { width: '100%', height: '100%' },
-  actionBtn: { padding: 12, marginHorizontal: 2, borderRadius: 30, backgroundColor: 'rgba(0,0,0,0.05)', justifyContent: 'center', alignItems: 'center' },
+  actionBtn: {
+    paddingVertical: 8,
+    paddingHorizontal: 4,
+    marginHorizontal: 3,
+    borderRadius: 8,
+    backgroundColor: 'rgba(0,0,0,0.03)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    minWidth: 55,
+  },
+  actionLabel: {
+    fontSize: 9,
+    marginTop: 4,
+    fontWeight: '500',
+    textAlign: 'center',
+  },
 });
