@@ -34,6 +34,7 @@ interface ActiveSession {
 
 class UnifiedMicService {
   private activeSession: ActiveSession | null = null;
+  public lastAudioMode: 'recording' | 'playback' = 'playback';
 
   /**
    * Requests microphone permission from the OS.
@@ -81,10 +82,11 @@ class UnifiedMicService {
     },
     callback: MicCallback
   ): Promise<boolean> {
+    this.lastAudioMode = 'recording';
     if (this.activeSession && this.activeSession.caller !== caller) {
       console.warn(`[UnifiedMicService] Mic is busy (held by "${this.activeSession.caller}"). Programmatically stopping it for "${caller}".`);
       try {
-        this.activeSession.stopFn();
+        await this.activeSession.stopFn();
       } catch (e) {
         console.warn(`[UnifiedMicService] Failed to stop session for "${this.activeSession.caller}":`, e);
       }
@@ -95,8 +97,9 @@ class UnifiedMicService {
 
     // Stop any existing session from the same caller before starting a new one
     if (this.activeSession) {
-      try { this.activeSession.stopFn(); } catch (e) {}
+      try { await this.activeSession.stopFn(); } catch (e) {}
       this.activeSession = null;
+      await new Promise((resolve) => setTimeout(resolve, 250));
     }
 
     try {
@@ -197,10 +200,11 @@ class UnifiedMicService {
    * Automatically stops any existing session before registering.
    */
   async registerSession(caller: string, stopFn: () => void): Promise<boolean> {
+    this.lastAudioMode = 'recording';
     if (this.activeSession && this.activeSession.caller !== caller) {
       console.log(`[UnifiedMicService] Stopping active session of "${this.activeSession.caller}" for new caller "${caller}"`);
       try {
-        this.activeSession.stopFn();
+        await this.activeSession.stopFn();
       } catch (e) {
         console.warn(`[UnifiedMicService] Failed to stop session for "${this.activeSession.caller}":`, e);
       }
@@ -258,6 +262,7 @@ class UnifiedMicService {
       });
     } catch (e) {}
 
+    this.lastAudioMode = 'playback';
     console.log(`[UnifiedMicService] ⏹️ Session stopped for: "${caller}"`);
   }
 
@@ -291,6 +296,7 @@ class UnifiedMicService {
       console.warn('[UnifiedMicService] releaseAllAudioSessions audio mode reset failed:', e);
     }
 
+    this.lastAudioMode = 'playback';
     console.log('[UnifiedMicService] 🔓 All audio sessions released and audio mode reset.');
   }
 

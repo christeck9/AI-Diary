@@ -256,19 +256,22 @@ export function useVoice(lang: string = 'en', psyProfile?: { O: number, C: numbe
     }
 
     const performSpeak = async () => {
-      try {
-        await Audio.setAudioModeAsync({
-          allowsRecordingIOS: false,
-          playsInSilentModeIOS: true,
-          staysActiveInBackground: true,
-          shouldDuckAndroid: true,
-          interruptionModeAndroid: InterruptionModeAndroid.DuckOthers,
-          interruptionModeIOS: InterruptionModeIOS.DuckOthers,
-          playThroughEarpieceAndroid: false,
-        });
-        console.log('[VOICE] Audio mode configured for playback speaker.');
-      } catch (modeErr) {
-        console.warn('[VOICE] setAudioModeAsync error before speak:', modeErr);
+      if (micService.lastAudioMode !== 'playback') {
+        try {
+          await Audio.setAudioModeAsync({
+            allowsRecordingIOS: false,
+            playsInSilentModeIOS: true,
+            staysActiveInBackground: true,
+            shouldDuckAndroid: true,
+            interruptionModeAndroid: InterruptionModeAndroid.DuckOthers,
+            interruptionModeIOS: InterruptionModeIOS.DuckOthers,
+            playThroughEarpieceAndroid: false,
+          });
+          micService.lastAudioMode = 'playback';
+          console.log('[VOICE] Audio mode reset to playback speaker.');
+        } catch (modeErr) {
+          console.warn('[VOICE] setAudioModeAsync error before speak:', modeErr);
+        }
       }
 
       const playAudio = async (uri: string) => {
