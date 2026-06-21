@@ -577,6 +577,10 @@ export default function NeuralLinkScreen() {
     generateEmbeddings
   );
 
+  const filteredMessages = useMemo(() => {
+    return messages.filter(m => m.text.trim() !== '' || (m.role === 'ai' && isTyping && m === messages[messages.length - 1]));
+  }, [messages, isTyping]);
+
   const whispStatus = useMemo((): 'idle' | 'thinking' | 'tired' | 'happy' | 'listening' | 'speaking' => {
     if (voiceState === 'RECORDING' || dictation.isListening) return 'listening';
     if (isVoiceSpeaking || voiceState === 'SPEAKING') return 'speaking';
@@ -630,9 +634,16 @@ export default function NeuralLinkScreen() {
   }, [initNotification, whispStatus, processingPhase, isSearchingWeb, batteryLevel, activeModel, lang, activeTodo]);
 
   const isSendingRef = useRef(false);
+  const hasScrolledToBottomRef = useRef(false);
 
   useEffect(() => {
-    if (messages.length > 0) {
+    if (filteredMessages.length === 0) {
+      hasScrolledToBottomRef.current = false;
+    }
+  }, [filteredMessages.length]);
+
+  useEffect(() => {
+    if (messages.length > 0 && hasScrolledToBottomRef.current) {
       scrollToBottom(true);
     }
   }, [messages.length, isTyping, scrollToBottom]);
@@ -1128,10 +1139,6 @@ export default function NeuralLinkScreen() {
     setFullScreenImage(uri);
   }, []);
 
-  const filteredMessages = useMemo(() => {
-    return messages.filter(m => m.text.trim() !== '' || (m.role === 'ai' && isTyping && m === messages[messages.length - 1]));
-  }, [messages, isTyping]);
-
   const handleDeleteMessage = useCallback(async (msgId: string) => {
     try {
       if (db) {
@@ -1397,6 +1404,12 @@ export default function NeuralLinkScreen() {
               overScrollMode="never"
               bounces={false}
               extraData={{ isTyping, colors, activeTheme }}
+              onContentSizeChange={() => {
+                if (filteredMessages.length > 0 && !hasScrolledToBottomRef.current) {
+                  hasScrolledToBottomRef.current = true;
+                  scrollToBottom(false);
+                }
+              }}
               ListHeaderComponent={
                 (!isFiltering && messages.length >= messagesLimit) ? (
                   <TouchableOpacity
