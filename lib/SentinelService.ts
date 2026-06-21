@@ -109,18 +109,22 @@ export const buildHandshakeInjection = (
   lang: string = 'es'
 ): string => {
   const normalizedLang = lang.toLowerCase() === 'en' ? 'en' : 'es';
-  const isNull = context.liveData === "SENTINEL_NULL_DATA";
+  const isNull = !context.liveData || context.liveData === "SENTINEL_NULL_DATA" || context.liveData.includes("SENTINEL_NULL_DATA") || context.liveData === "NO_DATA";
   
   // 🛡️ Prevenir Prompt Injection: Sanitizar data de internet de cualquier secuencia de control
   const safeLiveData = isNull ? "" : sanitizeWebText(context.liveData).replace(/<\|?.*?\|?>/g, '').replace(/<(?:start|end)_of_[^>]+>/g, '');
 
   const verifiedData = isNull
-    ? (normalizedLang === 'en' ? "No verified external data found. Report that no verified information is available." : "No se encontró información externa verificada. Informa que no hay información verificada disponible.")
+    ? (normalizedLang === 'en' 
+        ? "No verified external data found. If the query is about general knowledge, history, or science, answer directly using your internal knowledge. Otherwise, state that no verified information is available." 
+        : "No se encontró información externa verificada. Si la consulta es sobre conocimiento general, historia o ciencia, responde directamente usando tu conocimiento interno. De lo contrario, indica que no hay información disponible.")
     : safeLiveData;
 
-  const bypassPhrase = normalizedLang === 'en'
-    ? "Reviewing the updated data for this specific query, I confirm that "
-    : "Revisando los datos actualizados para esta consulta específica, confirmo que ";
+  const bypassPhrase = isNull
+    ? (normalizedLang === 'en' ? "Regarding your query, " : "Con respecto a tu consulta, ")
+    : (normalizedLang === 'en'
+        ? "Reviewing the updated data for this specific query, I confirm that "
+        : "Revisando los datos actualizados para esta consulta específica, confirmo que ");
 
   if (arch === 'llama') {
     // Llama 3.2 1B Instruct: Epistemological tool boundary in ipython role to eliminate RAG dissonance
