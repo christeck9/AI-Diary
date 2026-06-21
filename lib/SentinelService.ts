@@ -4,7 +4,7 @@
  * Handles input/output dialect detection, intent analysis, and model-specific prompt formatting.
  */
 
-import { purifyQuery } from './TextUtils';
+import { purifyQuery, sanitizeWebText } from './TextUtils';
 
 export type SentinelStage = 'INBOUND' | 'PROCESS' | 'OUTBOUND' | 'UI_FILTER';
 export type SentinelStream = 'FAST_FACT' | 'DEEP_RESEARCH' | 'KNOWLEDGE' | 'BIBLIOGRAPHIC' | 'LOCAL_VAULT' | 'NONE';
@@ -23,26 +23,19 @@ interface DialectDefinition {
 }
 
 const DIALECTS: DialectDefinition[] = [
-  { id: 'GEMMA4_NATIVE', regex: /<\|tool_call\|>\s*search\s*\{\s*query\s*:\s*["']?([^"'}]+)["']?\s*\}\s*(?:<\/\|tool_call\|>|<\/tool_call>)?/i, stream: 'DEEP_RESEARCH' },
+  { id: 'LLAMA3_NATIVE', regex: /\{\s*"?query"?\s*:\s*["']?([^"'}]+)["']?\s*\}/i, stream: 'DEEP_RESEARCH' },
+  { id: 'GEMMA4_NATIVE', regex: /<\|tool_call>\s*search\s*\{\s*"?query"?\s*:\s*(?:<\|"\|>|["']|)?([^"'<>{}]+?)(?:<\|"\|>|["']|)\s*\}\s*(?:<tool_call\|>)?/i, stream: 'DEEP_RESEARCH' },
   { id: 'GEMMA3_SLIM', regex: /\[SEARCH:\s*["']?([^"\]]+)["']?\]/i, stream: 'DEEP_RESEARCH' },
-  { id: 'XML_PARTIAL', regex: /<call:[\w_]*/i, stream: 'DEEP_RESEARCH' },
   { id: 'XML_STRICT', regex: /<call:hybrid_search\{query:["']?([^"'>}]+)["']?\}?\/?>/i, stream: 'DEEP_RESEARCH' },
   { id: 'JSON_INTENT', regex: /\{query:["']?([^"'}]+)["']?\}/i, stream: 'DEEP_RESEARCH' },
-  // Se cambia a grupos de no captura (?:...) para forzar el uso de userQuery a todos los modelos
-  // { id: 'KNOWLEDGE_GAP', regex: /\b(?:knowledge cutoff|cannot provide|don't know|not sure|unsure|definitive answer|no internal information|no tengo información actualizada|frozen knowledge|parametric memory|beyond my training|training data cutoff|parametric knowledge|cutoff date|as of my training)\b/i, stream: 'FAST_FACT' },
   { id: 'PROTOCOL_TAG', regex: /(?:<start_function_call>|<tool_code>|!!SEARCH)\(?["']?([^"')]*)["']?\)?/i, stream: 'DEEP_RESEARCH' },
-  // { id: 'SENTINEL_QUERY', regex: /\[SENTINEL_QUERY\]:?\s*(.+)/i, stream: 'DEEP_RESEARCH' },
-  // Se cambia a grupos de no captura (?:...) para forzar el uso de userQuery a todos los modelos
-  // { id: 'FACT_TRIGGER', regex: /\b(?:who is|what is|precio de|clima en|weather in|capital of|age of|born in|quien es|que es|donde esta)\b/i, stream: 'FAST_FACT' },
-  // { id: 'BIBLIOGRAPHIC', regex: /\b(?:book|libro|tratado|treatise|author|autor|bibliography|bibliografia|codex)\b/i, stream: 'BIBLIOGRAPHIC' }
   { id: 'SENTINEL_QUERY', regex: /\[SENTINEL_QUERY\]:?\s*(.+)/i, stream: 'DEEP_RESEARCH' }
 ];
 
-const currentYear = new Date().getFullYear();
-const POST_RECENT_REGEX = new RegExp(`\\b(actual|news|current|hoy|today|now|ahorita|${currentYear - 2}|${currentYear - 1}|${currentYear}|${currentYear + 1}|precio|clima|weather|status|ahora|noticias|latest)\\b`, 'i');
-const FACTUAL_FORCE_REGEX = /\b(who is the current|what is the current|president of|prime minister of|who is|quien es|quién es|president|presidente|prime minister|primer ministro)\b/i;
-const QUICK_FACT_REGEX = /\b(precio|clima|weather|age|born)\b/i;
-const EXPLICIT_SEARCH_REGEX = /\b(investiga|invest[ií]game|investigaci[oó]n|research|search for|busca|find out)\b/i;
+const POST_RECENT_REGEX = /(?:^|\s)(news|noticias|latest|hoy|today|esta semana|this week|actualidad|actualizado|actualizada|lo [uú]ltimo|novedades|tendencias|trends)(?:\s|$)/i;
+const FACTUAL_FORCE_REGEX = /(?:^|\s)(who is the current|what is the current|president of|prime minister of|presidente de|primer ministro de)(?:\s|$)/i;
+const QUICK_FACT_REGEX = /(?:^|\s)(precio|clima|weather|age|born|valor|cotizaci[oó]n|d[oó]lar|euro|bitcoin|acciones de|partido de|resultado de|score of|match of)(?:\s|$)/i;
+const EXPLICIT_SEARCH_REGEX = /(?:^|\s)(investigar(?:lo|la|los|las|me|nos|se|te|les|le)?|invest[ií]game|invest[ií]ga(?:lo|la|los|las|me|nos|se|te|les|le)?|investigaci[oó]n|research|search for|buscar(?:lo|la|los|las|me|nos|se|te|les|le)?|busc[aá]me|b[uú]sca(?:lo|la|los|las|me|nos|se|te|les|le)?|b[uú]sque(?:lo|la|los|las|me|nos|se|te|les|le)?|find out|googl[eé]a(?:lo|la|los|las|me|nos|se|te|les|le)?|google|websearch|consultar(?:lo|la|los|las|me|nos|se|te|les|le)?|cons[uú]lta(?:lo|la|los|las|me|nos|se|te|les|le)?)(?:\s|$)/i;
 
 /**
  * processInbound - Detects intent across multiple dialects (v6.3 Cutoff-Aware)
@@ -117,9 +110,13 @@ export const buildHandshakeInjection = (
 ): string => {
   const normalizedLang = lang.toLowerCase() === 'en' ? 'en' : 'es';
   const isNull = context.liveData === "SENTINEL_NULL_DATA";
+  
+  // 🛡️ Prevenir Prompt Injection: Sanitizar data de internet de cualquier secuencia de control
+  const safeLiveData = isNull ? "" : sanitizeWebText(context.liveData).replace(/<\|?.*?\|?>/g, '').replace(/<(?:start|end)_of_[^>]+>/g, '');
+
   const verifiedData = isNull
     ? (normalizedLang === 'en' ? "No verified external data found. Report that no verified information is available." : "No se encontró información externa verificada. Informa que no hay información verificada disponible.")
-    : context.liveData;
+    : safeLiveData;
 
   const bypassPhrase = normalizedLang === 'en'
     ? "Reviewing the updated data for this specific query, I confirm that "
@@ -136,8 +133,8 @@ export const buildHandshakeInjection = (
 
   if (arch === 'gemma4') {
     // GEMMA 4 (E2B): Inyección Preemptiva de Función + Bypass de Negación Paramétrica
-    // Restores the `<|turn|>model` prefix so the tool call is correctly inside a model turn.
-    return `<|turn|>model\n<|tool_call|>search{query:<|"|>${context.query}<|"|>}</|tool_call|><|turn|>\n<|turn|>tool\n<|tool_response|>\n{\n  "name": "search",\n  "status": "${isNull ? 'failed' : 'success'}",\n  "verified_environment_data": ${JSON.stringify(verifiedData)}\n}\n</|tool_response|><|turn|>\n<|turn|>model\n${bypassPhrase}`;
+    // Se elimina el `<|turn>model` redundante ya que PromptService ya cerró el contexto.
+    return `<|tool_call>search{query:<|"|>${context.query}<|"|>}<tool_call|><turn|>\n<|turn>tool\n<|tool_response>\n{\n  "name": "search",\n  "status": "${isNull ? 'failed' : 'success'}",\n  "verified_environment_data": ${JSON.stringify(verifiedData)}\n}\n<tool_response|><turn|>\n<|turn>model\n${bypassPhrase}`;
   }
 
   // GEMMA 3 (4B): Inversión de Autoridad (Role-Swapping) + Bypass de Negación Paramétrica
@@ -158,8 +155,7 @@ export const buildHandshakeInjection = (
     ? `Based on the factual premise you just consolidated, answer my question: ${userMessage}`
     : `Basándote en la premisa factual que acabas de consolidar, responde a mi pregunta: ${userMessage}`;
 
-  return `<start_of_turn>model
-${memoryHeader}
+  return `${memoryHeader}
 ${verificationText}
 ${authorityOverride}<end_of_turn>
 <start_of_turn>user
@@ -174,8 +170,8 @@ ${transitionQuestion}<end_of_turn>
 export const purifyThoughts = (text: string): string => {
   if (!text) return '';
 
-  // 1. Explicit tags (Angle Brackets)
-  const tagMatch = text.match(/<(?:\|?thought\|?|\|?think\|?)>([\s\S]*?)(?:<\/(?:\|?thought\|?|\|?think\|?)>|$)/i);
+  // 1. Explicit tags (Angle Brackets) including Gemma 4 asymmetric delimiters
+  const tagMatch = text.match(/<(?:\|?thought\|?|\|?think\|?|\|channel>thought)>([\s\S]*?)(?:<\/(?:\|?thought\|?|\|?think\|?)>|<(?:thought|think|channel)\|>?|$)/i);
   if (tagMatch) {
     return tagMatch[1].replace(/^\s*>\s*/gm, '').trim();
   }
@@ -213,30 +209,34 @@ export const filterUI = (text: string, arch: 'gemma3' | 'gemma4' | 'llama' = 'ge
     .replace(/<pad>/gi, '')
     .replace(/<bos>/gi, '')
     .replace(/<eos>/gi, '')
+    .replace(/\b(?:unused\d{1,3}|pad|bos|eos)\b/gi, '')
+    .replace(/<(?:start_of_image|end_of_image|image_soft_token|unk|mask)>/gi, '')
     // ────────────────────────────────────────────────────────────────────────
     // Llama 3: strip header markers, EOT/EOM boundaries, and raw formatting
     .replace(/<\|begin_of_text\|>/gi, '')
     .replace(/<\|start_header_id\|>\s*(?:system|user|assistant|ipython)\s*<\|end_header_id\|>\s*\n?/gi, '')
     .replace(/<\|eot_id\|>|<\|eom_id\|>/gi, '')
-    // Gemma 3: strip full turn-marker + role label combos to prevent control token residue in TTS.
-    // Pattern: <start_of_turn>model, <start_of_turn>user, <end_of_turn> — including the newline.
+    // Gemma 3 & 4: strip turn-marker + role label combos to prevent control token residue in TTS.
+    // Pattern: <start_of_turn>model, <start_of_turn>user, <end_of_turn>, <|turn>user, <|turn>model, <|turn>system, <|turn>tool, <turn|>
     // These must be removed BEFORE the generic tag stripper, which only removes the tag itself.
     .replace(/<start_of_turn>\s*(?:model|user|system)\s*\n?/gi, '')
     .replace(/<end_of_turn>\s*\n?/gi, '')
+    .replace(/<\|turn>\s*(?:model|user|system|tool)\s*\n?/gi, '')
+    .replace(/<turn\|>\s*\n?/gi, '')
     // Generic turn/boundary token stripper (covers Gemma 4 |turn| variants and leftovers)
-    .replace(/<\|?start_of_(?:of_)?turn\|?>|<\|?end_of_(?:of_)?turn\|?>|<\|?im_(?:start|end)\|?>|<\|eot_id\|>|<\|?turn\|?>/gi, '')
+    .replace(/<\|?start_of_(?:of_)?turn\|?>|<\|?end_of_(?:of_)?turn\|?>|<\|?im_(?:start|end)\|?>|<\|eot_id\|>|<\|?turn\|?>|<turn\|>/gi, '')
     .replace(/<(?:start_function_call|end_function_call|start_function_response|end_function_response)>/gi, '')
     .replace(/!!SEARCH[\s\S]*?(?=\n|$)/gi, '')
     .replace(/\[SEARCH:\s*[^\]]*\]?/gi, '') // Strips Gemma 3 slim search tag
-    .replace(/<\|tool_call\|>[\s\S]*?(?:<\/\|tool_call\|>|<\/tool_call>|$)/gi, '') // Strips Gemma 4 tool call tag
+    .replace(/<\|tool_call>[\s\S]*?(?:<tool_call\|>|$)/gi, '') // Strips Gemma 4 tool call tag
     .replace(/\[SENTINEL_QUERY\]:?[\s\S]*?(?=\n|$)/gi, '')
     .replace(/\{query:[\s\S]*?(?=\n|$)/gi, '')
     .replace(/call:hybrid_search[\s\S]*?(?=\n|$)/gi, '')
     .replace(/\[TOOL_RESULT\]:[\s\S]*?(?=\n\n|$)/gi, '')
-    .replace(/<\|tool_response\|>[\s\S]*?(?:<\/\|tool_response\|>|<\/tool_response>|$)/gi, '');
+    .replace(/<\|tool_response>[\s\S]*?(?:<tool_response\|>|$)/gi, '');
 
-  // Remove thought blocks (complete angle brackets)
-  filtered = filtered.replace(/<(?:\|?\s*(?:thought|think|reasoning)\s*\|?)>[\s\S]*?<\/(?:\|?thought\|?|\|?think\|?)>/gi, '');
+  // Remove thought blocks (complete angle brackets including Gemma 4 asymmetric delimiters)
+  filtered = filtered.replace(/<(?:\|?\s*(?:thought|think|reasoning)\s*\|?|\|channel>thought)>[\s\S]*?(?:<\/(?:\|?thought\|?|\|?think\|?)>|<(?:thought|think|channel)\|>?)/gi, '');
   // Remove thought blocks (complete square brackets)
   filtered = filtered.replace(/\[(?:thought|think|reasoning)\][\s\S]*?\[\/(?:thought|think|reasoning)\]/gi, '');
 
@@ -244,8 +244,11 @@ export const filterUI = (text: string, arch: 'gemma3' | 'gemma4' | 'llama' = 'ge
   filtered = filtered.replace(/<(?:\|?\s*(?:thought|think|reasoning)\s*\|?)>[\s\S]*$/gi, '');
   filtered = filtered.replace(/\[(?:thought|think|reasoning)\][\s\S]*$/gi, '');
 
-  // Remove heuristic reasoning headers (AI slop) globally for both architectures
-  filtered = filtered.replace(/^(?:\s*>\s*)?(?:\d+\.\s+)?(?:\*\*)?(?:Reason|Thought|Thinking(?: [pP]rocess)?|Analysis|Analyze|Explanation|Acknowledge|Plan|Search|Verify|Report|Goal|Step|Process|Objective)(?:\*\*)?:?[\s\S]*?(?=\b!!SEARCH\b|\bcall:\b|\{query:|\[SENTINEL_QUERY\]|$)/gim, '');
+  // 1. Regla Inequívoca: Palabras 100% slop de razonamiento (removido el |$ para evitar tragar la respuesta completa)
+  filtered = filtered.replace(/^\s*(?:\s*>\s*)?(?:\d+\.\s+)?(?:\*\*)?(?:Reason|Thought|Thinking(?: [pP]rocess)?|Analysis|Analyze|Explanation)(?:\*\*)?:?[\s\S]*?(?=\b!!SEARCH\b|\bcall:\b|\{query:|\[SENTINEL_QUERY\])/gi, '');
+
+  // 2. Regla Condicionada (Sin el |$): Palabras que podrían ser parte de un texto legítimo
+  filtered = filtered.replace(/^\s*(?:\s*>\s*)?(?:\d+\.\s+)?(?:\*\*)?(?:Acknowledge|Plan|Search|Verify|Report|Goal|Step|Process|Objective)(?:\*\*)?:?[\s\S]*?(?=\b!!SEARCH\b|\bcall:\b|\{query:|\[SENTINEL_QUERY\])/gi, '');
 
   // Remove rule injections (persona leaks)
   filtered = filtered.replace(/\[\[RULE:[\s\S]*?\]\]/gi, '');
