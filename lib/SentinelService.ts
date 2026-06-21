@@ -35,7 +35,7 @@ const DIALECTS: DialectDefinition[] = [
 const POST_RECENT_REGEX = /(?:^|\s)(news|noticias|latest|hoy|today|esta semana|this week|actualidad|actualizado|actualizada|lo [uú]ltimo|novedades|tendencias|trends)(?:\s|$)/i;
 const FACTUAL_FORCE_REGEX = /(?:^|\s)(who is the current|what is the current|president of|prime minister of|presidente de|primer ministro de)(?:\s|$)/i;
 const QUICK_FACT_REGEX = /(?:^|\s)(precio|clima|weather|age|born|valor|cotizaci[oó]n|d[oó]lar|euro|bitcoin|acciones de|partido de|resultado de|score of|match of)(?:\s|$)/i;
-const EXPLICIT_SEARCH_REGEX = /(?:^|\s)(investigar(?:lo|la|los|las|me|nos|se|te|les|le)?|invest[ií]game|invest[ií]ga(?:lo|la|los|las|me|nos|se|te|les|le)?|investigaci[oó]n|research|search for|buscar(?:lo|la|los|las|me|nos|se|te|les|le)?|busc[aá]me|b[uú]sca(?:lo|la|los|las|me|nos|se|te|les|le)?|b[uú]sque(?:lo|la|los|las|me|nos|se|te|les|le)?|find out|googl[eé]a(?:lo|la|los|las|me|nos|se|te|les|le)?|google|websearch|consultar(?:lo|la|los|las|me|nos|se|te|les|le)?|cons[uú]lta(?:lo|la|los|las|me|nos|se|te|les|le)?)(?:\s|$)/i;
+const EXPLICIT_SEARCH_REGEX = /(?:^|\s)(invest[ií]ga(?:lo|la|los|las|me|nos|se|te|les|le)?|investigar(?:lo|la|los|las|me|nos|se|te|les|le)?|investigaci[oó]n|research|search for|buscar(?:lo|la|los|las|me|nos|se|te|les|le)?|b[uú]sca(?:lo|la|los|las|me|nos|se|te|les|le)?|b[uú]sque(?:lo|la|los|las|me|nos|se|te|les|le)?|find out|googl[eé]a(?:lo|la|los|las|me|nos|se|te|les|le)?|google|websearch|consultar(?:lo|la|los|las|me|nos|se|te|les|le)?|cons[uú]lta(?:lo|la|los|las|me|nos|se|te|les|le)?)(?:\s|$)/i;
 
 /**
  * processInbound - Detects intent across multiple dialects (v6.3 Cutoff-Aware)
