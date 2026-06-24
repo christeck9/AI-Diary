@@ -12,7 +12,8 @@ import { factExtractionService } from '../lib/FactExtractionService';
 import { WisdomService } from '../lib/WisdomService';
 import { contextFoldingService } from '../lib/ContextFoldingService';
 import { createKnowledgeManager } from '../lib/KnowledgeManager';
-import { plantSeed, growFlora, updateTreeAttribute } from '../db/zenGardenSchema';
+import { badgeService } from '../lib/BadgeService';
+
 import * as SQLite from 'expo-sqlite';
 import { settingsService } from '../lib/SettingsService';
 
@@ -58,7 +59,8 @@ export const useAgentEngine = (
     binaryBuffer?: Uint8Array,
     consciousnessLevel?: number,
     forceHighTemperature?: boolean,
-    forceDeterminism?: boolean
+    forceDeterminism?: boolean,
+    isVoiceMode?: boolean
   ) => Promise<string>,
   userProfile: UserProfile,
   psyProfile: PsyProfile,
@@ -84,7 +86,8 @@ export const useAgentEngine = (
 
   const [isProcessing, setIsProcessing] = useState(false);
   const [isSearchingWeb, setIsSearchingWeb] = useState(false);
-  const [searchingStep, setSearchingStep] = useState<'idle' | 'searching' | 'processing' | 'synthesizing'>('idle');
+  const [searchingStep, setSearchingStep] = useState<string>('');
+  const [earnedBadge, setEarnedBadge] = useState<{ emoji: string, name: string, count: number } | null>(null);
   const [processingPhase, setProcessingPhase] = useState<'idle' | 'reading_file' | 'indexing' | 'generating' | 'thinking'>('idle');
   // Gemma 4 reasoning indicator: true while the model is inside <|think|>...</|think|> block.
   // Prevents the TTS from firing and signals the UI to show a "Thinking..." indicator.
@@ -153,12 +156,28 @@ export const useAgentEngine = (
     userText: string,
     messageId: string,
     setMessagesUI: any,
-    attachedFile?: any,
-    isVoice: boolean = false,
-    consciousness: number = 2,
-    onSentenceGenerated?: (sentence: string) => void,
-    onClearSpeechQueue?: () => void
+    options?: {
+      attachedFile?: any;
+      isVoice?: boolean;
+      consciousness?: number;
+      onSentenceGenerated?: (sentence: string) => void;
+      onClearSpeechQueue?: () => void;
+    }
   ) => {
+    const attachedFile = options?.attachedFile;
+    const isVoice = options?.isVoice ?? false;
+    const consciousness = options?.consciousness ?? 2;
+    const onSentenceGenerated = options?.onSentenceGenerated;
+    const onClearSpeechQueue = options?.onClearSpeechQueue;
+
+    let useCloudTTS = false;
+    try {
+      const settings = await settingsService.get();
+      useCloudTTS = settings?.useCloudTTS ?? false;
+    } catch (err) {
+      console.warn('[AGENT_ENGINE] Failed to load settings:', err);
+    }
+
     // Mutex lock: React state (isProcessing) is asynchronous and can allow race conditions
     // if two calls happen in the same tick. isTypingRef updates synchronously.
     if (isTypingRef.current) return;
@@ -233,42 +252,9 @@ export const useAgentEngine = (
 
     const arch = getSanctuaryArchitecture();
 
-    // ═══ Speech Pipelining Configuration ═══ Velocity Manager (v3)
-    let useCloudTTS = false;
-    try {
-      const settings = await settingsService.get();
-      useCloudTTS = settings?.useCloudTTS || false;
-    } catch (e) {
-      console.warn('[SPEECH_PIPELINE] Error reading settings:', e);
-    }
-
-    // Dynamic Speed Profiler (TPS) state
-    let firstTokenTime = 0;
-    const tokenTimestamps: number[] = [];
-    let currentTps = 8; // Default initial guess
-
-    // Initial default TPS based on model architecture
-    if (arch === 'llama') currentTps = 15;
-    else if (arch === 'gemma3') currentTps = 4;
-    else if (arch === 'gemma4') currentTps = 6;
-
-    // Adaptive chunking settings (mutable variables, updated on token stream)
-    let FIRST_CHUNK_MIN_WORDS = 8;
-    let FIRST_CHUNK_MAX_WORDS = 15;
-    let MIN_SENTENCE_WORDS = 8;
-    const FLUSH_TIMEOUT_MS = 1500;     // Time before forcing a flush on slow models (was 1800ms)
-    const MIN_FLUSH_LENGTH = 15;       // Minimum chars to flush (was 15)
-
-    const getSpeechChunkingMode = () => {
-      if (useCloudTTS) {
-        if (currentTps >= 12) return 'FLUID';
-        if (currentTps >= 6) return 'SENTENCE_TO_SENTENCE';
-        return 'PUNCTUATION_TO_PUNCTUATION';
-      } else {
-        if (currentTps >= 8) return 'FLUID';
-        return 'PUNCTUATION_TO_PUNCTUATION';
-      }
-    };
+    // ═══ Speech Pipelining Configuration ═══
+    const FLUSH_TIMEOUT_MS = 2500;     // Max silence: flush accumulated text after 2.5s
+    const MIN_FLUSH_LENGTH = 15;       // Minimum chars to justify a timeout flush
 
     let isFirstSpeechChunk = true;
     let lastSentenceEmitTime = Date.now();
@@ -300,7 +286,7 @@ export const useAgentEngine = (
     const complexityMap: Record<number, PromptComplexity> = {
       1: PromptComplexity.LOW,
       2: PromptComplexity.MEDIUM,
-      3: PromptComplexity.HIGH,
+      3: PromptComplexity.MEDIUM,
       4: PromptComplexity.HIGH
     };
     const complexity = complexityMap[consciousness] || PromptComplexity.MEDIUM;
@@ -532,25 +518,6 @@ export const useAgentEngine = (
             fullResponse += partial;
             tokenCountRef.current++;
 
-            // Reset the flush timer on every received token so it only triggers
-            // if the model stops streaming for too long.
-            resetFlushTimer();
-
-            // Profile generation speed (TPS) on the first 6 tokens
-            if (firstTokenTime === 0) {
-              firstTokenTime = Date.now();
-            }
-            if (tokenTimestamps.length < 6) {
-              tokenTimestamps.push(Date.now());
-              if (tokenTimestamps.length === 6) {
-                const diff = tokenTimestamps[5] - tokenTimestamps[0];
-                if (diff > 0) {
-                  currentTps = (5 * 1000) / diff;
-                  console.log(`[SPEECH_PIPELINE] 🏎️ Profiler: Measured speed = ${currentTps.toFixed(2)} TPS (model: ${arch})`);
-                }
-              }
-            }
-
             // Gemma 4 Thinking Indicator: detect <|think|> open/close tags in the streamed response.
             // When the think block opens, raise isThinking so the UI can show a reasoning indicator.
             // When it closes (or first real text arrives after the block), lower isThinking.
@@ -570,109 +537,46 @@ export const useAgentEngine = (
               const cleanText = previousRoundsCleanText + roundClean;
               const pending = cleanText.substring(globalSentenceOffset);
 
-              // Update speech pipelining parameters dynamically based on current TPS and TTS engine
-              const speechMode = getSpeechChunkingMode();
-              if (speechMode === 'PUNCTUATION_TO_PUNCTUATION') {
-                FIRST_CHUNK_MIN_WORDS = 3;
-                FIRST_CHUNK_MAX_WORDS = 10;
-                MIN_SENTENCE_WORDS = 3;
-              } else if (speechMode === 'SENTENCE_TO_SENTENCE') {
-                FIRST_CHUNK_MIN_WORDS = 6;
-                FIRST_CHUNK_MAX_WORDS = 12;
-                MIN_SENTENCE_WORDS = 6;
-              } else { // FLUID
-                FIRST_CHUNK_MIN_WORDS = 8;
-                FIRST_CHUNK_MAX_WORDS = 15;
-                MIN_SENTENCE_WORDS = 8;
-              }
+              // ═══ Semantic Boundary Detection (SBD) ═══
+              // If using Cloud TTS, do not split on commas since SSML wraps commas in break tags.
+              const delimiters = (isVoice && useCloudTTS)
+                ? ['.', '?', '!', '\n']
+                : ['.', '?', '!', '\n', ','];
+              let idx = globalSentenceOffset;
+              while (idx < cleanText.length) {
+                const char = cleanText[idx];
+                const isNumberSeparator = (char === '.' || char === ',') &&
+                  idx > 0 && /\d/.test(cleanText[idx - 1]) &&
+                  idx + 1 < cleanText.length && /\d/.test(cleanText[idx + 1]);
+                const isEllipsisInProgress = char === '.' && idx + 1 < cleanText.length && cleanText[idx + 1] === '.';
 
-              if (isFirstSpeechChunk) {
-                // ═══ MODE A: Word-Count Trigger (first chunk only) ═══
-                const words = pending.split(/\s+/).filter(w => w.length > 0);
-                if (words.length >= FIRST_CHUNK_MIN_WORDS) {
-                  let splitAt = -1;
-                  for (let i = 0; i < pending.length; i++) {
-                    const c = pending[i];
-                    if ([',', '.', '!', '?', ':', '\n'].includes(c)) {
-                      const beforeBreak = pending.substring(0, i + 1).trim();
-                      const beforeWords = beforeBreak.split(/\s+/).filter(w => w.length > 0);
-                      if (beforeWords.length >= FIRST_CHUNK_MIN_WORDS) {
-                        splitAt = globalSentenceOffset + i + 1;
-                        break;
-                      }
-                    }
+                if (delimiters.includes(char) && !isNumberSeparator && !isEllipsisInProgress) {
+                  const sentence = cleanText.substring(globalSentenceOffset, idx + 1).trim();
+                  if (sentence.length > 0) {
+                    activeOnSentenceGenerated(sentence);
+                    lastSentenceEmitTime = Date.now();
+                    resetFlushTimer();
+                    isFirstSpeechChunk = false;
                   }
-
-                  if (splitAt < 0 && words.length >= FIRST_CHUNK_MAX_WORDS) {
-                    const match = pending.match(new RegExp("^(\\s*\\S+){" + FIRST_CHUNK_MAX_WORDS + "}"));
-                    if (match) {
-                      splitAt = globalSentenceOffset + match[0].length;
-                    }
-                  }
-
-                  if (splitAt > globalSentenceOffset) {
-                    const chunk = cleanText.substring(globalSentenceOffset, splitAt).trim();
-                    if (chunk.length > 0) {
-                      activeOnSentenceGenerated(chunk);
-                      globalSentenceOffset = splitAt;
-                      isFirstSpeechChunk = false;
-                      lastSentenceEmitTime = Date.now();
-                      resetFlushTimer();
-                    }
-                  }
+                  globalSentenceOffset = idx + 1;
                 }
-              } else {
-                // ═══ MODE B: Accumulator-Based Trigger (all subsequent chunks) ═══
-                // Dynamic delimiters and thresholds based on speed profiling
-                const strongDelimiters = speechMode === 'PUNCTUATION_TO_PUNCTUATION'
-                  ? ['.', '?', '!', '\n', ',']
-                  : ['.', '?', '!', '\n'];
-                const softDelimiters = speechMode === 'PUNCTUATION_TO_PUNCTUATION'
-                  ? [';', ':']
-                  : (speechMode === 'SENTENCE_TO_SENTENCE' ? [] : [';', ':']);
-
-                let idx = globalSentenceOffset;
-                while (idx < cleanText.length) {
-                  const char = cleanText[idx];
-                  const isNumberSeparator = (char === '.' || char === ',') &&
-                    idx > 0 && /\d/.test(cleanText[idx - 1]) &&
-                    idx + 1 < cleanText.length && /\d/.test(cleanText[idx + 1]);
-                  const isEllipsisInProgress = char === '.' && idx + 1 < cleanText.length && cleanText[idx + 1] === '.';
-
-                  const isStrong = strongDelimiters.includes(char) && !isNumberSeparator && !isEllipsisInProgress;
-                  const isSoft = softDelimiters.includes(char);
-
-                  if (isStrong || isSoft) {
-                    const pending = cleanText.substring(globalSentenceOffset, idx + 1).trim();
-                    const pendingWords = pending.split(/\s+/).filter(w => w.length > 0).length;
-                    // Strong delimiter: emit if ≥ MIN_SENTENCE_WORDS
-                    // Soft delimiter: emit only if ≥ MIN_SENTENCE_WORDS * 2 (commas etc. need more)
-                    const threshold = isStrong ? MIN_SENTENCE_WORDS : MIN_SENTENCE_WORDS * 2;
-                    // Hard cap: always emit if pending is very long (avoids indefinite accumulation)
-                    const hardCap = FIRST_CHUNK_MAX_WORDS * 2;
-                    if ((pendingWords >= threshold || pendingWords >= hardCap) && pending.length > 0) {
-                      activeOnSentenceGenerated(pending);
-                      lastSentenceEmitTime = Date.now();
-                      globalSentenceOffset = idx + 1;
-                      resetFlushTimer();
-                    }
-                  }
-                  idx++;
-                }
+                idx++;
               }
             }
 
             if (!roundSearchTriggered && roundResponse.length > 20) {
-              // Strip thoughts (closed or unclosed) to prevent Sentinel from scanning internal reasoning
-              const textForSentinel = roundResponse
-                .replace(/<(?:\|?thought\|?|\|?think\|?)>[\s\S]*?(?:<\/(?:\|?thought\|?|\|?think\|?)>|$)/gi, '');
+              // If a formal tool call is detected, do NOT strip thought blocks, otherwise Sentinel cannot detect the call
+              const hasFormalToolCall = /<\|tool_call>|!!SEARCH|\[SEARCH:|<call:hybrid_search|\{query:|\[SENTINEL_QUERY\]/i.test(roundResponse);
+              const textForSentinel = hasFormalToolCall
+                ? roundResponse
+                : roundResponse.replace(/<(?:\|?thought\|?|\|?think\|?)>[\s\S]*?(?:<\/(?:\|?thought\|?|\|?think\|?)>|$)/gi, '');
 
               if (textForSentinel.length > 20) {
                 const inbound = SentinelService.processInbound(textForSentinel, userText);
 
                 // 🛡️ Prevent proactive search loop: only allow PROACTIVE_CURRENCY_CHECK on the first round (toolRounds === 0)
                 const shouldTrigger = inbound.detected &&
-                  (inbound.dialect !== 'PROACTIVE_CURRENCY_CHECK' || toolRounds === 0);
+                   (inbound.dialect !== 'PROACTIVE_CURRENCY_CHECK' || toolRounds === 0);
 
                 if (shouldTrigger) {
                   console.log(`[SENTINEL_RACING] 🏎️ Round ${toolRounds + 1} - Probe started [${inbound.stream}]: "${inbound.query}"`);
@@ -699,6 +603,11 @@ export const useAgentEngine = (
             // Round synchronization (Hybrid: by search completion or explicit tokens)
             if (roundSearchTriggered && (searchResult !== null || /<\/thought>|<start_function_call>|<call:|!!SEARCH/i.test(roundResponse))) {
               await abortGeneration();
+
+              if (isThinkingRef.current) {
+                isThinkingRef.current = false;
+                setIsThinking(false);
+              }
 
               if (onClearSpeechQueue) {
                 onClearSpeechQueue();
@@ -740,7 +649,8 @@ export const useAgentEngine = (
           attachedFile?.type === 'image' ? attachedFile.binaryBuffer : undefined,
           consciousness,
           false,
-          toolRounds > 0 // forceDeterminism
+          toolRounds > 0, // forceDeterminism
+          isVoice
         );
 
         if (flushTimerId) {
@@ -884,24 +794,7 @@ export const useAgentEngine = (
 
           finalText = SentinelService.filterUI(fullResponse, arch);
 
-          // 🌿 Persist Zen Garden state if payload exists
-          if (zenPayload && zenPayload.plant && zenPayload.plant !== 'none') {
-            try {
-              const cat = zenPayload.category || null;
-              const lbl = zenPayload.label || null;
-              if (zenPayload.plant === 'seed') {
-                await plantSeed(db, modelResponseId, cat, lbl);
-              } else {
-                await growFlora(db, zenPayload.plant, modelResponseId, cat, lbl);
-              }
-              if (zenPayload.attribute && typeof zenPayload.value === 'number') {
-                await updateTreeAttribute(db, zenPayload.attribute, zenPayload.value);
-              }
-              console.log(`[AGENT_ENGINE] 🌿 Zen Garden Updated: ${zenPayload.plant} / ${zenPayload.attribute} +${zenPayload.value} (${cat}:${lbl})`);
-            } catch (e) {
-              console.error('[AGENT_ENGINE] Error saving Zen Garden state:', e);
-            }
-          }
+
 
           // FIX BUG: Push the final completed text to the UI to overwrite the typing stream!
           setMessagesUI((prev: any) => {
@@ -941,8 +834,20 @@ export const useAgentEngine = (
       if (llamaContextRef?.current && finalText && db) {
         (async () => {
           try {
+            if (isVoice) {
+              console.log('[AGENT_ENGINE] ⏳ Voice mode active: deferring background tasks by 35s to clear TTS path...');
+              await new Promise(resolve => setTimeout(resolve, 35000));
+            }
             console.log('[AGENT_ENGINE] 🧠 Starting background fact extraction...');
             await factExtractionService.extractFacts(llamaContextRef.current, userText, finalText, db);
+
+            console.log('[AGENT_ENGINE] 🏆 Starting background badge evaluation...');
+            const badge = await badgeService.evaluateConversation(llamaContextRef.current, userText, finalText, db);
+            if (badge) {
+              setEarnedBadge(badge);
+              // Clear the badge UI after 6 seconds
+              setTimeout(() => setEarnedBadge(null), 6000);
+            }
 
             // 🗜️ Context Folding: If messages dropped, compress them in episodic memory
             if (messagesToDrop.length > 0) {
@@ -970,6 +875,7 @@ export const useAgentEngine = (
     isTypingRef,
     queueRef,
     stopGeneration,
-    registerInterruption
+    registerInterruption,
+    earnedBadge
   };
 };

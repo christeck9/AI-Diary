@@ -7,6 +7,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import * as Speech from 'expo-speech';
 import * as FileSystem from 'expo-file-system';
+import AnimaVoice from '../modules/anima-voice/src/AnimaVoiceModule';
 import { initWhisper } from 'whisper.rn';
 import { Audio, InterruptionModeAndroid, InterruptionModeIOS } from 'expo-av';
 import { PermissionsAndroid, Platform } from 'react-native';
@@ -66,6 +67,7 @@ export function useVoice(lang: string = 'en', psyProfile?: { O: number, C: numbe
   const [selectedOfflineSpeakerId, setSelectedOfflineSpeakerId] = useSafeState<number>(0);
   const whisperContextRef = useRef<any>(null);
   const soundRef = useRef<Audio.Sound | null>(null);
+  const currentPlayUriRef = useRef<string | null>(null);
 
   // ── Mutex & Debounce Refs for VAD Sensitivity Changes ──
   const vadDebounceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -171,7 +173,7 @@ export function useVoice(lang: string = 'en', psyProfile?: { O: number, C: numbe
   }, [lang, availableVoices, selectedVoiceId]);
 
   // ── TTS Controls ──
-  const preloadSpeech = useCallback(async (text: string): Promise<string | null> => {
+  const preloadSpeech = useCallback(async (text: string): Promise<string | Float32Array | null> => {
     if (isMuted || !ttsEnabled || !(text || "").trim()) {
       return null;
     }
@@ -183,6 +185,23 @@ export function useVoice(lang: string = 'en', psyProfile?: { O: number, C: numbe
     try {
       const settings = await getSettings();
       if (!isMuted) {
+        if (typeof (global as any).animaFeedAudioChunk === 'function') {
+          if (settings.useCloudTTS) {
+            return await cloudTTSService.synthesizeJSI(cleanText, lang, settings as any);
+          } else {
+            try {
+              const uint8Array = await AnimaVoice.synthesizeNativeToPCM(cleanText, lang);
+              const int16Array = new Int16Array(uint8Array.buffer, uint8Array.byteOffset, uint8Array.length / 2);
+              const float32Array = new Float32Array(int16Array.length);
+              for (let i = 0; i < int16Array.length; i++) {
+                float32Array[i] = int16Array[i] / 32768.0;
+              }
+              return float32Array;
+            } catch (nativeErr) {
+               // Fallthrough to null and classic playback
+            }
+          }
+        }
         return await cloudTTSService.synthesize(cleanText, lang, settings as any, 'speech_preload');
       }
     } catch (e) {
@@ -191,7 +210,7 @@ export function useVoice(lang: string = 'en', psyProfile?: { O: number, C: numbe
     return null;
   }, [lang, ttsEnabled, isMuted]);
 
-  const speak = useCallback((text: string, dynamicPsyProfile?: typeof psyProfile, onDone?: () => void, preloadedUri?: string | null) => {
+  const speak = useCallback((text: string, dynamicPsyProfile?: typeof psyProfile, onDone?: () => void, preloadedData?: string | Float32Array | null) => {
     let onDoneCalled = false;
     let fallbackTimeoutId: NodeJS.Timeout | null = null;
 
@@ -256,6 +275,49 @@ export function useVoice(lang: string = 'en', psyProfile?: { O: number, C: numbe
     }
 
     const performSpeak = async () => {
+      // 🚀 ZERO LATENCY FAST PATH (JSI + Oboe C++)
+      if (typeof (global as any).animaFeedAudioChunk === 'function') {
+        try {
+          let float32Array: Float32Array | null = null;
+          if (preloadedData && preloadedData instanceof Float32Array) {
+            float32Array = preloadedData;
+          } else {
+            const settings = await getSettings();
+            if (settings.useCloudTTS && !isMuted) {
+              float32Array = await cloudTTSService.synthesizeJSI(cleanText, lang, settings as any);
+            } else if (!isMuted) {
+              // 🚀 NATIVE TTS JSI FAST PATH (GAPLESS)
+              try {
+                console.log('[VOICE] ⚡ Synthesizing Native TTS to PCM...');
+                const uint8Array = await AnimaVoice.synthesizeNativeToPCM(cleanText, lang);
+                // Convert Int16 (Uint8 bytes) to Float32
+                const int16Array = new Int16Array(uint8Array.buffer, uint8Array.byteOffset, uint8Array.length / 2);
+                float32Array = new Float32Array(int16Array.length);
+                for (let i = 0; i < int16Array.length; i++) {
+                  float32Array[i] = int16Array[i] / 32768.0;
+                }
+              } catch (nativeErr) {
+                console.warn('[VOICE] Native PCM synthesis failed, falling back to expo-speech:', nativeErr);
+              }
+            }
+          }
+
+          if (float32Array) {
+            console.log('[VOICE] ⚡ Pushing audio buffer via zero-latency JSI bridge.');
+            (global as any).animaFeedAudioChunk(float32Array.buffer);
+            
+            // Simulate playback completion based on audio duration (24kHz)
+            const durationMs = (float32Array.length / 24000) * 1000;
+            setTimeout(() => {
+              safeOnDone();
+            }, durationMs);
+            return;
+          }
+        } catch (e) {
+          console.error('[VOICE] JSI Pipeline Error:', e);
+        }
+      }
+
       if (micService.lastAudioMode !== 'playback') {
         try {
           await Audio.setAudioModeAsync({
@@ -276,24 +338,49 @@ export function useVoice(lang: string = 'en', psyProfile?: { O: number, C: numbe
 
       const playAudio = async (uri: string) => {
         try {
-          if (soundRef.current) {
-            const soundToUnload = soundRef.current;
-            soundRef.current = null;
-            try {
-              await soundToUnload.unloadAsync();
-            } catch (e) {
-              console.warn('[VOICE] playAudio unloadAsync error:', e);
-            }
-          }
           const { sound } = await Audio.Sound.createAsync({ uri }, { shouldPlay: true });
+          
+          const oldSound = soundRef.current;
+          const oldUri = currentPlayUriRef.current;
+          
           soundRef.current = sound;
+          currentPlayUriRef.current = uri;
+          
+          if (oldSound) {
+            // Unload the old sound asynchronously after a short overlap to prevent audio cut-off
+            setTimeout(async () => {
+              try {
+                await oldSound.unloadAsync();
+                if (oldUri) {
+                  await cloudTTSService.cleanupAudioFile(oldUri);
+                }
+              } catch (e) {
+                console.warn('[VOICE] Async oldSound unload error:', e);
+              }
+            }, 250);
+          }
+
+          let earlyTriggered = false;
+
           sound.setOnPlaybackStatusUpdate(async (status: any) => {
             if (status.isLoaded) {
+              // Early trigger: call safeOnDone() slightly before current audio finishes
+              // so the next audio starts loading in parallel, matching the loading time perfectly
+              if (status.durationMillis && status.positionMillis) {
+                const remaining = status.durationMillis - status.positionMillis;
+                if (remaining <= 150 && !earlyTriggered) {
+                  earlyTriggered = true;
+                  safeOnDone();
+                }
+              }
+
               if (status.didJustFinish) {
+                earlyTriggered = true;
                 safeOnDone();
                 try {
                   if (soundRef.current === sound) {
                      soundRef.current = null;
+                     currentPlayUriRef.current = null;
                   }
                   await sound.unloadAsync();
                   await cloudTTSService.cleanupAudioFile(uri);
@@ -303,6 +390,7 @@ export function useVoice(lang: string = 'en', psyProfile?: { O: number, C: numbe
               }
             } else if (status.error) {
               console.error('[VOICE] Playback error:', status.error);
+              earlyTriggered = true;
               safeOnDone();
             }
           });
@@ -312,9 +400,9 @@ export function useVoice(lang: string = 'en', psyProfile?: { O: number, C: numbe
         }
       };
 
-      if (preloadedUri) {
+      if (typeof preloadedData === 'string') {
         try {
-          await playAudio(preloadedUri);
+          await playAudio(preloadedData);
         } catch (e) {
           safeOnDone();
         }
@@ -404,6 +492,11 @@ export function useVoice(lang: string = 'en', psyProfile?: { O: number, C: numbe
   }, [lang, ttsEnabled, psyProfile, selectedVoiceId, isMuted, selectedOfflineVoiceId, selectedOfflineSpeakerId]);
 
   const stopSpeaking = useCallback(async () => {
+    // Interrupt JSI Audio Queue instantly
+    if (typeof (global as any).animaInterruptAudio === 'function') {
+      (global as any).animaInterruptAudio();
+    }
+
     try {
       await Speech.stop();
     } catch (e) {
@@ -421,6 +514,10 @@ export function useVoice(lang: string = 'en', psyProfile?: { O: number, C: numbe
         console.log('[VOICE] sound unloadAsync error:', e);
       }
       soundRef.current = null;
+    }
+    if (currentPlayUriRef.current) {
+      cloudTTSService.cleanupAudioFile(currentPlayUriRef.current).catch(() => {});
+      currentPlayUriRef.current = null;
     }
     setIsSpeaking(false);
   }, []);
@@ -502,12 +599,14 @@ export function useVoice(lang: string = 'en', psyProfile?: { O: number, C: numbe
 
   // ── Warm-up: Pre-inicializa Whisper en background (sin bloquear UI) ──
   // Llamar al montar la pantalla para que la primera vez el modelo ya esté en RAM.
-  const warmupModels = useCallback(async (): Promise<void> => {
+  const warmupModels = useCallback(async (): Promise<boolean> => {
     try {
-      await initModels();
+      const ok = await initModels();
       console.log('[VOICE] warmupModels: Whisper pre-loaded in background.');
+      return ok;
     } catch (e) {
       console.log('[VOICE] warmupModels: silent fail, will retry on demand.', e);
+      return false;
     }
   }, [lang]);
 
@@ -690,6 +789,10 @@ export function useVoice(lang: string = 'en', psyProfile?: { O: number, C: numbe
         soundRef.current.unloadAsync().catch(() => { });
         soundRef.current = null;
       }
+      if (currentPlayUriRef.current) {
+        cloudTTSService.cleanupAudioFile(currentPlayUriRef.current).catch(() => {});
+        currentPlayUriRef.current = null;
+      }
       setIsSpeaking(false);
     }
     console.log(`[VOICE] Master Switch: ${newState ? 'MUTED' : 'ACTIVE'}`);
@@ -716,6 +819,10 @@ export function useVoice(lang: string = 'en', psyProfile?: { O: number, C: numbe
       if (soundRef.current) {
         await soundRef.current.unloadAsync().catch(() => { });
         soundRef.current = null;
+      }
+      if (currentPlayUriRef.current) {
+        await cloudTTSService.cleanupAudioFile(currentPlayUriRef.current).catch(() => {});
+        currentPlayUriRef.current = null;
       }
     } catch (e) {
       console.error('[VOICE] Error releasing Sound:', e);

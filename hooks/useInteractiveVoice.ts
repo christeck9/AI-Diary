@@ -12,6 +12,7 @@ import { cpuSemaphore } from '../lib/CPUSemaphore';
 import { micService } from '../lib/UnifiedMicService';
 import { SpeechFilter } from '../lib/SpeechFilter';
 import { getHardwareConfig } from '../lib/hardware';
+import { settingsService } from '../lib/SettingsService';
 
 // ── Walkie-Talkie Voice & VAD Configuration ──
 const WALKIE_TALKIE_CONFIG = {
@@ -77,6 +78,7 @@ export function useInteractiveVoice(
   const lastPrefillTextRef = useRef('');
   const prefillTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastTranscriptUpdateRef = useRef<number>(0);
+  const pressStartTimeRef = useRef<number>(0);
 
   // Processing Timer State
   const [processingTimeElapsed, setProcessingTimeElapsed] = useSafeState(0);
@@ -92,11 +94,19 @@ export function useInteractiveVoice(
     setVoiceStateInternal(newState);
   }, []);
 
-  // 🛡️ Cleanup al desmontar para evitar deadlock del semáforo de CPU
+  // 🛡️ Cleanup al desmontar para evitar deadlock del semáforo de CPU y leaks de memoria
   useEffect(() => {
     return () => {
       if (voiceStateRef.current === 'RECORDING') {
         cpuSemaphore.resume('mic_recording');
+      }
+      if (watchdogIdRef.current) {
+        clearTimeout(watchdogIdRef.current);
+        watchdogIdRef.current = null;
+      }
+      if (prefillTimeoutRef.current) {
+        clearTimeout(prefillTimeoutRef.current);
+        prefillTimeoutRef.current = null;
       }
     };
   }, []);
@@ -193,12 +203,10 @@ export function useInteractiveVoice(
         setVoiceState('SPEAKING');
       }
 
-      // Use preload if available (covers first + subsequent sentences for cloud TTS).
-      // For local/native TTS, preloadSpeech returns null so this falls back safely.
-      const preloadMapEntry = preloadedMapRef.current[nextSentence];
-      const preloadedUri = (preloadMapEntry && preloadMapEntry !== 'pending')
-        ? preloadMapEntry
-        : null;
+      // Skip preload lookup for first sentence — speak immediately to minimize TTFS
+      const preloadedUri = isFirstSentenceRef.current
+        ? null
+        : (preloadedMapRef.current[nextSentence] || null);
 
       delete preloadedMapRef.current[nextSentence];
 
@@ -231,20 +239,30 @@ export function useInteractiveVoice(
         setTimeout(() => { processSpeechQueue(); }, 0);
       }, preloadedUri);
 
-      // Preload the next sentence while this one is playing
-      const upcoming = sentenceQueueRef.current[0];
-      if (upcoming && !preloadedMapRef.current[upcoming]) {
-        preloadedMapRef.current[upcoming] = "pending";
-        if (voice.preloadSpeech) {
-          voice.preloadSpeech(upcoming).then((uri: any) => {
-            if (uri) {
-              preloadedMapRef.current[upcoming] = uri;
-            } else {
-              delete preloadedMapRef.current[upcoming];
+      // Preload next sentences while this one is playing
+      // Check if Cloud TTS is active to determine prefetch depth
+      settingsService.get().then((settings) => {
+        const prefetchDepth = settings?.useCloudTTS ? 2 : 1;
+        for (let i = 0; i < prefetchDepth; i++) {
+          const upcoming = sentenceQueueRef.current[i];
+          if (upcoming && !preloadedMapRef.current[upcoming]) {
+            preloadedMapRef.current[upcoming] = "pending";
+            if (voice.preloadSpeech) {
+              voice.preloadSpeech(upcoming).then((uri: any) => {
+                if (uri) {
+                  preloadedMapRef.current[upcoming] = uri;
+                } else {
+                  delete preloadedMapRef.current[upcoming];
+                }
+              }).catch(() => {
+                delete preloadedMapRef.current[upcoming];
+              });
             }
-          });
+          }
         }
-      }
+      }).catch((e) => {
+        console.warn('[INTERACTIVE_VOICE] Error getting settings for prefetch:', e);
+      });
     } else {
       isPlayingQueueRef.current = false;
       setTimeout(() => { processSpeechQueue(); }, 0);
@@ -255,7 +273,41 @@ export function useInteractiveVoice(
     // Accept WAITING or IDLE state (WAITING is set when entering interactive mode)
     if (voiceStateRef.current !== 'WAITING' && voiceStateRef.current !== 'IDLE') return;
     
+    pressStartTimeRef.current = Date.now();
+    
     try {
+      // 1. Request microphone permission
+      const hasPermission = await micService.requestMicPermission(lang);
+      if (!hasPermission) {
+        console.warn('[WALKIE_TALKIE] Microphone permission denied.');
+        setVoiceState('WAITING');
+        return;
+      }
+
+      // 2. Initialize Whisper model if not ready
+      if (!voice.isWhisperReady && !voice.isInitializing) {
+        console.log('[WALKIE_TALKIE] Whisper not ready, initializing...');
+        const success = await voice.warmupModels();
+        if (!success) {
+          console.warn('[WALKIE_TALKIE] Failed to warm up Whisper models.');
+          setVoiceState('WAITING');
+          return;
+        }
+      }
+
+      // Wait if it's currently initializing
+      let attempts = 0;
+      while (voice.isInitializing && attempts < 10) {
+        await new Promise(resolve => setTimeout(resolve, 500));
+        attempts++;
+      }
+
+      if (!voice.whisperContextRef?.current) {
+        console.warn('[WALKIE_TALKIE] Whisper context still null. Cannot start listening.');
+        setVoiceState('WAITING');
+        return;
+      }
+
       setVoiceState('RECORDING');
       setLiveTranscript('');
       voice.stopSpeaking();
@@ -317,16 +369,24 @@ export function useInteractiveVoice(
       );
 
       if (!success) {
-        setVoiceState('IDLE');
+        setVoiceState('WAITING');
       }
     } catch (e) {
       console.error('[WALKIE_TALKIE] startRecording error:', e);
-      setVoiceState('IDLE');
+      setVoiceState('WAITING');
     }
   }, [lang, voice, setVoiceState]);
 
   const handleTalkEnd = useCallback(async () => {
     if (voiceStateRef.current !== 'RECORDING') return;
+
+    // Check if it's a tap gesture (duration less than 350ms)
+    const pressDuration = Date.now() - pressStartTimeRef.current;
+    if (pressDuration < 350) {
+      console.log('[WALKIE_TALKIE] Ignored release gesture (detected as a tap). Keeping recording active.');
+      return;
+    }
+
     try {
       setVoiceState('PROCESSING');
       setProcessingTimeElapsed(0);
@@ -391,19 +451,6 @@ export function useInteractiveVoice(
           if (voice.isMuted || voiceStateRef.current === 'MUTED') return;
           if (sentenceQueueRef.current.includes(trimmed)) return;
           sentenceQueueRef.current.push(trimmed);
-          // Cloud TTS Early-Preload: start synthesizing the first sentence
-          // immediately on arrival so audio is ready before processSpeechQueue needs it.
-          // Native TTS: preloadSpeech returns null → no effect on primary TTS system.
-          if (isFirstSentenceRef.current && voice.preloadSpeech && !preloadedMapRef.current[trimmed]) {
-            preloadedMapRef.current[trimmed] = 'pending';
-            voice.preloadSpeech(trimmed).then((uri: string | null) => {
-              if (uri) {
-                preloadedMapRef.current[trimmed] = uri;
-              } else {
-                delete preloadedMapRef.current[trimmed];
-              }
-            });
-          }
           processSpeechQueue();
         },
         () => {
@@ -514,17 +561,14 @@ export function useInteractiveVoice(
     }
   }, [voiceState, voice, abortLlm, resetSpeechQueue, setVoiceState, releaseMicResources]);
 
-  const queueSpeech = useCallback((sentence: string) => {
-    // Prevent duplicate or empty sentences
-    const trimmed = sentence.trim();
-    if (!trimmed) return;
-    if (voice.isMuted) return;
-    if (voiceStateRef.current === 'MUTED') return;
-    // Deduplication: skip if sentence already in queue
-    if (sentenceQueueRef.current.includes(trimmed)) return;
-    sentenceQueueRef.current.push(trimmed);
-    processSpeechQueue();
-  }, [processSpeechQueue, voice.isMuted]);
+  const queueSpeech = useCallback((text: string) => {
+    const cleaned = text.replace(/<[^>]*>?/gm, '').trim();
+    if (cleaned) {
+      sentenceQueueRef.current.push(cleaned);
+      // Process queue immediately to enable streaming TTS while LLM generates
+      processSpeechQueue();
+    }
+  }, [processSpeechQueue]);
 
   const clearSpeechQueue = useCallback(() => {
     resetSpeechQueue();
