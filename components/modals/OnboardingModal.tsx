@@ -216,7 +216,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
           showsVerticalScrollIndicator={false}
         >
           <Text style={{ color: colors.secondary, fontWeight: 'bold', marginBottom: 5, textAlign: 'center', fontSize: 16 }}>
-            {lang === 'es' ? '¡Bienvenido a AI Diary. Diario Privado!' : 'Welcome to AI Diary. Private Journal!'}
+            {lang === 'es' ? '¡Bienvenido a AI Diary. Offline AI!' : 'Welcome to AI Diary. Offline AI!'}
           </Text>
           <Text style={{ color: colors.textSecondary, textAlign: 'center', marginBottom: 15, fontSize: 11, lineHeight: 15 }}>
             {lang === 'es'
@@ -251,13 +251,23 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
                     if (db) {
                       await db.runAsync('DELETE FROM user_profile');
                       await db.runAsync('INSERT INTO user_profile (name, nickname, work, likes) VALUES (?, ?, ?, ?)', ['', userProfile.nickname, userProfile.work, '']);
+                      
+                      // Initialize psy_profile with default balanced scores (0.5)
+                      await db.runAsync('DELETE FROM psy_profile');
+                      await db.runAsync('INSERT INTO psy_profile (O, C, E, A, N, D, L) VALUES (?, ?, ?, ?, ?, ?, ?)', [0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5]);
+                      setPsyProfile({ O: 0.5, C: 0.5, E: 0.5, A: 0.5, N: 0.5, D: 0.5, L: 0.5 });
+                      
+                      await db.runAsync('INSERT OR REPLACE INTO onboarding_status (id, completed, completed_at) VALUES (1, 1, ?)', [Date.now()]);
                     }
-                  } catch (e) {}
-                  setOnboardingStep(2);
+                  } catch (e) {
+                    console.log('[ONBOARDING] Error saving profile defaults:', e);
+                  }
+                  setIsOnboardingComplete(true);
+                  setPsyCompleted(true);
                 }
               }}
             >
-              <Text style={{ color: (userProfile.nickname && userProfile.work) ? '#FFF' : colors.textSecondary, fontWeight: 'bold' }}>{lang === 'es' ? 'Siguiente' : 'Next'}</Text>
+              <Text style={{ color: (userProfile.nickname && userProfile.work) ? '#FFF' : colors.textSecondary, fontWeight: 'bold' }}>{lang === 'es' ? 'Empezar' : 'Get Started'}</Text>
             </TouchableOpacity>
           </View>
         </ScrollView>
