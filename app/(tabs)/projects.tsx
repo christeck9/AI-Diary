@@ -1080,7 +1080,7 @@ ${factsText}`;
               {worktable.steps.length > 0 && (
                 <View style={{ marginBottom: 16 }}>
                   <Text style={{ fontSize: 14, fontWeight: 'bold', color: colors.textPrimary, marginBottom: 8 }}>
-                    {lang === 'es' ? 'Plan de Pasos' : 'Steps Plan'}
+                    {lang === 'es' ? 'Objetivos Pendientes' : 'Steps Plan'}
                   </Text>
                   {worktable.steps.map((step) => {
                     const isCompleted = step.status === 'completed';
