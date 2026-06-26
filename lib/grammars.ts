@@ -6,7 +6,7 @@
  */
 
 export const FACT_EXTRACTION_GRAMMAR = `
-root ::= "{" ws "\\"facts\\":" ws "[" ws fact ("," ws fact)* "]" ws "}"
+root ::= "{" ws "\\"facts\\":" ws "[" ws (fact ("," ws fact)*)? "]" ws "}"
 fact ::= "{" ws "\\"category\\":" ws category_enum "," ws "\\"fact\\":" ws string "," ws "\\"confidence\\":" ws number "}"
 category_enum ::= "\\"Preferencias\\"" | "\\"Datos Personales\\"" | "\\"Metas\\"" | "\\"Sabiduría\\"" | "\\"Identidad\\"" | "\\"Proyecto\\""
 string ::= "\\"" [^"\\\\]* "\\""
@@ -17,7 +17,45 @@ ws ::= [ \\t\\n]*
 /**
  * Prompt Maestro para la Extracción (Optimizado para Gemma 4 E2B)
  */
-export const getExtractionPrompt = (userMsg: string, aiMsg: string) => `<|turn>system
+export const getExtractionPrompt = (userMsg: string, aiMsg: string, arch: 'gemma3' | 'gemma4' | 'llama' = 'gemma4') => {
+  const safeUserMsg = userMsg.replace(/"/g, '\\"').replace(/<\|turn>/g, '').replace(/<start_of_turn>/g, '').replace(/<\|begin_of_text|>/g, '');
+  const safeAiMsg = aiMsg.replace(/"/g, '\\"').replace(/<\|turn>/g, '').replace(/<start_of_turn>/g, '').replace(/<\|begin_of_text|>/g, '');
+
+  if (arch === 'llama') {
+    return `<|begin_of_text|><|start_header_id|>system<|end_header_id|>
+
+Eres el Subsistema de Memoria Forense del AI Diary. 
+Tu misión es extraer HECHOS DECLARATIVOS sobre el usuario a partir de la conversación.
+
+REGLAS CRÍTICAS:
+1. Solo extrae información confirmada por el usuario.
+2. Si no hay hechos nuevos, devuelve {"facts": []}.
+3. Categorías: Preferencias, Datos Personales, Metas, Sabiduría, Identidad, Proyecto.
+4. Responde ÚNICAMENTE con el JSON.<|eot_id|><|start_header_id|>user<|end_header_id|>
+
+ENTRADA:
+Usuario: "${safeUserMsg}"
+Asistente: "${safeAiMsg}"<|eot_id|><|start_header_id|>assistant<|end_header_id|>
+
+`;
+  } else if (arch === 'gemma3') {
+    return `<start_of_turn>system
+Eres el Subsistema de Memoria Forense del AI Diary. 
+Tu misión es extraer HECHOS DECLARATIVOS sobre el usuario a partir de la conversación.
+
+REGLAS CRÍTICAS:
+1. Solo extrae información confirmada por el usuario.
+2. Si no hay hechos nuevos, devuelve {"facts": []}.
+3. Categorías: Preferencias, Datos Personales, Metas, Sabiduría, Identidad, Proyecto.
+4. Responde ÚNICAMENTE con el JSON.<end_of_turn>
+<start_of_turn>user
+ENTRADA:
+Usuario: "${safeUserMsg}"
+Asistente: "${safeAiMsg}"<end_of_turn>
+<start_of_turn>model
+`;
+  } else {
+    return `<|turn>system
 Eres el Subsistema de Memoria Forense del AI Diary. 
 Tu misión es extraer HECHOS DECLARATIVOS sobre el usuario a partir de la conversación.
 
@@ -28,7 +66,62 @@ REGLAS CRÍTICAS:
 4. Responde ÚNICAMENTE con el JSON.<turn|>
 <|turn>user
 ENTRADA:
-Usuario: "${userMsg}"
-Asistente: "${aiMsg}"<turn|>
+Usuario: "${safeUserMsg}"
+Asistente: "${safeAiMsg}"<turn|>
 <|turn>model
 `;
+  }
+};
+
+export const BADGE_EVALUATION_GRAMMAR = `
+root ::= "{" ws "\\"badge_id\\":" ws badge_enum ws "}"
+badge_enum ::= "\\"NONE\\"" | "\\"scientist\\"" | "\\"self_growth\\"" | "\\"resilience\\"" | "\\"philosopher\\"" | "\\"creative\\"" | "\\"humor\\"" | "\\"habits\\""
+ws ::= [ \\t\\n]*
+`;
+
+export const getBadgeEvaluationPrompt = (userMsg: string, aiMsg: string, arch: 'gemma3' | 'gemma4' | 'llama' = 'gemma4') => {
+  const safeUserMsg = userMsg.replace(/"/g, '\\"').replace(/<\\|turn>/g, '').replace(/<start_of_turn>/g, '').replace(/<\|begin_of_text|>/g, '');
+  const safeAiMsg = aiMsg.replace(/"/g, '\\"').replace(/<\\|turn>/g, '').replace(/<start_of_turn>/g, '').replace(/<\|begin_of_text|>/g, '');
+
+  if (arch === 'llama') {
+    return `<|begin_of_text|><|start_header_id|>system<|end_header_id|>
+
+Eres un Juez Cognitivo de Gamificación Significativa.
+Tu objetivo es evaluar si el usuario demostró un insight profundo, resiliencia, humor u otra cualidad notable en su último mensaje.
+Si el usuario demostró maestría o crecimiento real, devuelve el ID de la insignia.
+Si fue solo una charla casual, devuelve "NONE".
+IDs válidos: scientist, self_growth, resilience, philosopher, creative, humor, habits, NONE.
+Responde ÚNICAMENTE con el JSON.<|eot_id|><|start_header_id|>user<|end_header_id|>
+
+Usuario: "${safeUserMsg}"
+Asistente: "${safeAiMsg}"<|eot_id|><|start_header_id|>assistant<|end_header_id|>
+
+`;
+  } else if (arch === 'gemma3') {
+    return `<start_of_turn>system
+Eres un Juez Cognitivo de Gamificación Significativa.
+Tu objetivo es evaluar si el usuario demostró un insight profundo, resiliencia, humor u otra cualidad notable en su último mensaje.
+Si el usuario demostró maestría o crecimiento real, devuelve el ID de la insignia.
+Si fue solo una charla casual, devuelve "NONE".
+IDs válidos: scientist, self_growth, resilience, philosopher, creative, humor, habits, NONE.
+Responde ÚNICAMENTE con el JSON.<end_of_turn>
+<start_of_turn>user
+Usuario: "${safeUserMsg}"
+Asistente: "${safeAiMsg}"<end_of_turn>
+<start_of_turn>model
+`;
+  } else {
+    return `<|turn>system
+Eres un Juez Cognitivo de Gamificación Significativa.
+Tu objetivo es evaluar si el usuario demostró un insight profundo, resiliencia, humor u otra cualidad notable en su último mensaje.
+Si el usuario demostró maestría o crecimiento real, devuelve el ID de la insignia.
+Si fue solo una charla casual, devuelve "NONE".
+IDs válidos: scientist, self_growth, resilience, philosopher, creative, humor, habits, NONE.
+Responde ÚNICAMENTE con el JSON.<turn|>
+<|turn>user
+Usuario: "${safeUserMsg}"
+Asistente: "${safeAiMsg}"<turn|>
+<|turn>model
+`;
+  }
+};

@@ -838,11 +838,11 @@ export const useAgentEngine = (
               console.log('[AGENT_ENGINE] ⏳ Voice mode active: deferring background tasks by 35s to clear TTS path...');
               await new Promise(resolve => setTimeout(resolve, 35000));
             }
-            console.log('[AGENT_ENGINE] 🧠 Starting background fact extraction...');
-            await factExtractionService.extractFacts(llamaContextRef.current, userText, finalText, db);
-
-            console.log('[AGENT_ENGINE] 🏆 Starting background badge evaluation...');
-            const badge = await badgeService.evaluateConversation(llamaContextRef.current, userText, finalText, db);
+             console.log('[AGENT_ENGINE] 🧠 Starting background fact extraction...');
+             await factExtractionService.extractFacts(llamaContextRef.current, userText, finalText, db, arch, generateEmbeddings);
+ 
+             console.log('[AGENT_ENGINE] 🏆 Starting background badge evaluation...');
+             const badge = await badgeService.evaluateConversation(llamaContextRef.current, userText, finalText, db, arch);
             if (badge) {
               setEarnedBadge(badge);
               // Clear the badge UI after 6 seconds
