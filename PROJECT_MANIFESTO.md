@@ -1666,6 +1666,8 @@ La aplicación cuenta con un flujo estructurado en 5 pestañas principales:
 
 # AI DIARY: Finishing Touches and bug fixes v1.9.6.6 2026-07-01
 
+## 1. Corrections and improvements in Modals and Overlayers (Fabric Android Layout Collapse Bug)
+
 - **Corrección de Diseño en Modales y Overlayers (Fabric Android Layout Collapse Bug)**:
   - **Eliminación del Evento Inestable `onShow`**: Se detectó que el evento nativo `onShow` no se disparaba de forma confiable en Android (Fabric) al montar los modales directamente con la propiedad `visible={true}`. Esto dejaba a los modales colapsados a tamaño cero, haciéndolos lucir completamente transparentes y no interactivos.
   - **Patrón de Doble Renderizado Controlado por JS**: Se implementó una lógica basada en `useEffect` que inicia un temporizador de `50ms` al montarse el modal. Al completarse, incrementa un ticket de diseño (`layoutTicket`) que obliga a React Native a forzar un pase de redibujado de Yoga una vez que la ventana nativa está presentada.
@@ -1680,4 +1682,25 @@ La aplicación cuenta con un flujo estructurado en 5 pestañas principales:
   - Se desarrolló un script en Python que analiza el código fuente del proyecto y audita de forma automática cualquier archivo `.tsx` o `.ts` que renderice un componente `<Modal>`.
   - El script verifica matemáticamente y estructuralmente que se cumplan las directivas de Fabric: uso de `transparent={true}`, `statusBarTranslucent={true}`, `Dimensions.get('screen')`, y la lógica de re-renderizado mediante `Ticket` o `ReRender`.
   - Se configuró la salida en codificación UTF-8 para garantizar compatibilidad con terminales de Windows y evitar errores de encoding al imprimir símbolos de aprobación.
+
+# AI DIARY: Onboarding Flow Overhaul and Hardware Guards v1.9.6.7 2026-07-01
+
+## 1. Redesigned Onboarding Sequence
+- **Step 0 (Welcome Screen)**:
+  - Centralized user inputs (`nickname` and `occupation/work`) and language selector directly to the welcoming step.
+  - Added the explicit privacy and ecological statement: *"[ AI Diary can operate 100% offline after downloading core AI models. It is ecological as it lives in your phone and it is completely private even encrypted ]"*.
+- **Step 1 (Hardware Validation & Model Download)**:
+  - Migrated the model downloading functionality and progress bar straight to onboarding to ensure the app is fully offline-capable before first launch.
+  - Implemented dynamic card alerts utilizing the new `RAMGuard` and real-time storage checks.
+
+## 2. RAM and Storage Safeguards
+- **Real-Time Memory Analysis (`RAMGuard.ts`)**:
+  - Replaced the hardcoded device memory attributes with active runtime calculations via `react-native-device-info` (e.g. `getFreeRAM()`).
+  - Added the `evaluateDeviceRAMCapabilities` function to analyze free memory dynamically, providing personalized hardware feedback (e.g. telling the user how much more memory they should free up to safely run higher models).
+  - Used an elegant wine color `#ac3e4bff` for low-memory alert boxes to avoid psychological alarm.
+- **Real-Time Storage Evaluation (`hardware.ts`)**:
+  - Implemented `getFreeDiskStorageMB` to check the remaining capacity in real-time. If it falls below 4GB, it warns the user and recommends freeing up at least 6GB for proper model and database expansion.
+- **Model Loader UI Simplification**:
+  - Removed the download button from the main application dashboard (`ModelLoaderPanel.tsx`), shifting all downloads to Onboarding. The loader panel now only contains an "ACTIVAR IA" / "ACTIVATE AI" button that executes validation checks prior to loading the model into memory.
+
 
