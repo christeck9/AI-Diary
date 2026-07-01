@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Modal, View, Text, TouchableOpacity, ScrollView, StyleSheet, SafeAreaView, ActivityIndicator, Alert, TextInput } from 'react-native';
+import { Modal, View, Text, TouchableOpacity, ScrollView, StyleSheet, SafeAreaView, ActivityIndicator, Alert, TextInput, Platform, Dimensions } from 'react-native';
 import { IconSymbol } from '../ui/icon-symbol';
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
@@ -121,9 +121,39 @@ export const VaultExplorerModal: React.FC<VaultExplorerModalProps> = ({
     );
   };
 
+  const [layoutTicket, setLayoutTicket] = useState(0);
+  const isAndroidEnvironment = Platform.OS === 'android';
+  const { width: absoluteScreenWidth, height: absoluteScreenHeight } = Dimensions.get('screen');
+
+  useEffect(() => {
+    if (visible) {
+      const timer = setTimeout(() => {
+        setLayoutTicket(prev => prev + 1);
+      }, 50);
+      return () => clearTimeout(timer);
+    }
+  }, [visible]);
+
   return (
-    <Modal visible={visible} animationType="slide" transparent={true} onRequestClose={onClose}>
-      <View style={{ flex: 1, backgroundColor: colors.background }}>
+    <Modal 
+      visible={visible} 
+      animationType="slide" 
+      transparent={true} 
+      statusBarTranslucent={true}
+      onRequestClose={onClose}
+    >
+      {isAndroidEnvironment && <View style={{ height: (layoutTicket % 2 === 1) ? 0.5 : 0 }} />}
+      <View 
+        style={{ 
+          flex: 1, 
+          width: absoluteScreenWidth, 
+          height: absoluteScreenHeight, 
+          backgroundColor: colors.background, 
+          margin: 0, 
+          padding: 0,
+          paddingTop: isAndroidEnvironment && (layoutTicket % 2 === 1) ? 0.5 : 0
+        }}
+      >
         <SafeAreaView style={{ flex: 1 }}>
           <View style={styles.header}>
             <TouchableOpacity onPress={selectedFileContent ? () => setSelectedFileContent(null) : onClose}>

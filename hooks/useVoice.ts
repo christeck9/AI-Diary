@@ -173,7 +173,7 @@ export function useVoice(lang: string = 'en', psyProfile?: { O: number, C: numbe
   }, [lang, availableVoices, selectedVoiceId]);
 
   // ── TTS Controls ──
-  const preloadSpeech = useCallback(async (text: string): Promise<string | Float32Array | null> => {
+  const preloadSpeech = useCallback(async (text: string): Promise<string | Float32Array | { uri: string, sound: any } | null> => {
     if (isMuted || !ttsEnabled || !(text || "").trim()) {
       return null;
     }
@@ -202,7 +202,16 @@ export function useVoice(lang: string = 'en', psyProfile?: { O: number, C: numbe
             }
           }
         }
-        return await cloudTTSService.synthesize(cleanText, lang, settings as any, 'speech_preload');
+        const uri = await cloudTTSService.synthesize(cleanText, lang, settings as any, 'speech_preload');
+        if (uri) {
+          try {
+            const { sound } = await Audio.Sound.createAsync({ uri });
+            return { uri, sound };
+          } catch (e) {
+            console.warn('[VOICE] Failed to preload Audio.Sound, returning uri:', e);
+            return uri;
+          }
+        }
       }
     } catch (e) {
       console.error('[VOICE] preloadSpeech Error:', e);
@@ -210,7 +219,7 @@ export function useVoice(lang: string = 'en', psyProfile?: { O: number, C: numbe
     return null;
   }, [lang, ttsEnabled, isMuted]);
 
-  const speak = useCallback((text: string, dynamicPsyProfile?: typeof psyProfile, onDone?: () => void, preloadedData?: string | Float32Array | null) => {
+  const speak = useCallback((text: string, dynamicPsyProfile?: typeof psyProfile, onDone?: () => void, preloadedData?: string | Float32Array | { uri: string, sound: any } | null) => {
     let onDoneCalled = false;
     let fallbackTimeoutId: NodeJS.Timeout | null = null;
 
@@ -336,9 +345,9 @@ export function useVoice(lang: string = 'en', psyProfile?: { O: number, C: numbe
         }
       }
 
-      const playAudio = async (uri: string) => {
+      const playAudio = async (uri: string, preloadedSound?: any) => {
         try {
-          const { sound } = await Audio.Sound.createAsync({ uri }, { shouldPlay: true });
+          const sound = preloadedSound || (await Audio.Sound.createAsync({ uri }, { shouldPlay: true })).sound;
           
           const oldSound = soundRef.current;
           const oldUri = currentPlayUriRef.current;
@@ -394,11 +403,23 @@ export function useVoice(lang: string = 'en', psyProfile?: { O: number, C: numbe
               safeOnDone();
             }
           });
+          
+          if (preloadedSound) {
+            await sound.playAsync();
+          }
         } catch (err) {
           console.error('[VOICE] playAudio creation error:', err);
           safeOnDone();
         }
       };
+
+      if (preloadedData && typeof preloadedData === 'object' && !(preloadedData instanceof Float32Array)) {
+        const preloaded = preloadedData as { uri: string, sound: any };
+        if (preloaded.uri && preloaded.sound) {
+          await playAudio(preloaded.uri, preloaded.sound);
+          return;
+        }
+      }
 
       if (typeof preloadedData === 'string') {
         try {

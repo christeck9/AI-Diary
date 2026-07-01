@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
-import { StyleSheet, View, Text, TextInput, TouchableOpacity, Alert, Platform, StatusBar, ScrollView, FlatList, ActivityIndicator, KeyboardAvoidingView, Modal } from 'react-native';
+import DraggableFlatList, { ScaleDecorator } from 'react-native-draggable-flatlist';
+import { StyleSheet, View, Text, TextInput, TouchableOpacity, Alert, Platform, StatusBar, ScrollView, FlatList, ActivityIndicator, KeyboardAvoidingView, Modal, Dimensions } from 'react-native';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useFocusEffect } from 'expo-router';
 import { IconSymbol } from '../../components/ui/icon-symbol';
@@ -23,6 +24,7 @@ const themesList = [
   { value: 'Study Book', labelEs: '📚 Estudiar un Libro', labelEn: '📚 Study a Book' },
   { value: 'Study Class', labelEs: '🎓 Estudiar Materia o Concepto', labelEn: '🎓 Study Subject or Concept' },
   { value: 'Create Book', labelEs: '✍️ Crear un Libro', labelEn: '✍️ Create a Book' },
+  { value: 'Learn Language', labelEs: '🗣️ Aprender un Idioma', labelEn: '🗣️ Learn a Language' },
   { value: 'Brainstorming', labelEs: '💡 Lluvia de Ideas', labelEn: '💡 Brainstorming' },
   { value: 'Relationship', labelEs: '🤝 Lidiar con una Relación', labelEn: '🤝 Deal with a Relationship' },
   { value: 'Other', labelEs: '⚙️ Otro', labelEn: '⚙️ Other' }
@@ -41,10 +43,12 @@ Descripción: "${description}"
 
 Tu objetivo es guiar, sugerir y estructurar el avance de este proyecto. Tienes control directo sobre la Mesa de Trabajo del usuario a través de comandos especiales. Si deseas actualizar la Mesa de Trabajo, debes incluir uno o más de los siguientes tags en tu respuesta (se procesarán en segundo plano y se ocultarán al usuario):
 - Para establecer o actualizar el recordatorio/meta clave en la tarjeta PIN: [SET_PIN: Tu recordatorio clave aquí]
-- Para añadir una tarjeta de estudio (Flashcard) DEBES incluir siempre la respuesta separada por doble barra: [ADD_CARD: Pregunta || Respuesta]
+- Para añadir una tarjeta de estudio (Flashcard) DEBES incluir siempre la respuesta separada por doble barra: [ADD_CARD: Concepto clave (resumen 1-4 palabras) || Respuesta detallada]
 - Para añadir un paso o tarea en la lista jerárquica: [ADD_STEP: Descripción de la tarea]
 
 Si el tema del proyecto es estudiar un libro ("Study Book") y el libro es desconocido para ti o necesitas acceso directo a su contenido, pídele al usuario de forma clara y amable que suba el archivo PDF o DOCX utilizando el botón de documento (📄) en la consola para que puedas analizarlo directamente.
+
+Si el tema del proyecto es aprender un idioma ("Learn Language"), actúa como un tutor interactivo de idiomas. Ayuda al usuario con gramática, vocabulario y traducción. Genera tarjetas de estudio dinámicas usando [ADD_CARD: Palabra o Frase en idioma objetivo || Traducción, pronunciación y ejemplo de uso] para que el usuario pueda repasar de forma autónoma.
 
 Si el usuario te pide información en tiempo real, eventos recientes, datos externos que no conoces de forma offline o investigaciones complejas fuera de tu base de datos, indícale amablemente que no tienes acceso directo a internet en esta consola de Proyectos. Sugiérele que vaya a la pestaña "Home" (el chat principal) para realizar la consulta allí (donde puedes usar Brave Search y Wikipedia), y que luego regrese aquí para continuar.
 
@@ -56,11 +60,13 @@ Project Theme: "${theme}"
 Description: "${description}"
 
 Your goal is to guide, suggest, and structure the progress of this project. You have direct control over the user's Worktable through special commands. If you want to update the Worktable, include one or more of the following tags in your response (they will be processed in the background and hidden from the user):
-- To set/update the key reminder on the PIN card: [SET_PIN: Your key reminder here]
-- To add a study flashcard, you MUST always include the answer separated by double pipes: [ADD_CARD: Question || Answer]
+- To set/update the key reminder on the PIN card: [SET_PIN: Concise main goal (1-5 words)]
+- To add a study flashcard, you MUST always include the answer separated by double pipes: [ADD_CARD: Key concept (1-4 word summary) || Detailed answer]
 - To add a step or task to the checklist: [ADD_STEP: Task description]
 
 If the project theme is studying a book ("Study Book") and the book is unknown to you or you need direct access to its contents, politely and clearly ask the user to upload the PDF or DOCX file using the document button (📄) in the console so that you can analyze and read it directly.
+
+If the project theme is learning a language ("Learn Language"), act as an interactive language tutor. Help the user with grammar, vocabulary, and translation. Generate dynamic flashcards using [ADD_CARD: Word (1-3 words) || Translation and usage example] so the user can study autonomously.
 
 If the user asks for real-time information, recent events, external search queries you do not know offline, or complex research outside your database, politely explain that you do not have direct internet access in this Projects console. Suggest they go to the "Home" tab (the main chat) to perform the search there (where you can search the web using Brave Search and Wikipedia), and then return here to continue.
 
@@ -181,6 +187,16 @@ export default function ProjectsScreen() {
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [activeProject, setActiveProject] = useState<any | null>(null);
   const [showProjectDropdown, setShowProjectDropdown] = useState(false);
+  const [dropdownTicket, setDropdownTicket] = useState(0);
+
+  useEffect(() => {
+    if (showThemeDropdown || showProjectDropdown) {
+      const timer = setTimeout(() => {
+        setDropdownTicket(prev => prev + 1);
+      }, 50);
+      return () => clearTimeout(timer);
+    }
+  }, [showThemeDropdown, showProjectDropdown]);
 
   // Chat State
   const [messages, setMessages] = useState<any[]>([]);
@@ -188,7 +204,7 @@ export default function ProjectsScreen() {
   const [isGenerating, setIsGenerating] = useState(false);
 
   // Worktable State
-  const [worktable, setWorktable] = useState<{ pin: any; cards: any[]; steps: any[] }>({ pin: null, cards: [], steps: [] });
+  const [worktable, setWorktable] = useState<{ pin: any; cards: { id: number, question: string, answer: string, timestamp: number }[]; steps: any[] }>({ pin: null, cards: [], steps: [] });
   const [flippingCardId, setFlippingCardId] = useState<number | null>(null);
 
   // Header & Kebab Menu
@@ -251,13 +267,13 @@ export default function ProjectsScreen() {
   };
 
   const loadWorktableItems = async (projectId: string) => {
-    const rows = await db.getAllAsync<{ id: number, fact: string }>(
-      "SELECT id, fact FROM knowledge_base WHERE category = 'Proyecto' AND fact LIKE ?",
+    const rows = await db.getAllAsync<{ id: number, fact: string, timestamp: number }>(
+      "SELECT id, fact, timestamp FROM knowledge_base WHERE category = 'Proyecto' AND fact LIKE ? ORDER BY timestamp ASC",
       [`[Proyecto:${projectId}]%`]
     );
     
     let pin: { id: number, text: string } | null = null;
-    const cards: { id: number, question: string, answer: string }[] = [];
+    const cards: { id: number, question: string, answer: string, timestamp: number }[] = [];
     const steps: { id: number, description: string, status: 'pending' | 'completed' }[] = [];
 
     rows.forEach(row => {
@@ -276,7 +292,8 @@ export default function ProjectsScreen() {
           cards.push({
             id: row.id,
             question: parts[0].trim(),
-            answer: parts[1].trim()
+            answer: parts[1].trim(),
+            timestamp: row.timestamp
           });
         }
         return;
@@ -579,6 +596,20 @@ export default function ProjectsScreen() {
   };
 
   // Delete worktable item
+  
+  const reorderCards = async (newData: any[]) => {
+    if (!selectedProjectId) return;
+    try {
+      const baseTime = Date.now();
+      for (let i = 0; i < newData.length; i++) {
+        await db.runAsync("UPDATE knowledge_base SET timestamp = ? WHERE id = ?", [baseTime + i, newData[i].id]);
+      }
+      setWorktable(prev => ({ ...prev, cards: newData }));
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   const deleteWorktableItem = async (itemId: number) => {
     if (!selectedProjectId) return;
     try {
@@ -861,6 +892,170 @@ ${factsText}`;
         {/* CONSOLE & WORKTABLE SECTION (ONLY SHOW IF PROJECT SELECTED & NOT COMPRESSING) */}
         {activeProject && !isCompressing && (
           <>
+            {/* MESA DE TRABAJO */}
+            {(worktable.pin || worktable.cards.length > 0 || worktable.steps.length > 0) && (
+              <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border, marginTop: 16 }]}>
+                <Text style={[styles.cardTitle, { color: colors.textPrimary, marginBottom: 12 }]}>
+                  {lang === 'es' ? '🛠️ Mesa de Trabajo' : '🛠️ Worktable'}
+                </Text>
+  
+  
+                {/* CHECKLIST STEPS (Objetivos Pendientes) - MOVIDO AL PRINCIPIO */}
+                {worktable.steps.length > 0 && (
+                  <View style={{ marginBottom: 16 }}>
+                    <Text style={{ fontSize: 14, fontWeight: 'bold', color: colors.textPrimary, marginBottom: 8 }}>
+                      {lang === 'es' ? 'Objetivos Pendientes' : 'Steps Plan'}
+                    </Text>
+                    {worktable.steps.map((step) => {
+                      const isCompleted = step.status === 'completed';
+                      return (
+                        <View
+                          key={step.id}
+                          style={[
+                            styles.stepItem,
+                            {
+                              backgroundColor: isMatrix ? '#121412' : colors.surfaceSecondary,
+                              borderColor: isMatrix ? '#1a2b1a' : colors.border,
+                              borderWidth: 1
+                            }
+                          ]}
+                        >
+                          <TouchableOpacity
+                            onPress={() => toggleStep(step.id, step.description, step.status)}
+                            style={{ flexDirection: 'row', alignItems: 'center', flex: 1, paddingVertical: 4 }}
+                          >
+                            {isCompleted ? (
+                              <IconSymbol
+                                name="checkmark.circle.fill"
+                                size={20}
+                                color="#4cd137"
+                              />
+                            ) : (
+                              <MaterialIcons
+                                name="radio-button-unchecked"
+                                size={20}
+                                color={colors.textSecondary}
+                              />
+                            )}
+                            <ScrollView
+                              horizontal
+                              showsHorizontalScrollIndicator={false}
+                              style={{ flex: 1, marginLeft: 10 }}
+                              contentContainerStyle={{ alignItems: 'center' }}
+                            >
+                              <Text style={{
+                                fontSize: 13,
+                                color: isCompleted ? colors.textSecondary : colors.textPrimary,
+                                textDecorationLine: isCompleted ? 'line-through' : 'none'
+                              }}
+                              numberOfLines={1}>
+                                {step.description}
+                              </Text>
+                            </ScrollView>
+                          </TouchableOpacity>
+                          
+                          <TouchableOpacity
+                            onPress={() => deleteWorktableItem(step.id)}
+                            style={{ padding: 4 }}
+                          >
+                            <IconSymbol name="trash" size={14} color={colors.textSecondary} />
+                          </TouchableOpacity>
+                        </View>
+                      );
+                    })}
+                  </View>
+                )}
+  
+                {/* PIN CARD (Meta Principal) - MOVIDO AL MEDIO */}
+                {worktable.pin && (
+                  <View style={[styles.pinCard, { backgroundColor: isMatrix ? '#121412' : '#fef9c3', borderColor: isMatrix ? '#00ff41' : '#fef08a', borderWidth: 1, marginBottom: 16 }]}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                        <MaterialIcons name="push-pin" size={14} color={isMatrix ? '#00ff41' : '#ca8a04'} />
+                        <Text style={{ marginLeft: 6, fontWeight: 'bold', fontSize: 11, color: isMatrix ? '#00ff41' : '#854d0e', textTransform: 'uppercase' }}>
+                          {lang === 'es' ? 'Meta Principal' : 'Main Goal'}
+                        </Text>
+                      </View>
+                      <TouchableOpacity onPress={() => deleteWorktableItem(worktable.pin.id)}>
+                        <IconSymbol name="trash" size={12} color={isMatrix ? '#00ff41' : '#ca8a04'} />
+                      </TouchableOpacity>
+                    </View>
+                    <Text style={{ fontSize: 14, color: isMatrix ? '#d1ffd7' : '#713f12', lineHeight: 18 }}>
+                      {worktable.pin.text}
+                    </Text>
+                  </View>
+                )}
+  
+                {/* STUDY FLASHCARDS - AL FINAL */}
+                {worktable.cards.length > 0 && (
+                  <View style={{ marginTop: 0 }}>
+                    <Text style={{ fontSize: 14, fontWeight: 'bold', color: colors.textPrimary, marginBottom: 8 }}>
+                      {lang === 'es' ? 'Tarjetas de Estudio' : 'Study Flashcards'}
+                    </Text>
+                    <View style={{ height: 160 }}>
+                    <DraggableFlatList
+                      data={worktable.cards}
+                      horizontal={true}
+                      showsHorizontalScrollIndicator={false}
+                      contentContainerStyle={{ gap: 10, paddingBottom: 6 }}
+                      onDragEnd={({ data }) => reorderCards(data)}
+                      keyExtractor={(item) => item.id.toString()}
+                      renderItem={({ item: card, drag, isActive }) => {
+                        const isFlipped = flippingCardId === card.id;
+                        return (
+                          <ScaleDecorator>
+                            <View style={{ position: 'relative' }}>
+                              <TouchableOpacity
+                                activeOpacity={0.9}
+                                onLongPress={drag}
+                                disabled={isActive}
+                                onPress={() => {
+                                  setFlippingCardId(isFlipped ? null : card.id);
+                                  try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch (_) {}
+                                }}
+                                style={[
+                                  styles.flashcard,
+                                  {
+                                    backgroundColor: isFlipped
+                                      ? (isMatrix ? '#1a1e1a' : colors.primary + '15')
+                                      : (isActive ? (isMatrix ? '#2b472b' : colors.border) : (isMatrix ? '#121412' : colors.surfaceSecondary)),
+                                    borderColor: isMatrix ? '#00ff41' : colors.border,
+                                    borderWidth: 1
+                                  }
+                                ]}
+                              >
+                                <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 12 }}>
+                                  <Text style={{ fontSize: 10, fontWeight: 'bold', color: colors.textSecondary, marginBottom: 6, textTransform: 'uppercase' }}>
+                                    {isFlipped ? (lang === 'es' ? 'Respuesta' : 'Answer') : (lang === 'es' ? 'Pregunta' : 'Question')}
+                                  </Text>
+                                  <Text style={{
+                                    fontSize: 13,
+                                    fontWeight: 'bold',
+                                    color: isFlipped ? colors.primary : colors.textPrimary,
+                                    textAlign: 'center'
+                                  }}>
+                                    {isFlipped ? card.answer : card.question}
+                                  </Text>
+                                </View>
+                              </TouchableOpacity>
+                              <TouchableOpacity
+                                onPress={() => deleteWorktableItem(card.id)}
+                                hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
+                                style={{ position: 'absolute', top: 6, right: 6, zIndex: 10, padding: 6 }}
+                              >
+                                <IconSymbol name="trash" size={14} color={colors.textSecondary} />
+                              </TouchableOpacity>
+                            </View>
+                          </ScaleDecorator>
+                        );
+                      }}
+                    />
+                  </View>
+                  </View>
+                )}
+              </View>
+            )}
+
             {/* INTERACTIVE CONSOLE */}
             <View style={[styles.card, { backgroundColor: consoleBg, borderColor: consoleBorder, borderWidth: 1, marginTop: 16 }]}>
               <Text style={{
@@ -1057,172 +1252,25 @@ ${factsText}`;
                 lang={lang}
               />
             </View>
-
-            {/* MESA DE TRABAJO */}
-            <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border, marginTop: 16 }]}>
-              <Text style={[styles.cardTitle, { color: colors.textPrimary, marginBottom: 12 }]}>
-                {lang === 'es' ? '🛠️ Mesa de Trabajo' : '🛠️ Worktable'}
-              </Text>
-
-              {/* EMPTY STATE */}
-              {!worktable.pin && worktable.cards.length === 0 && worktable.steps.length === 0 && (
-                <View style={{ padding: 20, alignItems: 'center' }}>
-                  <MaterialIcons name="inbox" size={32} color={colors.textSecondary} />
-                  <Text style={{ color: colors.textSecondary, fontSize: 13, textAlign: 'center', marginTop: 8 }}>
-                    {lang === 'es'
-                      ? 'La Mesa de Trabajo está vacía. Pídele a Anima en la consola que cree metas, tarjetas de estudio o pasos para tu plan.'
-                      : 'The Worktable is empty. Ask Anima in the console to create goals, flashcards, or steps for your plan.'}
-                  </Text>
-                </View>
-              )}
-
-              {/* CHECKLIST STEPS */}
-              {worktable.steps.length > 0 && (
-                <View style={{ marginBottom: 16 }}>
-                  <Text style={{ fontSize: 14, fontWeight: 'bold', color: colors.textPrimary, marginBottom: 8 }}>
-                    {lang === 'es' ? 'Objetivos Pendientes' : 'Steps Plan'}
-                  </Text>
-                  {worktable.steps.map((step) => {
-                    const isCompleted = step.status === 'completed';
-                    return (
-                      <View
-                        key={step.id}
-                        style={[
-                          styles.stepItem,
-                          {
-                            backgroundColor: isMatrix ? '#121412' : colors.surfaceSecondary,
-                            borderColor: isMatrix ? '#1a2b1a' : colors.border,
-                            borderWidth: 1
-                          }
-                        ]}
-                      >
-                        <TouchableOpacity
-                          onPress={() => toggleStep(step.id, step.description, step.status)}
-                          style={{ flexDirection: 'row', alignItems: 'center', flex: 1, paddingVertical: 4 }}
-                        >
-                          {isCompleted ? (
-                            <IconSymbol
-                              name="checkmark.circle.fill"
-                              size={20}
-                              color="#4cd137"
-                            />
-                          ) : (
-                            <MaterialIcons
-                              name="radio-button-unchecked"
-                              size={20}
-                              color={colors.textSecondary}
-                            />
-                          )}
-                          <ScrollView
-                            horizontal
-                            showsHorizontalScrollIndicator={false}
-                            style={{ flex: 1, marginLeft: 10 }}
-                            contentContainerStyle={{ alignItems: 'center' }}
-                          >
-                            <Text style={{
-                              fontSize: 13,
-                              color: isCompleted ? colors.textSecondary : colors.textPrimary,
-                              textDecorationLine: isCompleted ? 'line-through' : 'none'
-                            }}
-                            numberOfLines={1}>
-                              {step.description}
-                            </Text>
-                          </ScrollView>
-                        </TouchableOpacity>
-                        
-                        <TouchableOpacity
-                          onPress={() => deleteWorktableItem(step.id)}
-                          style={{ padding: 4 }}
-                        >
-                          <IconSymbol name="trash" size={14} color={colors.textSecondary} />
-                        </TouchableOpacity>
-                      </View>
-                    );
-                  })}
-                </View>
-              )}
-
-              {/* PIN CARD */}
-              {worktable.pin && (
-                <View style={[styles.pinCard, { backgroundColor: isMatrix ? '#121412' : '#fef9c3', borderColor: isMatrix ? '#00ff41' : '#fef08a', borderWidth: 1 }]}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                      <MaterialIcons name="push-pin" size={14} color={isMatrix ? '#00ff41' : '#ca8a04'} />
-                      <Text style={{ marginLeft: 6, fontWeight: 'bold', fontSize: 11, color: isMatrix ? '#00ff41' : '#854d0e', textTransform: 'uppercase' }}>
-                        {lang === 'es' ? 'Meta Principal' : 'Main Goal'}
-                      </Text>
-                    </View>
-                    <TouchableOpacity onPress={() => deleteWorktableItem(worktable.pin.id)}>
-                      <IconSymbol name="trash" size={12} color={isMatrix ? '#00ff41' : '#ca8a04'} />
-                    </TouchableOpacity>
-                  </View>
-                  <Text style={{ fontSize: 14, color: isMatrix ? '#d1ffd7' : '#713f12', lineHeight: 18 }}>
-                    {worktable.pin.text}
-                  </Text>
-                </View>
-              )}
-
-              {/* STUDY FLASHCARDS */}
-              {worktable.cards.length > 0 && (
-                <View style={{ marginTop: 16 }}>
-                  <Text style={{ fontSize: 14, fontWeight: 'bold', color: colors.textPrimary, marginBottom: 8 }}>
-                    {lang === 'es' ? 'Tarjetas de Estudio' : 'Study Flashcards'}
-                  </Text>
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10, paddingBottom: 6 }}>
-                    {worktable.cards.map((card) => {
-                      const isFlipped = flippingCardId === card.id;
-                      return (
-                        <TouchableOpacity
-                          key={card.id}
-                          activeOpacity={0.9}
-                          onPress={() => {
-                            setFlippingCardId(isFlipped ? null : card.id);
-                            try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch (_) {}
-                          }}
-                          style={[
-                            styles.flashcard,
-                            {
-                              backgroundColor: isFlipped
-                                ? (isMatrix ? '#1a1e1a' : colors.primary + '15')
-                                : (isMatrix ? '#121412' : colors.surfaceSecondary),
-                              borderColor: isMatrix ? '#00ff41' : colors.border,
-                              borderWidth: 1
-                            }
-                          ]}
-                        >
-                          <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 12 }}>
-                            <Text style={{ fontSize: 10, fontWeight: 'bold', color: colors.textSecondary, marginBottom: 6, textTransform: 'uppercase' }}>
-                              {isFlipped ? (lang === 'es' ? 'Respuesta' : 'Answer') : (lang === 'es' ? 'Pregunta' : 'Question')}
-                            </Text>
-                            <Text style={{
-                              fontSize: 13,
-                              fontWeight: 'bold',
-                              color: isFlipped ? colors.primary : colors.textPrimary,
-                              textAlign: 'center'
-                            }}>
-                              {isFlipped ? card.answer : card.question}
-                            </Text>
-                          </View>
-                          <TouchableOpacity
-                            onPress={() => deleteWorktableItem(card.id)}
-                            style={{ position: 'absolute', top: 6, right: 6 }}
-                          >
-                            <IconSymbol name="trash" size={12} color={colors.textSecondary} />
-                          </TouchableOpacity>
-                        </TouchableOpacity>
-                      );
-                    })}
-                  </ScrollView>
-                </View>
-              )}
-            </View>
           </>
         )}
       </ScrollView>
 
       {/* THEME PICKER MODAL */}
-      <Modal visible={showThemeDropdown} transparent animationType="fade" onRequestClose={() => setShowThemeDropdown(false)}>
-        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowThemeDropdown(false)}>
+      <Modal visible={showThemeDropdown} transparent animationType="fade" statusBarTranslucent={true} onRequestClose={() => setShowThemeDropdown(false)}>
+        {Platform.OS === 'android' && <View style={{ height: (dropdownTicket % 2 === 1) ? 0.5 : 0 }} />}
+        <TouchableOpacity 
+          style={[
+            styles.modalOverlay, 
+            { 
+              width: Dimensions.get('screen').width, 
+              height: Dimensions.get('screen').height,
+              paddingTop: Platform.OS === 'android' && (dropdownTicket % 2 === 1) ? 0.5 : 0
+            }
+          ]} 
+          activeOpacity={1} 
+          onPress={() => setShowThemeDropdown(false)}
+        >
           <View style={[styles.modalContent, { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1 }]}>
             <Text style={[styles.modalTitle, { color: colors.textPrimary }]}>
               {lang === 'es' ? 'Selecciona un Tema' : 'Select a Theme'}
@@ -1246,8 +1294,20 @@ ${factsText}`;
       </Modal>
 
       {/* ACTIVE PROJECTS MODAL */}
-      <Modal visible={showProjectDropdown} transparent animationType="fade" onRequestClose={() => setShowProjectDropdown(false)}>
-        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowProjectDropdown(false)}>
+      <Modal visible={showProjectDropdown} transparent animationType="fade" statusBarTranslucent={true} onRequestClose={() => setShowProjectDropdown(false)}>
+        {Platform.OS === 'android' && <View style={{ height: (dropdownTicket % 2 === 1) ? 0.5 : 0 }} />}
+        <TouchableOpacity 
+          style={[
+            styles.modalOverlay, 
+            { 
+              width: Dimensions.get('screen').width, 
+              height: Dimensions.get('screen').height,
+              paddingTop: Platform.OS === 'android' && (dropdownTicket % 2 === 1) ? 0.5 : 0
+            }
+          ]} 
+          activeOpacity={1} 
+          onPress={() => setShowProjectDropdown(false)}
+        >
           <View style={[styles.modalContent, { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1 }]}>
             <Text style={[styles.modalTitle, { color: colors.textPrimary }]}>
               {lang === 'es' ? 'Selecciona un Proyecto' : 'Select a Project'}

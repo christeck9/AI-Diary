@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 /**
  * PSYCHOMETRIC FOUNDATIONS - AI SANCTUARY (SANCTUARY v4.0)
  * ---------------------------------------------------
@@ -15,7 +15,7 @@ import React from 'react';
  * 6. Personalidad 16r: Based on Carl Jung's theory of psychological types 
  *    (Extraversion/Introversion, Sensing/Intuition, Thinking/Feeling, Judging/Perceiving).
  */
-import { Modal, View, Text, TouchableOpacity, ScrollView, StyleSheet, Platform, SafeAreaView } from 'react-native';
+import { Modal, View, Text, TouchableOpacity, ScrollView, StyleSheet, Platform, SafeAreaView, Dimensions } from 'react-native';
 import { IconSymbol } from '../ui/icon-symbol';
 
 export interface PsyProfile {
@@ -536,9 +536,39 @@ export const PsyTestModal: React.FC<PsyTestModalProps> = ({
     return labels[key]?.[lang] || key;
   };
 
+  const [layoutTicket, setLayoutTicket] = useState(0);
+  const isAndroidEnvironment = Platform.OS === 'android';
+  const { width: absoluteScreenWidth, height: absoluteScreenHeight } = Dimensions.get('screen');
+
+  useEffect(() => {
+    if (visible) {
+      const timer = setTimeout(() => {
+        setLayoutTicket(prev => prev + 1);
+      }, 50);
+      return () => clearTimeout(timer);
+    }
+  }, [visible]);
+
   return (
-    <Modal visible={visible} animationType="slide" transparent={false} onRequestClose={onClose}>
-      <View style={{ flex: 1, backgroundColor: colors.background }}>
+    <Modal 
+      visible={visible} 
+      animationType="slide" 
+      transparent={true} 
+      statusBarTranslucent={true}
+      onRequestClose={onClose}
+    >
+      {isAndroidEnvironment && <View style={{ height: (layoutTicket % 2 === 1) ? 0.5 : 0 }} />}
+      <View 
+        style={{ 
+          flex: 1, 
+          width: absoluteScreenWidth, 
+          height: absoluteScreenHeight, 
+          backgroundColor: colors.background, 
+          margin: 0, 
+          padding: 0,
+          paddingTop: isAndroidEnvironment && (layoutTicket % 2 === 1) ? 0.5 : 0
+        }}
+      >
         <SafeAreaView style={{ flex: 1 }}>
           <View style={{ flex: 1, padding: 20, paddingBottom: Platform.OS === 'android' ? 85 : 20 }}>
           {psyStep < totalQuestions ? (

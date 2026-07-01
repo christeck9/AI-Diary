@@ -1,9 +1,14 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, TextInput, StyleSheet, Platform, Image, ScrollView } from 'react-native';
+import Animated from 'react-native-reanimated';
 import { IconSymbol } from '../ui/icon-symbol';
 import { PSY_QUESTIONS, PsyProfile } from './PsyTestModal';
 import { UserProfile } from '../../lib/PromptService';
-import { getTotalRAMValue } from '../../lib/MemoryManager';
+import { getFreeDiskStorageMB } from '../../lib/hardware';
+import { getFreeRAM, evaluateDeviceRAMCapabilities } from '../../lib/RAMGuard';
+import { CompactDownloadOverlay } from '../SanctuaryUI';
+import type { ModelInfo } from '../../hooks/useAppLlm';
+import { ModelDefinition } from '../../src/config/ModelConfig';
 
 interface OnboardingModalProps {
   visible: boolean;
@@ -22,6 +27,19 @@ interface OnboardingModalProps {
   setIsOnboardingComplete: (val: boolean) => void;
   setPsyCompleted: (val: boolean) => void;
   db: any;
+  handleDownload?: () => void;
+  canResume?: boolean;
+  status?: any;
+  modelExists?: boolean;
+  downloadPercent?: number;
+  downloadedMB?: number;
+  downloadingModel?: ModelDefinition | null;
+  downloadingType?: 'model' | 'vision' | null;
+  activeModel?: ModelInfo | null;
+  downloadSpeed?: number;
+  waitPhrase?: string;
+  handleLoad?: () => void;
+  selectedModel?: ModelInfo;
 }
 
 export const OnboardingModal: React.FC<OnboardingModalProps> = ({
@@ -40,108 +58,178 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
   setPsyProfile,
   setIsOnboardingComplete,
   setPsyCompleted,
-  db
+  db,
+  handleDownload,
+  canResume,
+  status,
+  modelExists,
+  downloadPercent,
+  downloadedMB,
+  downloadingModel,
+  downloadingType,
+  activeModel,
+  downloadSpeed,
+  waitPhrase,
+  selectedModel
 }) => {
+  const [freeDiskMB, setFreeDiskMB] = React.useState<number | null>(null);
+  const [freeRamMB, setFreeRamMB] = React.useState<number | null>(null);
+
+  React.useEffect(() => {
+    if (onboardingStep === 1) {
+      getFreeDiskStorageMB().then(setFreeDiskMB);
+      getFreeRAM().then(setFreeRamMB);
+    }
+  }, [onboardingStep]);
+
   if (!visible) return null;
 
   return (
     <View style={[styles.statusOverlay, { backgroundColor: colors.surfaceSecondary, borderColor: colors.primary, zIndex: 999 }]}>
-      <Image 
-        source={require('../../assets/images/icon.png')} 
-        style={{ width: 64, height: 64, borderRadius: 12, marginBottom: 5 }} 
+      <Image
+        source={require('../../assets/images/icon.png')}
+        style={{ width: 64, height: 64, borderRadius: 12, marginBottom: 5 }}
       />
       <Text style={[styles.statusText, { color: colors.textPrimary, marginTop: 10, fontSize: 18 }]}>
         {lang === 'es' ? 'Iniciando AI Diary' : 'AI Diary Initialization'}
       </Text>
 
-      {onboardingStep === 0 && (() => {
-        const ramMB = getTotalRAMValue();
-        const ramGB = Math.round(ramMB / 1024);
-        const isLowRam = ramGB < 4;
+      {onboardingStep === 0 && (
+        <ScrollView
+          style={{ width: '100%', marginTop: 10 }}
+          contentContainerStyle={{ alignItems: 'center', paddingBottom: 20 }}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={{ flexDirection: 'row', marginBottom: 20, borderWidth: 1, borderColor: colors.border, borderRadius: 8, overflow: 'hidden' }}>
+            <TouchableOpacity
+              style={{ paddingVertical: 10, paddingHorizontal: 20, backgroundColor: lang === 'en' ? colors.primary : 'transparent' }}
+              onPress={() => setLang('en')}
+            >
+              <Text style={{ color: lang === 'en' ? '#FFF' : colors.textPrimary, fontWeight: 'bold' }}>ENGLISH</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={{ paddingVertical: 10, paddingHorizontal: 20, backgroundColor: lang === 'es' ? colors.primary : 'transparent' }}
+              onPress={() => setLang('es')}
+            >
+              <Text style={{ color: lang === 'es' ? '#FFF' : colors.textPrimary, fontWeight: 'bold' }}>ESPAÑOL</Text>
+            </TouchableOpacity>
+          </View>
 
+          <Text style={{ color: colors.secondary, fontWeight: 'bold', marginBottom: 5, textAlign: 'center', fontSize: 16 }}>
+            {lang === 'es' ? '¡Bienvenido a AI Diary!' : 'Welcome to AI Diary!'}
+          </Text>
+
+          <Text style={{ color: colors.textSecondary, marginBottom: 5, width: '100%' }}>{lang === 'es' ? '¿Cómo debemos llamarte?' : 'What should we call you?'}</Text>
+          <TextInput style={[styles.input, { borderColor: colors.border, marginBottom: 15, width: '100%', minHeight: 45, borderRadius: 8, borderWidth: 1, color: colors.textPrimary }]} value={userProfile.nickname || ''} onChangeText={t => setUserProfile({ ...userProfile, nickname: t })} />
+
+          <Text style={{ color: colors.textSecondary, marginBottom: 5, width: '100%' }}>{lang === 'es' ? '¿A qué te dedicas actualmente?' : 'What is your current occupation?'}</Text>
+          <TextInput style={[styles.input, { borderColor: colors.border, marginBottom: 15, width: '100%', minHeight: 45, borderRadius: 8, borderWidth: 1, color: colors.textPrimary }]} value={userProfile.work} onChangeText={t => setUserProfile({ ...userProfile, work: t })} />
+
+          {/* Privacy Note */}
+          <Text style={{
+            color: colors.secondary,
+            fontWeight: 'bold',
+            marginTop: 10,
+            marginBottom: 20,
+            textAlign: 'center',
+            fontSize: 12,
+            fontFamily: Platform.select({ ios: 'Courier', android: 'monospace' })
+          }}>
+            {lang === 'es'
+              ? '[ AI Diary puede operar 100% offline después de descargar los modelos de IA principales. Es ecológico ya que vive en tu teléfono y es completamente privado, incluso encriptado ]'
+              : '[ AI Diary can operate 100% offline after downloading core AI models. It is ecological as it lives in your phone and it is completely private even encrypted ]'}
+          </Text>
+
+          <TouchableOpacity
+            disabled={!userProfile.nickname || !userProfile.work}
+            style={[
+              styles.actionBtn,
+              {
+                backgroundColor: (userProfile.nickname && userProfile.work) ? colors.primary : colors.surface,
+                borderColor: (userProfile.nickname && userProfile.work) ? colors.primary : colors.border,
+                paddingHorizontal: 40,
+                borderRadius: 24,
+                opacity: (userProfile.nickname && userProfile.work) ? 1 : 0.5
+              }
+            ]}
+            onPress={() => setOnboardingStep(1)}
+          >
+            <Text style={{ color: (userProfile.nickname && userProfile.work) ? '#FFF' : colors.textSecondary, fontWeight: 'bold' }}>
+              {lang === 'es' ? 'Siguiente' : "Next"}
+            </Text>
+          </TouchableOpacity>
+        </ScrollView>
+      )}
+
+      {onboardingStep === 1 && (() => {
         let ramDetectionText = '';
-        if (ramGB < 4) {
-          ramDetectionText = lang === 'es'
-            ? `Tu teléfono tiene ${ramGB} GB de RAM, tu teléfono no es capaz de ejecutar esta APP.`
-            : `Your phone has ${ramGB} GB in RAM, your phone is not able to run this APP.`;
-        } else if (ramGB < 6) {
-          ramDetectionText = lang === 'es'
-            ? `Tu teléfono tiene ${ramGB} GB de RAM, puedes ejecutar Anima Light & Anima Balance`
-            : `Your phone has ${ramGB} GB in RAM you can run Anima Light & Anima Balance`;
+        let isLowRam = false;
+        let ramStatus: 'red' | 'yellow' | 'green' = 'red';
+
+        if (freeRamMB !== null) {
+          const evalRes = evaluateDeviceRAMCapabilities(freeRamMB, lang);
+          ramDetectionText = evalRes.message;
+          isLowRam = evalRes.isLowRam;
+          ramStatus = evalRes.status;
         } else {
-          ramDetectionText = lang === 'es'
-            ? `Tu teléfono tiene ${ramGB} GB de RAM, puedes ejecutar cualquiera de nuestros modelos.`
-            : `Your phone has ${ramGB} GB in RAM you can run any of our models.`;
+          ramDetectionText = lang === 'es' ? 'Evaluando Memoria RAM disponible...' : 'Evaluating available RAM...';
+        }
+
+        const diskGB = freeDiskMB ? (freeDiskMB / 1024).toFixed(1) : '...';
+        const isLowDisk = freeDiskMB !== null && freeDiskMB < 4000;
+
+        let diskDetectionText = '';
+        if (freeDiskMB !== null) {
+          if (isLowDisk) {
+            diskDetectionText = lang === 'es'
+              ? `Espacio libre: ${diskGB} GB. Es recomendable liberar al menos 6 GB (recomendado).`
+              : `Free space: ${diskGB} GB. It is recommended to free up at least 6 GB (recommended).`;
+          } else {
+            diskDetectionText = lang === 'es'
+              ? `Espacio libre: ${diskGB} GB. Tienes suficiente espacio de almacenamiento (se recomienda 6 GB).`
+              : `Free space: ${diskGB} GB. You have enough storage space (6 GB recommended).`;
+          }
         }
 
         return (
-          <ScrollView 
+          <ScrollView
             style={{ width: '100%', marginTop: 10 }}
             contentContainerStyle={{ alignItems: 'center', paddingBottom: 20 }}
             showsVerticalScrollIndicator={false}
           >
-            <View style={{ flexDirection: 'row', marginBottom: 20, borderWidth: 1, borderColor: colors.border, borderRadius: 8, overflow: 'hidden' }}>
-              <TouchableOpacity 
-                style={{ paddingVertical: 10, paddingHorizontal: 20, backgroundColor: lang === 'en' ? colors.primary : 'transparent' }} 
-                onPress={() => setLang('en')}
-              >
-                <Text style={{ color: lang === 'en' ? '#FFF' : colors.textPrimary, fontWeight: 'bold' }}>ENGLISH</Text>
-              </TouchableOpacity>
-              <TouchableOpacity 
-                style={{ paddingVertical: 10, paddingHorizontal: 20, backgroundColor: lang === 'es' ? colors.primary : 'transparent' }} 
-                onPress={() => setLang('es')}
-              >
-                <Text style={{ color: lang === 'es' ? '#FFF' : colors.textPrimary, fontWeight: 'bold' }}>ESPAÑOL</Text>
-              </TouchableOpacity>
-            </View>
-
-            {/* Banner */}
-            <Text style={{ 
-              color: colors.secondary, 
-              fontWeight: 'bold', 
-              marginBottom: 15, 
-              textAlign: 'center',
-              fontSize: 12,
-              fontFamily: Platform.select({ ios: 'Courier', android: 'monospace' })
-            }}>
-              {lang === 'es'
-                ? '[ AI Diary 100% privado, ningún dato, chat o perfil saldrá de este dispositivo ]'
-                : '[ AI Diary 100% private, no data, chat or profile will ever leave the device ]'}
-            </Text>
-
             {/* Requirements Box */}
-            <View style={{ 
-              width: '100%', 
-              padding: 12, 
-              backgroundColor: colors.surface, 
-              borderRadius: 8, 
-              borderWidth: 1, 
-              borderColor: colors.border, 
-              marginBottom: 12 
+            <View style={{
+              width: '100%',
+              padding: 12,
+              backgroundColor: colors.surface,
+              borderRadius: 8,
+              borderWidth: 1,
+              borderColor: colors.border,
+              marginBottom: 12
             }}>
-              <Text style={{ 
-                color: colors.textSecondary, 
-                fontSize: 11, 
+              <Text style={{
+                color: colors.textSecondary,
+                fontSize: 11,
                 fontFamily: Platform.select({ ios: 'Courier', android: 'monospace' }),
-                marginBottom: 4 
+                marginBottom: 4
               }}>
                 {lang === 'es'
                   ? 'Anima Light requiere 4GB en RAM (solo texto y voz)'
                   : 'Anima Light requires 4GB in RAM (only text and voice)'}
               </Text>
-              <Text style={{ 
-                color: colors.textSecondary, 
-                fontSize: 11, 
+              <Text style={{
+                color: colors.textSecondary,
+                fontSize: 11,
                 fontFamily: Platform.select({ ios: 'Courier', android: 'monospace' }),
-                marginBottom: 4 
+                marginBottom: 4
               }}>
                 {lang === 'es'
                   ? 'Anima Balance requiere 4GB en RAM (multimedia)'
                   : 'Anima Balance requires 4GB in RAM (multimedia)'}
               </Text>
-              <Text style={{ 
-                color: colors.textSecondary, 
-                fontSize: 11, 
+              <Text style={{
+                color: colors.textSecondary,
+                fontSize: 11,
                 fontFamily: Platform.select({ ios: 'Courier', android: 'monospace' })
               }}>
                 {lang === 'es'
@@ -151,20 +239,20 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
             </View>
 
             {/* Dynamic RAM Status */}
-            <View style={{ 
-              width: '100%', 
-              padding: 10, 
-              borderRadius: 8, 
-              borderWidth: 1, 
-              borderColor: isLowRam ? '#EF4444' : colors.primary, 
-              backgroundColor: isLowRam ? 'rgba(239, 68, 68, 0.1)' : 'rgba(0, 255, 0, 0.05)', 
-              marginBottom: 12,
+            <View style={{
+              width: '100%',
+              padding: 10,
+              borderRadius: 8,
+              borderWidth: 1,
+              borderColor: ramStatus === 'red' ? '#ac3e4bff' : (ramStatus === 'yellow' ? '#EAB308' : colors.primary),
+              backgroundColor: ramStatus === 'red' ? 'rgba(114, 47, 55, 0.1)' : (ramStatus === 'yellow' ? 'rgba(234, 179, 8, 0.1)' : 'rgba(0, 255, 0, 0.05)'),
+              marginBottom: 8,
               alignItems: 'center'
             }}>
-              <Text style={{ 
-                color: isLowRam ? '#EF4444' : colors.primary, 
-                fontWeight: 'bold', 
-                fontSize: 11, 
+              <Text style={{
+                color: ramStatus === 'red' ? '#ac3e4bff' : (ramStatus === 'yellow' ? '#EAB308' : colors.primary),
+                fontWeight: 'bold',
+                fontSize: 11,
                 textAlign: 'center',
                 fontFamily: Platform.select({ ios: 'Courier', android: 'monospace' })
               }}>
@@ -172,12 +260,36 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
               </Text>
             </View>
 
+            {/* Dynamic Disk Status */}
+            {freeDiskMB !== null && (
+              <View style={{
+                width: '100%',
+                padding: 10,
+                borderRadius: 8,
+                borderWidth: 1,
+                borderColor: isLowDisk ? '#EAB308' : colors.primary,
+                backgroundColor: isLowDisk ? 'rgba(234, 179, 8, 0.1)' : 'rgba(0, 255, 0, 0.05)',
+                marginBottom: 12,
+                alignItems: 'center'
+              }}>
+                <Text style={{
+                  color: isLowDisk ? '#EAB308' : colors.primary,
+                  fontWeight: 'bold',
+                  fontSize: 11,
+                  textAlign: 'center',
+                  fontFamily: Platform.select({ ios: 'Courier', android: 'monospace' })
+                }}>
+                  {diskDetectionText}
+                </Text>
+              </View>
+            )}
+
             {/* Free Tier Note */}
-            <Text style={{ 
-              color: colors.textSecondary, 
-              fontSize: 8.5, 
-              textAlign: 'center', 
-              marginBottom: 15, 
+            <Text style={{
+              color: colors.textSecondary,
+              fontSize: 8.5,
+              textAlign: 'center',
+              marginBottom: 15,
               lineHeight: 12,
               fontStyle: 'italic'
             }}>
@@ -186,101 +298,95 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
                 : 'Note: Free tier is only Anima Light and one tier of Psychological Tests but that basically is 100% of how you can use this app as a Diary, memory of all records and output of them. Enjoy! For testers, all models are open. Thanks!'}
             </Text>
 
-            {/* Action Button */}
-            <TouchableOpacity 
-              disabled={isLowRam}
-              style={[
-                styles.actionBtn, 
-                { 
-                  backgroundColor: isLowRam ? colors.surface : colors.primary, 
-                  borderColor: isLowRam ? colors.border : colors.primary, 
-                  paddingHorizontal: 40, 
-                  borderRadius: 24,
-                  opacity: isLowRam ? 0.5 : 1
-                }
-              ]} 
-              onPress={() => setOnboardingStep(1)}
-            >
-              <Text style={{ color: isLowRam ? colors.textSecondary : '#FFF', fontWeight: 'bold' }}>
-                {lang === 'es' ? 'Empecemos' : "Let's Begin"}
-              </Text>
-            </TouchableOpacity>
+            {/* DOWNLOAD UI */}
+            {selectedModel && !isLowRam && !isLowDisk && (
+              <View style={{ width: '100%', marginTop: 5, alignItems: 'center' }}>
+                <Text style={{ color: colors.textPrimary, fontWeight: 'bold', marginBottom: 10 }}>
+                  {selectedModel[lang === 'es' ? 'labelEs' : 'labelEn']} ({selectedModel.sizeMB} MB)
+                </Text>
+
+                {(status === 'idle' || status === 'downloading') && (
+                  <Animated.View style={[{ opacity: !modelExists ? 1 : 0.6, marginBottom: 10 }]}>
+                    <TouchableOpacity
+                      style={[
+                        styles.actionBtn,
+                        {
+                          borderColor: modelExists ? colors.border : (status === 'downloading' ? '#424242' : colors.primary),
+                          backgroundColor: modelExists ? 'transparent' : (status === 'downloading' ? '#424242' : colors.primary),
+                          borderWidth: modelExists ? 1 : 2,
+                          paddingHorizontal: 30,
+                          borderRadius: 24,
+                        }
+                      ]}
+                      onPress={handleDownload}
+                      disabled={modelExists || status === 'downloading'}
+                    >
+                      <Text style={{ color: modelExists ? colors.textSecondary : (status === 'downloading' ? '#888888' : '#FFF'), fontWeight: 'bold', fontSize: 13 }}>
+                        {modelExists ? (lang === 'es' ? 'Descargado' : 'Downloaded') : (status === 'downloading' || canResume ? (lang === 'es' ? 'Continuar Descarga' : 'Continue Download') : (lang === 'es' ? 'Descargar Modelo' : 'Download Model'))}
+                      </Text>
+                    </TouchableOpacity>
+                  </Animated.View>
+                )}
+
+                {(status === 'downloading' || status === 'loading') && (
+                  <View style={{ alignItems: 'center', marginTop: 8, width: '100%' }}>
+                    <CompactDownloadOverlay
+                      downloadPercent={downloadPercent || 0}
+                      downloadedMB={downloadedMB || 0}
+                      totalMB={
+                        downloadingModel
+                          ? (downloadingType === 'vision' ? (downloadingModel.mmprojSizeMB || 0) : downloadingModel.sizeMB)
+                          : (activeModel ? (downloadingType === 'vision' ? (activeModel.mmprojSizeMB || 0) : activeModel.sizeMB) : selectedModel.sizeMB)
+                      }
+                      downloadSpeed={downloadSpeed || 0}
+                      waitPhrase={waitPhrase || ''}
+                      colors={colors}
+                    />
+                  </View>
+                )}
+              </View>
+            )}
+
+            <View style={{ flexDirection: 'row', gap: 10, width: '100%', marginTop: 20 }}>
+              <TouchableOpacity
+                style={[styles.actionBtn, { flex: 1, backgroundColor: 'transparent', borderColor: colors.border, borderWidth: 1, borderRadius: 24 }]}
+                onPress={() => setOnboardingStep(0)}
+              >
+                <Text style={{ color: colors.textSecondary, fontWeight: 'bold', textAlign: 'center' }}>{lang === 'es' ? 'Atrás' : 'Back'}</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                disabled={!modelExists || isLowRam || isLowDisk || status === 'downloading'}
+                style={[
+                  styles.actionBtn,
+                  {
+                    flex: 2,
+                    backgroundColor: (modelExists && !isLowRam && !isLowDisk && status !== 'downloading') ? colors.primary : colors.surface,
+                    borderColor: (modelExists && !isLowRam && !isLowDisk && status !== 'downloading') ? colors.primary : colors.border,
+                    alignItems: 'center',
+                    borderRadius: 24,
+                    opacity: (modelExists && !isLowRam && !isLowDisk && status !== 'downloading') ? 1 : 0.5
+                  }
+                ]}
+                onPress={() => setOnboardingStep(2)}
+              >
+                <Text style={{ color: (modelExists && !isLowRam && !isLowDisk && status !== 'downloading') ? '#FFF' : colors.textSecondary, fontWeight: 'bold' }}>
+                  {lang === 'es' ? 'Empezar Evaluación' : 'Start Evaluation'}
+                </Text>
+              </TouchableOpacity>
+            </View>
           </ScrollView>
         );
       })()}
 
-      {onboardingStep === 1 && (
-        <ScrollView 
-          style={{ width: '100%', marginTop: 10 }}
-          contentContainerStyle={{ paddingBottom: 20 }}
-          showsVerticalScrollIndicator={false}
-        >
-          <Text style={{ color: colors.secondary, fontWeight: 'bold', marginBottom: 5, textAlign: 'center', fontSize: 16 }}>
-            {lang === 'es' ? '¡Bienvenido a AI Diary. Offline AI!' : 'Welcome to AI Diary. Offline AI!'}
-          </Text>
-          <Text style={{ color: colors.textSecondary, textAlign: 'center', marginBottom: 15, fontSize: 11, lineHeight: 15 }}>
-            {lang === 'es'
-              ? 'Una aplicación privada impulsada por IA que utiliza el hardware de tu teléfono para funcionar. Se recomienda tener al menos 6 GB de RAM y un procesador de 64 bits para ejecutarla de manera óptima (o al menos 4 GB para Anima Balance). No requiere todo el poder del mundo para correr una IA. La desventaja es que no es tan rápida como las basadas en servidores.'
-              : 'An AI-powered private application that uses your phone\'s hardware to work. It\'s recommended to have at least 6 GB of RAM and a 64-bit processor to run it optimally (or at least 4 GB for Anima Balance). It doesn\'t use all the power in the world to run an AI. The drawback is that it\'s not as fast as server-based ones.'}
-          </Text>
-          <Text style={{ color: colors.textSecondary, marginBottom: 5 }}>{lang === 'es' ? '¿Cómo debemos llamarte?' : 'What should we call you?'}</Text>
-          <TextInput style={[styles.input, { borderColor: colors.border, marginBottom: 15, width: '100%', minHeight: 45, borderRadius: 8, borderWidth: 1, color: colors.textPrimary }]} value={userProfile.nickname || ''} onChangeText={t => setUserProfile({...userProfile, nickname: t})} />
-          
-          <Text style={{ color: colors.textSecondary, marginBottom: 5 }}>{lang === 'es' ? '¿A qué te dedicas actualmente?' : 'What is your current occupation?'}</Text>
-          <TextInput style={[styles.input, { borderColor: colors.border, marginBottom: 15, width: '100%', minHeight: 45, borderRadius: 8, borderWidth: 1, color: colors.textPrimary }]} value={userProfile.work} onChangeText={t => setUserProfile({...userProfile, work: t})} />
-          
-          <Text style={{ color: colors.textSecondary, fontSize: 9.5, lineHeight: 14, textAlign: 'center', marginBottom: 15, fontStyle: 'italic' }}>
-            {lang === 'es'
-              ? 'Nota: Después de instalar la aplicación, necesitarás descargar el modelo de IA (de entre 2 y 4 GB aproximadamente), por lo que requerirás conexión a internet para esta primera descarga. Una vez descargado, el modelo funciona 100% offline, aunque cuentas con la opción de conectarlo a internet para actualizarlo con noticias de la actualidad. Ejecutar una IA de forma local puede calentar tu teléfono, especialmente durante conversaciones largas. Ten en cuenta esto y ¡disfruta de tu aplicación!'
-              : 'Note: After installing the application, you will need to download the AI model (approximately 2 to 4 GB), so you will require an internet connection for this initial download. Once downloaded, the model runs 100% offline, although you have the option to connect it to the internet to update it with current news. Running a local AI can warm up your phone, especially during long conversations. Please keep this in mind and enjoy your application!'}
-          </Text>
-          
-          <View style={{ flexDirection: 'row', gap: 10, width: '100%' }}>
-            <TouchableOpacity 
-              style={[styles.actionBtn, { flex: 1, backgroundColor: 'transparent', borderColor: colors.border, borderWidth: 1, borderRadius: 24 }]} 
-              onPress={() => setOnboardingStep(0)}
-            >
-              <Text style={{ color: colors.textSecondary, fontWeight: 'bold' }}>{lang === 'es' ? 'Atrás' : 'Back'}</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity 
-              style={[styles.actionBtn, { flex: 2, backgroundColor: (userProfile.nickname && userProfile.work) ? colors.primary : colors.surface, alignItems: 'center', borderRadius: 24 }]} 
-              onPress={async () => {
-                if (userProfile.nickname && userProfile.work) {
-                  try {
-                    if (db) {
-                      await db.runAsync('DELETE FROM user_profile');
-                      await db.runAsync('INSERT INTO user_profile (name, nickname, work, likes) VALUES (?, ?, ?, ?)', ['', userProfile.nickname, userProfile.work, '']);
-                      
-                      // Initialize psy_profile with default balanced scores (0.5)
-                      await db.runAsync('DELETE FROM psy_profile');
-                      await db.runAsync('INSERT INTO psy_profile (O, C, E, A, N, D, L) VALUES (?, ?, ?, ?, ?, ?, ?)', [0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5]);
-                      setPsyProfile({ O: 0.5, C: 0.5, E: 0.5, A: 0.5, N: 0.5, D: 0.5, L: 0.5 });
-                      
-                      await db.runAsync('INSERT OR REPLACE INTO onboarding_status (id, completed, completed_at) VALUES (1, 1, ?)', [Date.now()]);
-                    }
-                  } catch (e) {
-                    console.log('[ONBOARDING] Error saving profile defaults:', e);
-                  }
-                  setIsOnboardingComplete(true);
-                  setPsyCompleted(true);
-                }
-              }}
-            >
-              <Text style={{ color: (userProfile.nickname && userProfile.work) ? '#FFF' : colors.textSecondary, fontWeight: 'bold' }}>{lang === 'es' ? 'Empezar' : 'Get Started'}</Text>
-            </TouchableOpacity>
-          </View>
-        </ScrollView>
-      )}
-
       {onboardingStep === 2 && (
-        <ScrollView 
+        <ScrollView
           style={{ width: '100%', marginTop: 10 }}
           contentContainerStyle={{ paddingBottom: 20 }}
           showsVerticalScrollIndicator={false}
         >
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-            <TouchableOpacity 
+            <TouchableOpacity
               onPress={() => {
                 if (psyStep > 0) {
                   setPsyStep(psyStep - 1);
@@ -297,7 +403,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
             <View style={{ width: 24 }} />
           </View>
           <Text style={{ color: colors.textSecondary, textAlign: 'center', marginBottom: 15, fontSize: 12 }}>{psyStep + 1} / 5</Text>
-          
+
           <Text style={{ color: colors.textPrimary, fontSize: 15, fontWeight: 'bold', marginBottom: 20, textAlign: 'center' }}>
             {lang === 'es' ? PSY_QUESTIONS[psyStep]?.q_es : PSY_QUESTIONS[psyStep]?.q_en}
           </Text>
@@ -313,26 +419,29 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
                   setPsyStep(psyStep + 1);
                 } else {
                   try {
-                     if (db) {
-                       await db.runAsync('DELETE FROM psy_profile');
-                       const dims: Record<string, number[]> = { O: [], C: [], E: [], A: [], N: [], D: [], L: [] };
-                       for (let i = 0; i < 5; i++) {
-                         const q = PSY_QUESTIONS[i];
-                         const ansIdx = newAnswers[i] ?? 0;
-                         const opt = q.opts[ansIdx];
-                         if (opt) dims[opt.dim].push(opt.val);
-                       }
-                       const avg = (arr: number[]) => arr.length > 0 ? arr.reduce((a, b) => a + b, 0) / arr.length : 0.5;
-                       const scores = { O: avg(dims.O), C: avg(dims.C), E: avg(dims.E), A: avg(dims.A), N: avg(dims.N), D: avg(dims.D), L: avg(dims.L) };
-                       
-                       await db.runAsync('INSERT INTO psy_profile (O, C, E, A, N, D, L) VALUES (?, ?, ?, ?, ?, ?, ?)', [scores.O, scores.C, scores.E, scores.A, scores.N, scores.D, scores.L]);
-                       setPsyProfile(scores);
-                       await db.runAsync('INSERT OR REPLACE INTO onboarding_status (id, completed, completed_at) VALUES (1, 1, ?)', [Date.now()]);
-                     }
+                    if (db) {
+                      await db.runAsync('DELETE FROM user_profile');
+                      await db.runAsync('INSERT INTO user_profile (name, nickname, work, likes) VALUES (?, ?, ?, ?)', ['', userProfile.nickname, userProfile.work, '']);
+
+                      await db.runAsync('DELETE FROM psy_profile');
+                      const dims: Record<string, number[]> = { O: [], C: [], E: [], A: [], N: [], D: [], L: [] };
+                      for (let i = 0; i < 5; i++) {
+                        const q = PSY_QUESTIONS[i];
+                        const ansIdx = newAnswers[i] ?? 0;
+                        const option = q.opts[ansIdx];
+                        if (option) dims[option.dim].push(option.val);
+                      }
+                      const avg = (arr: number[]) => arr.length > 0 ? arr.reduce((a, b) => a + b, 0) / arr.length : 0.5;
+                      const scores = { O: avg(dims.O), C: avg(dims.C), E: avg(dims.E), A: avg(dims.A), N: avg(dims.N), D: avg(dims.D), L: avg(dims.L) };
+
+                      await db.runAsync('INSERT INTO psy_profile (O, C, E, A, N, D, L) VALUES (?, ?, ?, ?, ?, ?, ?)', [scores.O, scores.C, scores.E, scores.A, scores.N, scores.D, scores.L]);
+                      setPsyProfile(scores);
+                      await db.runAsync('INSERT OR REPLACE INTO onboarding_status (id, completed, completed_at) VALUES (1, 1, ?)', [Date.now()]);
+                    }
                   } catch (e) { console.log(e); }
                   setIsOnboardingComplete(true);
                   setPsyCompleted(true);
-                  setPsyStep(0); 
+                  setPsyStep(0);
                 }
               }}
             >
@@ -352,6 +461,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   statusText: { fontSize: 14, fontFamily: Platform.select({ ios: 'Courier', android: 'monospace' }), fontWeight: 'bold' },
-  actionBtn: { borderWidth: 1, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 5 },
+  actionBtn: { borderWidth: 1, paddingHorizontal: 14, paddingVertical: 12, borderRadius: 5, justifyContent: 'center' },
   input: { borderBottomWidth: 1, paddingHorizontal: 10, paddingVertical: 10, fontFamily: Platform.select({ ios: 'Courier', android: 'monospace' }) },
 });

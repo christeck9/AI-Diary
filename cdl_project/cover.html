@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>CDL Class A Driver Training Manual</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800;900&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#f2f3f4;          /* page_bg */
+    --card:#e8eaeb;        /* card_bg */
+    --header:#36454d;      /* header_fill - dark slate */
+    --block:#4e5d65;       /* cover_block */
+    --border:#b4c2ca;
+    --icon:#3c6f89;        /* steel blue */
+    --accent:#a4492a;      /* burnt orange */
+    --accent2:#5aae44;     /* green */
+    --text:#222526;
+    --muted:#7c8386;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;}
+  @page{ size:210mm 297mm; margin:0; }
+  html,body{
+    margin:0;padding:0;
+    width:210mm;height:297mm;
+    background:var(--bg);
+    font-family:'Inter',-apple-system,sans-serif;
+    color:var(--text);
+    overflow:hidden;
+  }
+  .cover{
+    position:relative;
+    width:210mm;height:297mm;
+    overflow:hidden;
+  }
+  /* Layer 1 — faint grid background */
+  .grid{
+    position:absolute;inset:0;
+    background-image:
+      linear-gradient(to right, rgba(60,111,137,0.04) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(60,111,137,0.04) 1px, transparent 1px);
+    background-size:50px 50px;
+    z-index:1;
+  }
+  /* Layer 2 — thick vertical anchor line (Template 01) */
+  .anchor{
+    position:absolute;
+    left:11.2%; top:8%; bottom:8%;
+    width:6px;
+    background:var(--header);
+    z-index:2;
+  }
+  /* corner marks */
+  .mark{ position:absolute; z-index:2; }
+  .mark.tr{ top:8%; right:8%; width:28px;height:28px;
+    border-top:1.5px solid var(--accent); border-right:1.5px solid var(--accent);}
+  .mark.br{ bottom:8%; right:8%; width:28px;height:28px;
+    border-bottom:1.5px solid var(--accent); border-right:1.5px solid var(--accent);}
+
+  /* Layer 3 — content */
+  .content{
+    position:absolute;
+    left:calc(11.2% + 30px);
+    right:8%;
+    top:0;bottom:0;
+    z-index:3;
+    display:flex;flex-direction:column;
+  }
+  /* A — kicker */
+  .kicker{
+    margin-top:12%;
+    font-size:14px;
+    font-weight:400;
+    letter-spacing:3.5px;
+    text-transform:uppercase;
+    color:var(--accent);
+    opacity:0.95;
+  }
+  .kicker .dot{ color:var(--icon); margin:0 8px; }
+
+  /* B — hero title */
+  .hero{
+    margin-top:7%;
+    font-size:64px;
+    font-weight:900;
+    line-height:1.08;
+    letter-spacing:-1.5px;
+    color:var(--header);
+  }
+  .hero .sub{
+    display:block;
+    font-size:30px;
+    font-weight:300;
+    letter-spacing:0;
+    color:var(--block);
+    margin-top:14px;
+  }
+  .rule{
+    width:90px;height:5px;background:var(--accent);
+    margin-top:30px;
+  }
+
+  /* C — summary */
+  .summary{
+    margin-top:8%;
+    font-size:16.5px;
+    font-weight:400;
+    line-height:1.7;
+    color:var(--text);
+    opacity:0.88;
+    max-width:62%;
+  }
+
+  /* specialty chips */
+  .chips{
+    margin-top:5%;
+    display:flex;flex-wrap:wrap;gap:9px;
+    max-width:70%;
+  }
+  .chip{
+    font-family:'Roboto Mono',monospace;
+    font-size:11.5px; font-weight:500;
+    letter-spacing:0.6px;
+    padding:7px 13px;
+    border:1px solid var(--border);
+    border-left:3px solid var(--accent);
+    background:#fff;
+    color:var(--header);
+  }
+  .chip.g{ border-left-color:var(--accent2); }
+  .chip.i{ border-left-color:var(--icon); }
+
+  /* D — meta block */
+  .meta-wrap{
+    margin-top:auto;
+    margin-bottom:11%;
+  }
+  .meta-line{
+    width:42%;height:1px;background:var(--border);
+    margin-bottom:18px;
+  }
+  .meta{
+    display:flex;gap:48px;
+  }
+  .meta .item .lbl{
+    font-size:11px;font-weight:500;
+    letter-spacing:2px;text-transform:uppercase;
+    color:var(--muted);
+    margin-bottom:5px;
+  }
+  .meta .item .val{
+    font-size:17px;font-weight:600;
+    color:var(--header);
+  }
+
+  /* footer */
+  .footer{
+    position:absolute;
+    left:calc(11.2% + 30px);
+    right:8%;
+    bottom:5.5%;
+    z-index:3;
+    display:flex;justify-content:space-between;align-items:center;
+    font-size:11px;letter-spacing:2px;text-transform:uppercase;
+    color:var(--muted);
+  }
+  .footer .badge{
+    font-family:'Roboto Mono',monospace;
+    font-weight:500;
+    color:var(--header);
+    border:1px solid var(--border);
+    padding:5px 10px;
+  }
+</style>
+</head>
+<body>
+<div class="cover">
+  <div class="grid"></div>
+  <div class="anchor"></div>
+  <div class="mark tr"></div>
+  <div class="mark br"></div>
+
+  <div class="content">
+    <div class="kicker">Driver Training Program<span class="dot">/</span>United States</div>
+
+    <h1 class="hero">
+      CDL Class A
+      <span class="sub">Commercial Driver Training Manual</span>
+    </h1>
+    <div class="rule"></div>
+
+    <p class="summary">
+      A complete operator's curriculum for Class A Commercial Driver's License holders.
+      Core fundamentals of safe tractor-trailer operation, followed by specialized modules
+      for the five most common equipment types operating on U.S. highways.
+    </p>
+
+    <div class="chips">
+      <span class="chip">01 · DRY VAN</span>
+      <span class="chip g">02 · FLATBED</span>
+      <span class="chip i">03 · CONTAINERS</span>
+      <span class="chip">04 · DUMP TRUCKS</span>
+      <span class="chip g">05 · REFRIGERATED</span>
+    </div>
+
+    <div class="meta-wrap">
+      <div class="meta-line"></div>
+      <div class="meta">
+        <div class="item">
+          <div class="lbl">Document</div>
+          <div class="val">Field Training Guide</div>
+        </div>
+        <div class="item">
+          <div class="lbl">Edition</div>
+          <div class="val">2026 · Rev. 1</div>
+        </div>
+        <div class="item">
+          <div class="lbl">Compliance</div>
+          <div class="val">FMCSA · DOT · 49 CFR</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">
+    <span>Safe operation · Compliance · Professionalism</span>
+    <span class="badge">CLASS A · COMBINATION VEHICLE</span>
+  </div>
+</div>
+</body>
+</html>

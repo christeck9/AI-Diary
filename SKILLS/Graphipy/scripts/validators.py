@@ -48,6 +48,8 @@ def is_entry_point(filepath):
         return True
     if fp.endswith("config.js") or fp.endswith("config.ts") or fp.endswith("config.json"):
         return True
+    if "anima-voice" in fp and (fp.endswith(".cpp") or fp.endswith(".h") or fp.endswith(".kt") or fp.endswith(".ts")):
+        return True
     return False
 
 def validate_delta(root_path, current_graph):

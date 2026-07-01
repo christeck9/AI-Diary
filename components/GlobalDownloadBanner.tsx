@@ -8,9 +8,10 @@ import {
   Animated,
   Easing,
 } from 'react-native';
-import { useLlm } from '../contexts/LlmContext';
+import { useLlmState, useLlmProgress, useLlmActions } from '../contexts/LlmContext';
 import { useAppTheme } from '../contexts/ThemeContext';
 import { useLanguage } from '../contexts/LanguageContext';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 /**
  * GlobalDownloadBanner
@@ -21,25 +22,36 @@ import { useLanguage } from '../contexts/LanguageContext';
  * Automatically collapses after a few seconds to a mini-bar.
  */
 export function GlobalDownloadBanner() {
-  const { isDownloading, downloadingModel, downloadPercent, downloadedMB, downloadSpeed, pauseDownload } = useLlm();
+  const { isDownloading, downloadingModel, downloadingType } = useLlmState();
+  const { downloadPercent, downloadedMB, downloadSpeed } = useLlmProgress();
+  const { pauseDownload } = useLlmActions();
   const { colors } = useAppTheme();
   const { lang } = useLanguage();
+  const insets = useSafeAreaInsets();
 
   const [pulseAnim] = React.useState(() => new Animated.Value(0.4));
   const [isExpanded, setIsExpanded] = React.useState(true);
 
   // Animation for the progress bar
   React.useEffect(() => {
+    let loopAnim: Animated.CompositeAnimation | null = null;
     if (isDownloading) {
-      Animated.loop(
+      loopAnim = Animated.loop(
         Animated.sequence([
           Animated.timing(pulseAnim, { toValue: 1, duration: 900, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
           Animated.timing(pulseAnim, { toValue: 0.4, duration: 900, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
         ])
-      ).start();
+      );
+      loopAnim.start();
     } else {
       pulseAnim.setValue(0.4);
     }
+    return () => {
+      if (loopAnim) {
+        loopAnim.stop();
+      }
+      pulseAnim.stopAnimation();
+    };
   }, [isDownloading]);
 
   // Auto-collapse timer
@@ -58,11 +70,11 @@ export function GlobalDownloadBanner() {
     if (isDownloading) {
       setIsExpanded(true);
     }
-  }, [downloadingModel?.id]); // Depend on model ID so it re-expands if a new model starts
+  }, [downloadingModel?.id, isDownloading]); // Depend on model ID so it re-expands if a new model starts
 
   if (!isDownloading || !downloadingModel) return null;
 
-  const totalMB = downloadingModel.sizeMB + (downloadingModel.mmprojSizeMB || 0);
+  const totalMB = downloadingType === 'vision' ? (downloadingModel.mmprojSizeMB || 0) : downloadingModel.sizeMB;
   const modelLabel = lang === 'es' ? downloadingModel.labelEs : downloadingModel.labelEn;
 
   return (
@@ -72,6 +84,7 @@ export function GlobalDownloadBanner() {
         if (!isExpanded) setIsExpanded(true);
       }}
       style={[
+        { top: insets.top + 60 },
         styles.banner, 
         { 
           backgroundColor: colors.surface, 
@@ -82,9 +95,11 @@ export function GlobalDownloadBanner() {
       ]}
     >
       {/* Progress fill bar */}
-      <View style={[styles.progressTrack, { backgroundColor: `${colors.primary}22`, height: isExpanded ? 3 : 6 }]}>
+      <View style={[
+        { top: insets.top + 60 },styles.progressTrack, { backgroundColor: `${colors.primary}22`, height: isExpanded ? 3 : 6 }]}>
         <Animated.View
           style={[
+        { top: insets.top + 60 },
             styles.progressFill,
             { width: `${downloadPercent}%`, backgroundColor: colors.primary, opacity: pulseAnim }
           ]}
@@ -97,10 +112,12 @@ export function GlobalDownloadBanner() {
           <View style={styles.leftGroup}>
             <Text style={styles.icon}>⬇️</Text>
             <View>
-              <Text style={[styles.modelName, { color: colors.primary }]} numberOfLines={1}>
+              <Text style={[
+        { top: insets.top + 60 },styles.modelName, { color: colors.primary }]} numberOfLines={1}>
                 {modelLabel}
               </Text>
-              <Text style={[styles.subtext, { color: colors.textSecondary }]}>
+              <Text style={[
+        { top: insets.top + 60 },styles.subtext, { color: colors.textSecondary }]}>
                 {lang === 'es' ? 'Descargando modelo…' : 'Downloading model…'}
               </Text>
             </View>
@@ -108,19 +125,24 @@ export function GlobalDownloadBanner() {
 
           {/* Right: stats and pause */}
           <View style={styles.statsGroup}>
-            <Text style={[styles.percent, { color: colors.primary }]}>{downloadPercent}%</Text>
-            <Text style={[styles.mb, { color: colors.textSecondary }]}>
+            <Text style={[
+        { top: insets.top + 60 },styles.percent, { color: colors.primary }]}>{downloadPercent}%</Text>
+            <Text style={[
+        { top: insets.top + 60 },styles.mb, { color: colors.textSecondary }]}>
               {downloadedMB} / {totalMB} MB
             </Text>
             {downloadSpeed > 0 && (
-              <Text style={[styles.speed, { color: colors.textSecondary }]}>🚀 {downloadSpeed} MB/s</Text>
+              <Text style={[
+        { top: insets.top + 60 },styles.speed, { color: colors.textSecondary }]}>🚀 {downloadSpeed} MB/s</Text>
             )}
             <TouchableOpacity 
-              style={[styles.pauseBtn, { borderColor: colors.primary }]} 
+              style={[
+        { top: insets.top + 60 },styles.pauseBtn, { borderColor: colors.primary }]} 
               onPress={pauseDownload}
               hitSlop={{top: 10, bottom: 10, left: 10, right: 10}}
             >
-              <Text style={[styles.pauseText, { color: colors.primary }]}>
+              <Text style={[
+        { top: insets.top + 60 },styles.pauseText, { color: colors.primary }]}>
                 {lang === 'es' ? 'PAUSAR' : 'PAUSE'}
               </Text>
             </TouchableOpacity>
@@ -129,7 +151,8 @@ export function GlobalDownloadBanner() {
       ) : (
         // Collapsed View
         <View style={styles.collapsedRow}>
-          <Text style={[styles.collapsedText, { color: colors.primary }]} numberOfLines={1}>
+          <Text style={[
+        { top: insets.top + 60 },styles.collapsedText, { color: colors.primary }]} numberOfLines={1}>
             {downloadPercent}% • {modelLabel}
           </Text>
         </View>
@@ -141,7 +164,7 @@ export function GlobalDownloadBanner() {
 const styles = StyleSheet.create({
   banner: {
     position: 'absolute',
-    top: Platform.select({ android: 110, ios: 125, default: 110 }), // Pushed down to avoid header
+    /* top is set dynamically in the component */
     left: 0,
     right: 0,
     zIndex: 999,

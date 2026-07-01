@@ -19,6 +19,7 @@ const MAPPING = {
   'externaldrive': 'storage',
   'chart.bar.xaxis': 'bar-chart',
   'bolt.horizontal': 'bolt',
+  'timer': 'timer',
   'paintbrush.fill': 'brush',
   'trash.fill': 'delete',
   'eyeglasses': 'face',
@@ -42,6 +43,7 @@ const MAPPING = {
   'trash': 'delete',
   'battery.25': 'battery-alert',
   'xmark.circle.fill': 'cancel',
+  'exclamationmark.triangle': 'warning',
   'chevron.up.chevron.down': 'unfold-more',
   'waveform.path': 'gesture',
   'doc.on.doc': 'content-copy',
@@ -65,6 +67,11 @@ const MAPPING = {
   'gearshape.fill': 'settings',
   'pencil': 'edit',
   'list.bullet.clipboard.fill': 'assignment',
+  'calendar': 'calendar-today',
+  'plus': 'add',
+  'pause.fill': 'pause',
+  'arrow.left': 'arrow-back',
+  'arrow.right': 'arrow-forward',
 } as const;
 
 type IconSymbolName = keyof typeof MAPPING;

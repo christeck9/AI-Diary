@@ -6,6 +6,7 @@ import { initLlama, releaseAllLlama } from 'llama.rn';
 import { getHardwareConfig, getDeviceTemperature, getTotalRAM } from '../lib/hardware';
 import { MODEL_CONFIG, getDynamicEngineConfig, MODEL_LIST, ModelDefinition } from '../src/config/ModelConfig';
 import { cpuSemaphore } from '../lib/CPUSemaphore';
+import { canLoadModel } from '../lib/RAMGuard';
 import { settingsService } from '../lib/SettingsService';
 import { Asset } from 'expo-asset';
 
@@ -167,7 +168,7 @@ const processNextTasks = async (context: any) => {
 
 
 export function useAppLlm(lang: string = 'es') {
-  const AVAILABLE_MODELS = MODEL_LIST.map(m => ({
+  const AVAILABLE_MODELS = MODEL_LIST.filter(m => m.id !== 'gemma3-4b-q4').map(m => ({
     ...m,
     label: lang === 'es' ? m.labelEs : m.labelEn,
     description: lang === 'es' ? m.descEs : m.descEn,
@@ -386,13 +387,8 @@ export function useAppLlm(lang: string = 'es') {
           const model = AVAILABLE_MODELS.find(m => m.id === settings.preferredModel);
           if (model) {
             // Verify if the preferred model is allowed by RAM
-            if (model.id === 'gemma4-e2b-q3' && totalRam < 8000) {
-              // Downgrade if not enough RAM
-              modelToUse = AVAILABLE_MODELS.find(m => m.id === 'gemma3-4b-q4') || model;
-              if (modelToUse.id === 'gemma3-4b-q4' && totalRam < 6000) {
-                modelToUse = AVAILABLE_MODELS.find(m => m.id === 'llama3.2-1b-q4') || model;
-              }
-            } else if (model.id === 'gemma3-4b-q4' && totalRam < 6000) {
+            if (model.id === 'gemma4-e2b-qat' && totalRam < 8000) {
+              // Downgrade if not enough RAM (using totalRam as a rough proxy here just for startup fallback)
               modelToUse = AVAILABLE_MODELS.find(m => m.id === 'llama3.2-1b-q4') || model;
             } else {
               modelToUse = model;
@@ -796,6 +792,14 @@ export function useAppLlm(lang: string = 'es') {
       
       const resolvedMmprojPath = modelToLoad.mmprojFileName ? await resolveModelPath({ fileName: modelToLoad.mmprojFileName }) : undefined;
       const mmprojPath = resolvedMmprojPath ? resolvedMmprojPath.replace(/^file:\/\//, '') : undefined;
+
+      // RAM Guard Validation
+      const guard = await canLoadModel(modelToLoad.id, !!modelToLoad.mmprojFileName, lang === 'es');
+      if (!guard.allowed) {
+        setStatus('idle');
+        isModelLoading = false;
+        throw new Error(guard.message);
+      }
 
       generationId++; // Invalida todas las completions pendientes
       if (llamaContextRef.current) {

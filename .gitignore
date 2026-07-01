@@ -47,4 +47,5 @@ android/local.properties
 # Scratch/temp files
 scratch/
 
-
+# System reserved filenames
+nul

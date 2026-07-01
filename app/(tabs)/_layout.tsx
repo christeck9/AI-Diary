@@ -6,6 +6,7 @@ import { HapticTab } from '@/components/haptic-tab';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { useAppTheme } from '../../contexts/ThemeContext';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { PsiIcon } from '../../components/ui/PsiIcon';
 
 export default function TabLayout() {
   const { colors, activeTheme } = useAppTheme();
@@ -33,7 +34,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: lang === 'es' ? 'Diario' : 'Diary',
+          title: 'Home',
           tabBarIcon: ({ color }) => <IconSymbol size={28} name="house.fill" color={color} />,
         }}
       />
@@ -45,10 +46,17 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="zengarden"
+        name="projects"
         options={{
-          title: lang === 'es' ? 'Jardín' : 'Garden',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="leaf.fill" color={color} />,
+          title: lang === 'es' ? 'Proyectos' : 'Projects',
+          tabBarIcon: ({ color }) => <IconSymbol size={28} name="list.bullet.clipboard.fill" color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="self-know"
+        options={{
+          title: lang === 'es' ? 'Autoconocimiento' : 'Self-Know',
+          tabBarIcon: ({ color }) => <PsiIcon size={28} color={color} />,
         }}
       />
       <Tabs.Screen

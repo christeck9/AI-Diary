@@ -31,3 +31,37 @@ export function getIdentity(): string {
 export function rotateIdentity(): void {
   currentIndex = (currentIndex + 1) % UA_POOL.length;
 }
+
+/**
+ * Universal fetch wrapper for all Sentinel network providers.
+ * Includes AbortController, timeout, per-request UA rotation, 
+ * and handles 403 automatic rotation if it happens.
+ */
+export async function sentinelFetch(url: string, options: RequestInit = {}, timeoutMs: number = 5000): Promise<Response> {
+  // Rotate identity *before* every request to prevent fingerprinting
+  rotateIdentity();
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  const headers = {
+    'User-Agent': getIdentity(),
+    ...options.headers,
+  };
+
+  try {
+    let response = await fetch(url, { ...options, headers, signal: controller.signal });
+
+    if (response.status === 403 || response.status === 401) {
+      console.warn(`[SENTINEL_FETCH] Auth/Rate-limit (Status ${response.status}) from ${url.split('?')[0]}. Rotating identity and retrying once...`);
+      rotateIdentity();
+      // Update header and retry once
+      const retryHeaders = { ...headers, 'User-Agent': getIdentity() };
+      response = await fetch(url, { ...options, headers: retryHeaders, signal: controller.signal });
+    }
+
+    return response;
+  } finally {
+    clearTimeout(timer);
+  }
+}

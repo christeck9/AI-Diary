@@ -28,9 +28,9 @@ export class KnowledgeManager {
   /**
    * Saves a fact to the knowledge_base table.
    */
-  async saveFact(fact: Fact): Promise<void> {
+  async saveFact(fact: Fact): Promise<number | null> {
     try {
-      await this.db.runAsync(
+      const result = await this.db.runAsync(
         `INSERT INTO knowledge_base (category, fact, confidence, timestamp)
          VALUES (?, ?, ?, ?)`,
         [
@@ -40,6 +40,7 @@ export class KnowledgeManager {
           Date.now(),
         ]
       );
+      return result.lastInsertRowId;
     } catch (error) {
       console.error(`[KnowledgeManager] Error saving fact:`, error);
       throw error;

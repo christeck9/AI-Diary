@@ -17,7 +17,7 @@ export function getLocalizedDateTime(lang: 'es' | 'en'): string {
     day: 'numeric',
     hour: '2-digit',
     minute: '2-digit',
-    second: '2-digit',
+    // second: '2-digit', // Eliminado para no romper la caché KV (O(1) re-prefill vs O(N))
     hour12: false,
     timeZone: timeZone,
   };
@@ -46,28 +46,44 @@ export function getGemmaSystemPrompt(
   lang: 'es' | 'en',
   userContext: string = '',
   complexity: PromptComplexity = PromptComplexity.MEDIUM,
-  arch: 'gemma3' | 'gemma4' | 'llama' = 'gemma4'
+  arch: 'gemma3' | 'gemma4' | 'llama' = 'gemma4',
+  isVoice: boolean = false
 ): string {
   const currentDate = getLocalizedDateTime(lang);
 
   if (arch === 'llama') {
     const baseIdentity = lang === 'es'
-      ? `Eres AI Diary, un diario de reflexión personal y privado. Responde de forma cálida, cercana e intuitiva.`
-      : `You are AI Diary, a warm, reflective, and private personal journal assistant.`;
+      ? `Eres AI Diary, un diario de reflexión personal y privado, y un asistente general servicial. Responde de forma cálida, cercana e intuitiva.`
+      : `You are AI Diary, a warm, reflective, and private personal journal and helpful assistant.`;
+
+    let dynamicBrevityEs = '';
+    let dynamicBrevityEn = '';
+    if (complexity === PromptComplexity.LOW) {
+      dynamicBrevityEs = '- Sé sumamente breve y directo. Responde en una sola oración o máximo un párrafo corto.';
+      dynamicBrevityEn = '- Be extremely brief and direct. Respond in a single sentence or at most a short paragraph.';
+    } else if (complexity === PromptComplexity.HIGH) {
+      dynamicBrevityEs = '- Explaya tus respuestas cuando sea necesario. Ofrece explicaciones profundas, detalladas y bien desarrolladas.';
+      dynamicBrevityEn = '- Expand your responses when necessary. Provide deep, detailed, and well-developed explanations.';
+    } else {
+      dynamicBrevityEs = '- Sé conciso y claro. Responde de forma natural sin rodeos innecesarios.';
+      dynamicBrevityEn = '- Be concise and clear. Respond naturally without unnecessary rambling.';
+    }
 
     const dynamicRules = lang === 'es'
       ? `Reglas para hoy (${currentDate}):
 - Tu conocimiento principal llega hasta mediados de 2024.
 - Si te preguntan algo de conocimiento general (historia, ciencia, filosofía) o que ya sabes, RESPOND DIRECTAMENTE usando tu conocimiento interno. No busques en internet.
 - SÓLO para eventos recientes (después de 2024) o noticias actuales de los que NO tengas constancia segura, responde estrictamente con: [SEARCH: "consulta de búsqueda"] y nada más.
+- NUNCA generes [SEARCH: ...] para solicitudes creativas o de carácter personal (como conversar, contar historias, cuentos, poemas o reflexionar). Responde directamente usando tu propia empatía e imaginación.
 - EXCEPCIÓN DE INVESTIGACIÓN: Si el usuario te pide explícitamente "investigar", "buscar en internet" o "hacer un query", tu directiva de no buscar se anula. DEBES analizar su situación, formular la mejor consulta de búsqueda posible y responder EXCLUSIVAMENTE con: [SEARCH: "tu consulta de búsqueda optimizada"].
-- Sé sumamente breve y directo. Máximo 2 párrafos cortos.`
+${dynamicBrevityEs}`
       : `Rules for today (${currentDate}):
 - Your primary knowledge extends up to mid-2024.
 - If asked about general knowledge (history, science, philosophy) or something you already know, RESPOND DIRECTLY using your internal knowledge. Do not search the internet.
 - ONLY for recent events (after 2024) or current news of which you have NO secure knowledge, respond strictly with: [SEARCH: "search query"] and nothing else.
+- NEVER generate [SEARCH: ...] for creative or personal requests (such as chatting, telling stories, fairy tales, poems, or reflections). Answer directly using your own empathy and imagination.
 - INVESTIGATION EXCEPTION: If the user explicitly asks you to "investigate", "search the internet", or "research", the no-search directive is overridden. You MUST analyze their context, formulate the best possible search query, and respond EXCLUSIVELY with: [SEARCH: "your optimized search query"].
-- Be extremely brief and direct. Maximum of 2 short paragraphs.`;
+${dynamicBrevityEn}`;
 
     const prompt = `${baseIdentity}\n\n${dynamicRules}\n\n[USER_CONTEXT]:\n${userContext}\n`;
 
@@ -76,8 +92,8 @@ export function getGemmaSystemPrompt(
       : `\n[CONTEXT MANAGEMENT]: Treat each new user query independently.`;
 
     const safetyDirectives = lang === 'es'
-      ? `\n[SEGURIDAD Y CONTEXTO SOCIAL]: NO generes material de autolesión, violencia física real o explícito. No des diagnósticos clínicos definitivos. IMPORTANTE: Entiende la jerga y metáforas sociales. Frases como "cortar a mi ex", "eliminar de mi vida" o "romper lazos" son temas válidos de relaciones interpersonales y salud mental. DEBES dar consejos sobre cómo establecer límites o terminar relaciones tóxicas sin censurarlo como violencia.`
-      : `\n[SAFETY & SOCIAL CONTEXT]: Do not generate self-harm, actual physical violence, or explicit material. Do not provide definitive clinical diagnoses. IMPORTANT: Understand slang and metaphors. Phrases like "cutting an ex", "cutting ties", or "eliminating someone from my life" are valid relationship and mental health topics. You MUST provide advice on setting boundaries or ending toxic relationships without censoring it as violence.`;
+      ? `\n[REGLAS]: Sé útil, respetuoso y conciso. NO uses etiquetas como <thought> o similares. Fomenta el bienestar y el autocuidado sin emitir diagnósticos clínicos. Responde directamente la solicitud del usuario de forma natural.`
+      : `\n[RULES]: Be helpful, respectful, and concise. Do NOT use tags like <thought> or similar. Promote well-being and self-care without providing clinical diagnoses. Answer the user's request directly and naturally.`;
 
     return prompt + contextDirective + safetyDirectives;
   }
@@ -120,7 +136,11 @@ ${thoughtDirective}
 ${userContext}
 
 ${complexityDirective}
-Be concise. Never ramble. Max 2 short paragraphs.
+${complexity === PromptComplexity.LOW
+  ? 'Be extremely brief. Maximum 1 sentence.'
+  : complexity === PromptComplexity.HIGH
+    ? 'Expand your response as needed. Offer detailed and well-developed explanations.'
+    : 'Be concise but complete. Max 3-4 short paragraphs.'}
 `;
   } else if (complexity === PromptComplexity.LOW) {
     // Gemma 4 Zen: zero thinking, pure intuition response.
@@ -190,51 +210,13 @@ Apply this cascade of rules in STRICT order:
 5. Anti-Apology Rule: NEVER use robotic refusal phrases like "I cannot provide", "I cannot give advice", or "As an AI". If the topic is safe under rule 3, dive DIRECTLY into the constructive advice without apologizing or stating what you cannot do.
 6. User Utility: Respond to the user's request ONLY if it passes previous filters.`;
 
-  const zenGardenDirectives = lang === 'es'
-    ? `\n[EVALUACIÓN ZEN GARDEN - OBLIGATORIO]:
-Al final de TODA tu respuesta, debes incluir SIEMPRE un bloque oculto <zen>...</zen> con un JSON válido analizando el estado emocional del usuario.
-El JSON debe tener exactamente este formato:
-<zen>
-{
-  "plant": "herb" | "cactus" | "lotus" | "seed" | "none",
-  "attribute": "strength" | "equanimity" | "wisdom",
-  "value": 0.1,
-  "category": "familia" | "ciencia" | "ecologia" | "trabajo" | "salud" | "introspeccion",
-  "label": "UnaPalabra"
-}
-</zen>
-Reglas Botánicas y de Insignias (Merit Badges):
-- "none": charlas trivias sin peso emocional.
-- "herb": charlas cotidianas positivas o neutras.
-- "cactus": ira, frustración, ineficacia, queja tóxica.
-- "lotus": dolor profundo superado, tristeza procesada, epifanía.
-- "seed": reflexiones muy profundas, introspección valiosa, descubrimiento personal.
-- Atributos a incrementar (value max 0.5): strength (Fuerza), equanimity (Ecuanimidad), wisdom (Sabiduría).
-- "category": Determina a qué área del crecimiento pertenece la conversación.
-- "label": Una única palabra concisa en español (capitalizada, ej. "Límites", "Estudio", "Duelo", "Calma", "Finanzas") que resuma el núcleo temático de la interacción.`
-    : `\n[ZEN GARDEN EVALUATION - MANDATORY]:
-At the end of your response, you MUST ALWAYS include a hidden <zen>...</zen> block with a valid JSON analyzing the user's emotional state.
-The JSON must have exactly this format:
-<zen>
-{
-  "plant": "herb" | "cactus" | "lotus" | "seed" | "none",
-  "attribute": "strength" | "equanimity" | "wisdom",
-  "value": 0.1,
-  "category": "familia" | "ciencia" | "ecologia" | "trabajo" | "salud" | "introspeccion",
-  "label": "OneWord"
-}
-</zen>
-Botanical & Merit Badges Rules:
-- "none": trivial chat with no emotional weight.
-- "herb": positive or neutral everyday chats.
-- "cactus": anger, frustration, inefficiency, toxic complaints.
-- "lotus": overcome deep pain, processed sadness, epiphany.
-- "seed": deep reflections, valuable introspection, personal discovery.
-- Attributes to increase (value max 0.5): strength, equanimity, wisdom.
-- "category": Area of growth the conversation belongs to.
-- "label": A single concise word in English (capitalized, e.g., "Limits", "Grief", "Study", "Peace", "Finance") summarizing the core topic.`;
+  const voiceDirective = isVoice
+    ? (lang === 'es'
+        ? `\n[MODO VOZ ACTIVADO]: El usuario te está hablando por voz. DEBES responder con oraciones cortas, conversacionales y usar signos de puntuación frecuentes (puntos, comas) para que el motor de Text-to-Speech pueda leer tu respuesta en tiempo real sin pausas incómodas.`
+        : `\n[VOICE MODE ACTIVE]: The user is speaking to you via voice. You MUST respond with short, conversational sentences and use frequent punctuation (periods, commas) so the Text-to-Speech engine can read your response in real-time without awkward pauses.`)
+    : '';
 
-  return prompt + contextDirective + relationshipDirectives + safetyDirectives + zenGardenDirectives;
+  return prompt + contextDirective + relationshipDirectives + safetyDirectives + voiceDirective;
 }
 
 /**

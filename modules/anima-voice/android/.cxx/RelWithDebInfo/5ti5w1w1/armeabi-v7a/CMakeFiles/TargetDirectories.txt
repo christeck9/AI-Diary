@@ -1,0 +1,3 @@
+C:/AI-Diary/modules/anima-voice/android/.cxx/RelWithDebInfo/5ti5w1w1/armeabi-v7a/CMakeFiles/anima_voice.dir
+C:/AI-Diary/modules/anima-voice/android/.cxx/RelWithDebInfo/5ti5w1w1/armeabi-v7a/CMakeFiles/edit_cache.dir
+C:/AI-Diary/modules/anima-voice/android/.cxx/RelWithDebInfo/5ti5w1w1/armeabi-v7a/CMakeFiles/rebuild_cache.dir

@@ -1,0 +1,12 @@
+diff --git a/node_modules/expo-localization/ios/LocalizationModule.swift b/node_modules/expo-localization/ios/LocalizationModule.swift
+index 17c9cb7..9ef1aaa 100644
+--- a/node_modules/expo-localization/ios/LocalizationModule.swift
++++ b/node_modules/expo-localization/ios/LocalizationModule.swift
+@@ -124,4 +124,7 @@ public class LocalizationModule: Module {
+     case .iso8601:
+       return "iso8601"
++    @unknown default:
++      // Fallback for new Calendar.Identifier cases added in future iOS versions (e.g. iOS 26+)
++      return "gregory"
+     }
+   }

@@ -298,6 +298,11 @@ Se rediseñó el proceso de obtención de recursos LLM para prevenir fallos crí
   - **Modelos Completados:** Se mantiene en modo deshabilitado transparente para evitar interacciones accidentales.
 
 
+
+*Fecha de Registro: 2026-05-22*
+
+Esta especificación documenta la optimización del ciclo de vida de los motores de voz local, la purga de recursos en segundo plano para evitar consumos excesivos de RAM, la reestructuración de la interfaz del botón de voz sin emojis y la evaluación de viabilidad de mi-gración unificada de voz.
+
 # AI DIARY: Sound and Voice v1.8.4
 
 *Fecha de Registro: 2026-05-22*
@@ -1415,7 +1420,7 @@ Para evitar bloqueos inesperados, sobrecalentamientos o cierres forzados (*Out O
 
 
 
-# AI DIARY: Reorganización de UI, Herramienta de Dictado y To-Do List v1.9.6.1
+# AI DIARY: Herramienta de Dictado, To-Do List, RAG Graph, Graphiphy & Zen Philosophy Judge v1.9.6.1
 
 ### 1. Reorganización y Limpieza de Pestañas
 - **Archivos:** `app/(tabs)/tools.tsx`, `app/(tabs)/settings.tsx`
@@ -1448,10 +1453,231 @@ Para evitar bloqueos inesperados, sobrecalentamientos o cierres forzados (*Out O
   - Se incrementó el `paddingBottom` de `scrollContent` en `tools.tsx` a `120` para evitar que la tarjeta de To-Do List y el botón "ADD NOTE" queden a medias u ocultos tras la barra de navegación inferior en dispositivos físicos y emuladores.
   - Se agregaron logs de diagnóstico detallados (`[useTodos]`) en el hook `useTodos.ts` para rastrear las llamadas SQL de inserción (`addTodo`), obtención (`fetchTodos`) y borrado (`removeTodo`), permitiendo visualizar fallos silenciosos de la base de datos o de tipos de datos.
 
-## 5. Zen Garden Growth Badges (Boy Scout Merit Badges)
-- **Archivos:** `db/zenGardenSchema.ts`, `lib/systemPrompt.ts`, `hooks/useAgentEngine.ts`, `components/ui/ZenGarden.tsx`
-- **Cambios:**
-  - **Base de Datos:** Se crearon las columnas `category` y `label` en la tabla `zen_flora` con chequeo de migración seguro y se actualizaron los métodos `plantSeed` y `growFlora`.
-  - **Inferencia LLM:** Se reestructuraron las instrucciones del prompt del sistema para exigirle a Gemma 3/4 clasificar la conversación en una de las categorías (`"familia"`, `"ciencia"`, `"ecologia"`, `"trabajo"`, `"salud"`, `"introspeccion"`) y generar una única palabra que sirva como etiqueta de resumen.
-  - **Integración del Motor:** Se adaptó `useAgentEngine.ts` para parsear los nuevos parámetros del JSON `<zen>` y enviarlos a la base de datos.
-  - **Gráficos Skia:** Se actualizaron las propiedades de `ZenGarden.tsx` para dibujar contornos de insignias de color degradado y renderizar el texto de etiqueta directamente debajo de cada flor en la base del jardín.
+
+## 5. Reconexión con el puente JSI de vision_bridge.cpp a Zero-Copy
+- **Descripción:** Se restableció la comunicación de bajo nivel a través del puente de interfaz de JavaScript (JSI) optimizado para copiado cero (Zero-Copy). Antes (método lento): Se tendrían que copiar y serializar repetidamente megabytes de datos de imagen de la capa Kotlin/Java a la capa C++ del motor de IA, saturando la CPU y la memoria. Ahora (con el Vision Bridge corregido): Compartimos un puntero directo de hardware (AHardwareBuffer) de la cámara al motor de C++. El motor lee los datos directamente del hardware de video sin duplicar un solo byte en memoria, reduciendo drásticamente la latencia, el consumo de batería y el uso de memoria RAM.
+  - **Entorno NDK:** Se reinstaló el NDK versión `26.1.10909125` en la ruta `C:\Android_NDK\26.1.10909125`.
+  - **Gradle:** Se modificaron los archivos de Gradle para compilar y vincular correctamente las llamadas nativas de `vision_bridge.cpp` con el motor JSI en modo "Debug", permitiendo transferencias de datos eficientes en memoria compartida sin sobrecosto de serialización.
+  
+
+
+  # AI DIARY: Speed improvements v1.9.6.2
+
+## 1. Se instalo una nueva version de Gemma4:e2b que acaba de sacar google Q4 mas ligera en MB
+https://huggingface.co/unsloth/gemma-4-E2B-it-qat-GGUF/resolve/main/gemma-4-E2B-it-qat-UD-Q4_K_XL.gguf
+Beneficio adicional (Calidad superior): En lugar de la cuantización estándar q4_0 (que pierde cierta precisión), ahora descargará la versión UD-Q4_K_XL (cuantización dinámica de Unsloth). Esta variante recupera casi el 100% de la precisión del modelo original BF16 de Google y es ligeramente más ligera (pesa 2.5 GB en lugar de 2.68 GB).
+## 2. Se optimizo el LLM para que sea mas rapigo. version prueva en rn-slot-manager.cpp`con gettid(), -20)
+  - **Fase A: Token Batching (UI)**: Implementación de un buffer de 40ms en `useAppLlm.ts` para agrupar tokens y reducir drásticamente los re-renderizados del puente de React Native, asegurando fluidez a 60 FPS en la interfaz.
+  - **Fase B: Congelador de Gráficos (Skia Freeze)**: El componente `WhispAvatar.tsx` ahora detiene sus costosas animaciones procedurales (curvas y gradientes de Skia) cuando el modelo de IA está "pensando", dibujando en su lugar un estado estático (gota de sudor 😅) para liberar 100% de la GPU/CPU al LLM.
+  - **Fase C: Sándwich de Prioridades y Aislamiento de Núcleos**:
+    - Se modificó y parcheó `rn-slot-manager.cpp` (C++) para inyectar `setpriority(PRIO_PROCESS, gettid(), -20);` en Android/Linux y `QOS_CLASS_USER_INTERACTIVE` en iOS, otorgándole prioridad absoluta al hilo de inferencia en el nivel más bajo del OS.
+    - Se implementó un límite estricto de núcleos en `useAppLlm.ts` para que el motor nativo deje siempre entre 1 y 2 hilos de CPU completamente libres. Esto aísla a la UI y el Audio (Whisper) garantizando que el audio no se entrecorte.
+  - **Fase D: Detección Dinámica de `mmap`**: Se añadió validación de hardware al inicializar el contexto Llama. En dispositivos con >4GB de RAM (`use_mmap: true`), los modelos GGUF pesados cargan a velocidad ultrarrápida. En equipos limitados, se desactiva para blindar la app contra el `OOM Killer` de Android.4
+
+ ## 3. Improvements and Calendar
+  - **Módulo de Calendario Interactivo Nativo**:
+    - **Persistencia en SQLite (`db/calendarSchema.ts`)**: Se creó una estructura de base de datos dedicada para citas y eventos (`calendar_events`), con columnas para fecha, horario de inicio y fin (almacenados en formato de 24h para ordenación), mensaje de la cita y fecha de creación.
+    - **Registro de Base de Datos (`lib/db.ts`)**: Integrado en el flujo de inicialización global de SQLite junto a la To-Do List y base de conocimiento.
+    - **Hook de Control (`hooks/useCalendar.ts`)**: Desarrollado para realizar operaciones CRUD reactivas (lectura, inserción y eliminación) contra la base de datos de SQLite.
+    - **Calendario Interactivo (`components/ui/InteractiveCalendar.tsx`)**:
+      - **Estructura Visual de Horas**: Se optimizó la vista detallada de 24 horas eliminando espacios en blanco innecesarios, haciendo que cada hora ocupe un solo renglón a lo ancho para dar espacio a mensajes largos.
+      - **Formatos de Hora No Militar (AM/PM)**: Se reemplazó la hora militar en la visualización por un formato legible de 12 horas con indicador AM/PM tanto en los listados como en los selectores.
+      - **Flujo de Formulario y Selección Secuencial**: Fila inferior rediseñada con dos botones nativos: **Día** (izquierda, despliega el `DatePicker` para fijar el día de la cita) y **Hora** (derecha, despliega secuencialmente el `TimePicker` de la hora inicial y, al confirmar, lanza automáticamente el de la hora final).
+      - **Edición y Carga de Citas**: Al presionar una cita existente o una fila de hora vacía en la vista detallada, la información se precarga de manera automática en el formulario inferior y enfoca de inmediato el cursor en el campo "Mensaje".
+    - **Integración Visual (`app/(tabs)/tools.tsx`)**: Embebido directamente en la pantalla de herramientas de la app justo debajo de la tarjeta de To-Do list.
+    - **Recordatorios Inteligentes del Avatar (`db/zenGardenSchema.ts`)**: Se implementó una lógica de escaneo automático de citas en `getAnimaMessage`. Cuando hay un evento programado para el día siguiente, a partir de las 9:00 PM de la noche anterior y hasta las 8:00 AM del día del evento se muestra un recordatorio continuo al lado del avatar. Posterior a las 8:00 AM, el aviso aparece de forma intermitente (durante los primeros 2 minutos de cada hora) hasta que comience el evento. Los mensajes se auto-sintetizan en un formato no militar y amigable (ej: "⏰ DR Zeus 1PM mañana" o "⏰ Swimming 5PM hoy").
+  - **Aseguramiento de Calidad y Tipado**:
+    - Validación completa de TypeScript en el proyecto (`ts:check` / `tsc`) asegurando cero errores de compilación con las nuevas inclusiones nativas.
+
+
+ # AI DIARY: Pestaña Proyectos y separcion de descarge entre Modelo Principal y su Modulo de Vision (Gemma models) v1.9.6.3
+  - **Creación e Integración de la Pestaña Proyectos (`app/(tabs)/projects.tsx`)**:
+    - **Persistencia y Modelado de Datos**:
+      - Creación de la tabla `projects` en la base de datos centralizada (`lib/db.ts`) para almacenar el identificador del proyecto, nombre, tema, descripción, estado y marca de tiempo de creación.
+      - Creación de la tabla `project_messages` para persistir el historial de diálogos de la consola de Anima en cada proyecto individual.
+      - Reutilización estructurada de la tabla `knowledge_base` (bajo la categoría `'Proyecto'`) para almacenar los elementos de la Mesa de Trabajo (Worktable) mediante prefijos especializados:
+        - Tarjeta PIN: `[Proyecto:id][Card:PIN] texto`
+        - Flashcard de estudio: `[Proyecto:id][Card:Flashcard] Pregunta || Respuesta`
+        - Pasos/Tareas: `[Proyecto:id][Card:Step] Descripción || estado (pending/completed)`
+    - **Mesa de Trabajo Interactiva (Worktable)**:
+      - Interfaz reactiva dividida en tres pestañas o secciones de control:
+        - **Tarjeta PIN**: Para fijar recordatorios clave y metas críticas del proyecto actual.
+        - **Checklist de Pasos**: Una lista jerárquica de tareas interactivas donde el usuario puede marcar/desmarcar pasos completados directamente con efectos hápticos (`Haptics.selectionAsync()`).
+        - **Flashcards de Estudio**: Tarjetas interactivas con efecto de volteo visual (cara para la pregunta, cruz para la respuesta) ideales para memorización de materias y conceptos.
+    - **Consola de IA de Anima y Motor de Etiquetas (Tags)**:
+      - Interfaz de terminal integrada para interactuar de forma aislada con la IA en el contexto de cada proyecto.
+      - **Automatización Asíncrona de Tareas**: La IA procesa y ejecuta en segundo plano comandos integrados en la respuesta mediante etiquetas como `[SET_PIN: ...]`, `[ADD_CARD: ... || ...]` y `[ADD_STEP: ...]`. El backend los captura, actualiza la base de datos en tiempo real y los oculta en el chat para mantener la interfaz limpia de comandos de programación.
+    - **Diseño Estético y Accesibilidad**:
+      - Barra de navegación y herramientas con selector rápido de proyectos activos y botón rápido de creación.
+      - Totalmente integrado con el tema Matrix de la aplicación (colores neon, textos retro y bordes estilizados).
+  - **Separación de Módulos (Modelo Principal vs. Módulo de Visión)**:
+    - **`hooks/useAppLlm.ts`**:
+      - Se modificó `downloadModel` para descargar exclusivamente el modelo principal (`.gguf`).
+      - Se implementó `downloadVisionModel` y `checkVisionModelExists` para gestionar la descarga e inspección del modelo de visión (`mmproj`) de manera independiente.
+      - Se incorporó `downloadingType: 'model' | 'vision' | null` para rastrear qué módulo está en proceso de descarga.
+      - Se optimizó `downloadFileResumable` para calcular el progreso individual por archivo en lugar de acumularlos.
+      - `resumeIncompleteDownloads` ahora distingue y reanuda descargas incompletas del módulo de visión de forma dedicada.
+    - **`contexts/LlmContext.tsx`**:
+      - Se expusieron las nuevas funciones `downloadVisionModel`, `checkVisionModelExists` y el estado `downloadingType` a través de los tipos `LlmState` y `LlmActions` en el contexto global.
+    - **`components/VisionDownloadModal.tsx`**:
+      - Creación de un modal bilingüe (ES/EN) con el diseño nativo premium de la app que alerta al usuario cuando intenta adjuntar una imagen sin tener el módulo de visión descargado. Muestra el tamaño del archivo y permite iniciar la descarga inmediatamente.
+  - **Interceptación de Flujo de Adjuntos de Imagen**:
+    - **`hooks/useFileAttachment.ts`**: Se añadió el callback `onBeforeProcessImage` en las funciones `pickDocument`, `pickImage` y `takePhoto` para poder abortar el procesamiento de imágenes si falta el módulo de visión.
+    - **`app/(tabs)/index.tsx` (Home)** y **`app/(tabs)/projects.tsx`**:
+      - Se implementó la interceptación `handleBeforeProcessImage` que valida la existencia del archivo de visión. Si no existe, muestra el modal de descarga.
+      - Si el usuario confirma, se añade un adjunto temporal con estado `PENDING_VISION_DOWNLOAD` y se inicia la descarga en segundo plano. Al completarse, se limpia el estado pendiente para permitir adjuntar de nuevo. Si se cancela, se detiene la descarga activa.
+      - Se renderiza el `VisionDownloadModal` al final de ambos componentes.
+  - **Interfaz de Progreso de Descarga en el Input**:
+    - **`components/ChatInputBar.tsx`**: Cuando hay una descarga de visión pendiente, el área del adjunto muestra una barra de progreso detallada (ActivityIndicator, barra visual, porcentaje y velocidad en MB/s) y deshabilita el botón de envío.
+    - **`app/(tabs)/projects.tsx`**: Se integró una barra de progreso homóloga en el área de adjuntos del panel de proyectos, respetando el diseño temático Matrix.
+  - **Compatibilidad y Comprobación de Modelos sin Visión (Llama 3.2)**:
+    - Se validó que los modelos como Llama 3.2 (que no definen `mmprojFileName` en `ModelConfig.ts`) devuelven `true` inmediatamente en `checkVisionModelExists`, omitiendo el flujo de descarga de visión y procesando el chat de forma normal.
+  - **Redirección de Búsquedas Web en Pestaña Proyectos**:
+    - **`app/(tabs)/projects.tsx`**: Se actualizó el System Prompt del Consola de Proyectos (`getConsoleSystemPrompt`) indicándole explícitamente a la IA que si el usuario solicita búsquedas web (Brave Search, Wikipedia) o información en tiempo real, le dé instrucciones para ir a la pestaña "Home" a realizar la consulta y luego regresar al proyecto. También le orienta a sugerir la subida de documentos locales (PDF/DOCX) en caso de referenciar libros o textos desconocidos.
+  - **Renombre de Pestaña Principal**:
+- **`app/(tabs)/_layout.tsx`**: Se renombró formalmente la pestaña "Diary" a "Home" para mayor claridad en la navegación general.
+  - **Aseguramiento de Calidad**:
+    - Se verificó la consistencia de tipos en TypeScript (`tsc --noEmit --skipLibCheck`) en todo el proyecto, garantizando una compilación limpia y libre de errores.
+
+
+
+# AI DIARY: Transformacion de TTS a bajo Nivel de latencia v1.9.6.4
+ 🏆 Logros de Arquitectura: Native Voice Acceleration
+
+✅ Expusimos nuestro entorno a código nativo bajando el nivel desde Expo Go a un Prebuild real.
+✅ Creamos nuestro módulo local nativo AnimaVoice.
+✅ Programamos el Adaptador JSI en C++ para pasar el audio desde Javascript hacia el procesador sin gastar recursos del celular en conversiones Base64.
+✅ Programamos el Oboe Audio Engine que escribe el audio directo en el hardware de sonido.
+✅ Creamos los stubs del procesador Silero VAD en C++ (Fase 4).
+
+## Native Voice Acceleration Tasks
+
+# Obtención de PCM puro: Hemos modificado el servicio de OpenAI para que ya no pida archivos .mp3. Ahora, por medio de la API, le pedimos audio pcm (raw) de 16-bits a 24kHz.
+
+# Traducción JS de ultra alta velocidad: Descargamos la carga útil en Base64, e inmediatamente la pasamos a un Int16Array, y luego a un Float32Array nativo de JavaScript. Todo esto sucede en memoria en microsegundos usando base64-js.
+
+# Inyección Directa (JSI): En lugar de instanciar un reproductor Audio.Sound (que genera latencia pesada al decodificar y montar el reproductor en React Native), la función revisa si está disponible nuestra macro de C++ global.animaFeedAudioChunk(). Si existe, simplemente empuja el Float32Array directamente a la cola nativa de Oboe en C++. ¡Bypass completo!
+
+# Interrupción (Barge-In): El botón de silenciar o las interrupciones del Walkie-Talkie ahora disparan instantáneamente global.animaInterruptAudio() para limpiar la cola circular en C++.
+
+## Fases Completadas
+
+# Fase 1: Prebuild y Entorno Nativo
+# Run npx expo prebuild --clean to generate Android/iOS native folders.
+ Verify android/ and ios/ folders are created and configured correctly.
+
+# Fase 2: JSI Bridge (JavaScript Interface) Inyección Directa (JSI):
+ Create C++ JSI Module skeleton for React Native.
+ Expose global.animaFeedAudioChunk(arrayBuffer) and global.animaInterruptAudio().
+ Register JSI bindings in MainApplication.kt (Android).
+
+# Fase 3: Audio Engines (Android / iOS)
+ Implement Oboe Audio Engine in C++ for Android.
+ Integrate Oboe library into Android CMakeLists.txt.
+ Implement AVAudioEngine in Swift/Objective-C++ for iOS. (Deferred)
+ Ensure gapless playback and barge-in interruption logic.
+
+# Fase 4: Silero VAD (Edge STT Prep)
+ Integrate ONNX Runtime Mobile C++ SDK. (Stubbed out architecture)
+ Implement VAD 32ms sliding window buffer in C++. (VadProcessor.cpp)
+ Bridge JS TTS streaming via Oboe native queue (JSI).
+ Bridge VAD state (onSpeechDetected) back to JS via JSI.
+
+# Fase 3.5: Gapless Native TTS & Lock-Free Architecture
+ Refactor AudioPlayer.cpp to use a Lock-Free Ring Buffer instead of std::mutex.
+ Implement synthesizeNativeToPCM in AnimaVoiceModule.kt using Android TextToSpeech API.
+ Read local .wav files generated by Android TTS and return raw PCM Uint8Array.
+ Modify useVoice.ts fallback to push Native TTS PCM to global.animaFeedAudioChunk.
+
+
+
+
+ 
+
+ # AI DIARY: OCR,Library: Download/Listen Books, Encriptation, Calendar Interactive & more... v1.9.6.5
+*Fecha de Registro: from 2026-06-20 to 2026-06-22*
+
+ ## 📚 Características del Sistema de Biblioteca e Ingesta de Documentos
+  ### 1. Descarga y Gestión de Libros/Papers
+ - **Búsqueda Científica Integrada:** Conexión directa a la API de arXiv para buscar y descargar PDFs de ciencia e IA.
+ - **Acceso a Libros Clásicos:** Integración con la API de OpenLibrary y resolución automática de URLs de descarga de PDFs públicos de Internet Archive.
+ - **Importación Local:** Capacidad de importar PDFs del almacenamiento del dispositivo.
+ - **Persistencia y Progreso:** Registro de base de datos SQLite en la tabla `library_books` guardando título, autor, año, ubicación de archivo, y progreso de página leída.
+ - **Lector E-Reader Ligero:** Visor visual adaptable con selección dinámica de tamaño de letra y paginación en memoria para minimizar el consumo de RAM.
+ - **Lectura Guiada TTS:** Sistema continuo de narración por voz nativa (TTS) que auto-avanza páginas y guarda el progreso en la base de datos automáticamente al finalizar el audio de cada página.
+ - **Indexación Inteligente RAG (IA):** Indexación vectorial selectiva de páginas de libros a fragmentos vectoriales de SQLite en `document_chunks` para poder interrogar al LLM local sobre textos específicos.
+ 
+## 2. OCR Nativo Local y Offline de Alto Rendimiento
+ - **Módulo en Kotlin (`PdfToImageModule.kt`):** Implementación nativa que encapsula Google Play Services ML Kit Text Recognition para ejecutar OCR de manera 100% offline, gratuita y directa.
+ - **Extracción en Ingesta de Documentos (PDF Escaneados):** Cuando el usuario adjunta un PDF en el chat (herramientas **FILE**) que es escaneado o no posee texto seleccionable, el sistema ejecuta OCR página por página automáticamente (hasta un límite seguro de 15 páginas) para convertirlo a texto plano para el modelo local sin visión (`llama3.2-1b-q4`).
+ - **OCR en Imágenes Adjuntas:** Al subir capturas de pantalla o fotos al chat, se realiza OCR nativo local y se inyecta el texto reconocido en el contexto del chat.
+ - **Fallback Seguro:** Si el OCR falla o el documento carece de texto identificable, se mantiene la conversión secuencial a imágenes para modelos locales que admitan visión.
+ - **Optimización de Memoria:** Sincronización del búfer de lectura en memoria base64 a un límite de 10MB para procesar de forma estable archivos DOCX complejos sin crasheos por desbordamiento.
+
+## 3. Arquitectura Definitiva de Pestañas y Navegación
+La aplicación cuenta con un flujo estructurado en 5 pestañas principales:
+- **Diary (Diario):** Interfaz del chat principal con soporte multimodal, carga de archivos y previsualización del avatar reactivo Whisp animado a 60 FPS con Skia.
+- **Self-Know (Autoconocimiento):** Evaluaciones psicológicas y de personalidad (cuestionarios OCEAN y MBTI), gráficos analíticos de rasgos interactivos, diario emocional e historial clínico con exportación directa a reportes PDF confidenciales.
+- **Projects (Proyectos):** Tablero local de organización y gestión para proyectos personales o profesionales del usuario.
+- **Tools (Herramientas):** Búsqueda web contextual (Brave Search / Wikipedia) respaldada por una caché semántica SQLite FTS5 local, Dictation Overlay para dictados extensos fuera de línea, y visor de e-reader / Codex.
+- **Settings (Ajustes):** Configuración visual de temas de interfaz, claves de API, almacenamiento y descarga resumible de modelos GGUF, ajustes de voz y borrado total ("master reset").
+
+## 4. Requisitos Técnicos y Avisos de Tienda
+- **Descargas de Modelos Locales:** Descarga opcional de modelos locales GGUF (Llama 3.2 1B, Gemma 3 4B, Gemma 4 E2B QAT) requiriendo conexión Wi-Fi inicial y un espacio libre de entre 1.2 GB y 3.0 GB.
+- **Memoria RAM Mínima:** Dispositivos modernos de 64 bits con al menos 4 GB de RAM (se recomiendan 6 GB de RAM o superior para modelos de 4B o superiores).
+- **Políticas de Privacidad e IA:** Procesamiento local-first con encriptación local en SQLite. Se añaden descargos de responsabilidad sobre contenido generado por IA para cumplir con las normativas de Apple App Store y Google Play Store.
+
+## 5. Ajustes del Calendario Interactivo (Scroll a Citas)
+- **Fijación de Altura de Fila:** Se asignó una altura fija de `height: 40` a `styles.hourRow` en [InteractiveCalendar.tsx](file:///C:/AI-Diary/components/ui/InteractiveCalendar.tsx) en lugar de una altura de padding dinámica. Esto uniformiza visualmente la grilla horaria y previene variaciones de tamaño de contenedor.
+- **Scroll Matemático Exacto:** Se actualizó el valor de `rowHeight` a `40` dentro de la lógica del hook `useEffect` del componente. Al navegar de la vista del mes presionando un día con citas, el scroll se desplaza de forma precisa y pixel-perfect al offset `firstHour * 40`, situando el primer appointment exactamente al inicio de la cabecera.
+
+## 6. Corrección del Menú Kebab en Autoconocimiento
+- **Estructuración de Vistas en Self-Know:** Se reestructuró el retorno de la pestaña de Autoconocimiento en [self-know.tsx](file:///C:/AI-Diary/app/(tabs)/self-know.tsx). Se sustituyó el Fragmento `<>` raíz por un `<View style={[styles.container, { backgroundColor: activeTheme === 'matrix' ? '#000000' : colors.background }]}>`.
+- **Habilitación de Pointer Events:** El componente flotante `<KebabMenuOverlay>` se colocó como hermano directo de `<SafeAreaView style={{ flex: 1 }}>` dentro de este contenedor raíz layouted. Esto resuelve los problemas en Android y iOS donde los límites táctiles (touch bounds) se invalidaban, garantizando que el menú hamburger `☰` de la cabecera y sus items (Perfil, Introducción, Configuración Voz, Borrar Historial) sean 100% responsivos.
+- **Compatibilidad Bilingüe de Reportes:** Se auditó la localización de los reportes. Los botones `EXPORT PERSONALITY REPORT`, `EXPORT WEEKLY CHAT REPORT` y `EXPORT ALL DATA HISTORY` son totalmente bilingües. Generan el contenido y el formato del PDF en inglés o español adaptándose dinámicamente al valor de la variable de idioma global `lang` de la aplicación.
+
+## 7. Diagnóstico y Salud de Encriptación de Datos
+- **Seguridad en Sanctuary Vault:** Se revisó el pipeline criptográfico en [vault.ts](file:///C:/AI-Diary/lib/vault.ts). Los documentos generados y exportados por el usuario (SOAP y reportes clínicos) se guardan en la sandbox local (`Sanctuary_Vault/`) cifrados con el algoritmo simétrico AES-GCM de 256 bits mediante Web Crypto API local.
+- **Resiliencia de Credenciales:** La contraseña maestra de encriptación (master key) y el hash SHA-256 del PIN del usuario están fuertemente blindados en el hardware del dispositivo mediante `SecureStore` (KeyStore en Android / Keychain en iOS).
+- **Almacenamiento de Bases de Datos SQLite:** Las bases de datos locales (mensajes, perfiles, tareas, calendario) residen actualmente en formato sin cifrar en disco (expo-sqlite plano) para optimizar la latencia y la velocidad de inferencia de la IA local. Se definió de forma conjunta con el usuario que la integración con SQLCipher se reservará como una compilación/variante médica especial ("special edition") para entornos de salud regulados que requieran encriptación en reposo total a nivel del motor SQL, evitando así el sobrecosto de latencia y peso binario en la versión de distribución estándar.
+
+
+## 8. Corrección de Medidores e Independencia de Activación del Model Core 
+- **Separación de Gestión Core/Visión:** Se desacopló por completo la validación del proyector de visión de la inicialización de la IA. La función `checkFile` en [index.tsx](file:///c:/AI-Diary/app/(tabs)/index.tsx) ahora verifica únicamente que el archivo principal del núcleo del modelo (`sizeMB`) esté completo y en disco para activar el botón **ACTIVAR AI** y habilitar el chat de texto. El módulo de visión (`mmproj`) pasa a ser opcional y se descarga a demanda cuando el usuario adjunta una imagen.
+- **Medidor y Denominador Dinámico:** Se introdujo la variable `downloadingType` en los componentes visuales de descarga [ModelLoaderPanel.tsx](file:///c:/AI-Diary/components/ModelLoaderPanel.tsx) y [GlobalDownloadBanner.tsx](file:///c:/AI-Diary/components/GlobalDownloadBanner.tsx). Al iniciar descargas del núcleo, el denominador del progreso muestra exactamente el tamaño real en descarga (`selectedModel.sizeMB`, p. ej., 2500 MB para Anima Deepmind y 2374 MB para Anima Balance) en lugar de la suma acumulada con visión. Al descargar el proyector de imágenes, el medidor se ajusta de manera separada al tamaño correspondiente.
+
+## 9. Optimizaciones en la Pantalla de Herramientas (Tools) y Automatizaciones (2026-06-28)
+- **Resolución de Colapso del Modo Dictado en Android (Fabric/Bridgeless):** Se eliminó el componente `<Modal transparent={true}>` nativo en el Modo Dictado de [tools.tsx](file:///c:/AI-Diary/app/(tabs)/tools.tsx) porque causaba un colapso crítico de layout en Android debido a la evaluación nativa de `WRAP_CONTENT` de la nueva arquitectura de React Native. Se reemplazó por un overlay de pantalla completa posicionado absolutamente (`StyleSheet.absoluteFillObject` y `zIndex: 10000`) garantizando que todos los elementos (caja de texto, botones de edición, portapapeles y botón de pulsar para hablar) se rendericen correctamente en dispositivos físicos.
+- **Reorganización de Prioridades en el Layout:** Se reubicó la tarjeta **TO-DO LIST / NOTAS** para colocarla en la parte superior del flujo de herramientas de la pantalla de Tools, inmediatamente debajo del título de cabecera `PRIVATE TOOLS (OFF-LINE/ANONIMOUS)` y sobre la tarjeta de `BIBLIOTECA` para agilizar su accesibilidad diaria.
+- **Creacion de la herramienta Automatizaciones / Tareas Recurrentes:** Se añadió una plantilla de automatizaciones predefinida (`crypto_tracker, Stock tracker, Daily AI News, Weekly Finance Review, Moods & Wellbeing Analisis, Goal & Habit Progress, Reading & Learning Summary, Custom`) esto creara automatizaciones diaras o semanales de vairas actividades y el avatar Anima las recordara al Usuario.
+
+## 10. Estabilización de Lanzamiento iOS (Hermes) y Sistema Dinámico de Diagnóstico de Anima (2026-06-28)
+- **Corrección de Crash Nativo en iOS (iPhone 17 / iOS 26.5+):** Se resolvió un cierre inesperado de la aplicación durante el arranque (`EXC_BAD_ACCESS` en `hermes::vm::detail::TransitionMap`) en entornos de producción. La causa se identificó como una resolución conflictiva de exportaciones modulares de Node.js en Metro. Se corrigió desactivando explícitamente `unstable_enablePackageExports = false` en `metro.config.js`, forzando a Metro a resolver los entrypoints correctos de React Native y previniendo la inyección de módulos incompatibles en el motor Hermes.
+- **Rastreador de Criptomonedas Integrado:** Se expandió el menú de automatizaciones en `tools.tsx` para incluir la opción nativa "Track Cryptocurrency", permitiendo a los usuarios registrar un ticker (ej. BTC, ETH) y generar reportes financieros sintéticos como tarea recurrente.
+- **Scanner Dinámico de Capacidades de Anima:** Se desarrolló un nuevo hook de diagnóstico en segundo plano (`useAnimaScanner.ts`) que evalúa intermitentemente y con baja latencia el estado general del sistema (modelos LLM activos, disponibilidad del módulo de visión `mmproj`, herramientas configuradas y tareas pendientes en la base de datos). 
+- **Escaner interno del APP: Interfaz Animada y Fluida de Estado:** En la pantalla principal del chat (`index.tsx`), los resultados de este diagnóstico se renderizan de forma autónoma debajo del estado de ánimo de Anima mediante el componente `<MarqueeText>`, con un desplazamiento sumamente suave y lento (15 segundos) y animaciones de desvanecimiento (`FadeInDown`/`FadeOutUp`). El scanner está condicionado para ejecutarse y mostrarse únicamente cuando Anima está en modo `idle`, evitando distracciones visuales durante la escucha activa o generación de respuestas.
+-
+## 10. Estabilización de las latencias del TTS Online que causaban micro-pausas en el habla (2026-06-29)
+ **Optimización de Latencia y Fluidez en Voz Online (Google TTS):** Se implementó una reestructuración profunda en el flujo de síntesis de voz en la nube para eliminar retrasos de audio. Esto incluye:
+  - **Eliminación de pausas innecesarias:** Se quitaron los tags SSML `<break>` que se forzaban en signos gramaticales (como `,`, `;`, `:`) en `TTSSanitizer.ts`, delegando la entonación natural al motor neuronal de Google.
+  - **Streaming de audio mediante JSI:** Se habilitó el soporte de audio en crudo (`LINEAR16` PCM) en la función `synthesizeJSI` de `CloudTTSService.ts`, convirtiendo los datos a `Float32Array` y enviándolos directamente al búfer C++ de Oboe, eliminando la latencia del sistema de archivos en Android.
+  - **Doble Buffering y Precarga Activa:** Se adaptó `useVoice.ts` para soportar objetos `Audio.Sound` precargados e inicializados asíncronamente en segundo plano. A su vez, `useInteractiveVoice.ts` coordina la resolución de estas promesas en paralelo mientras el audio previo está sonando, reduciendo la brecha entre oraciones a prácticamente cero.
+  - **Estrategia de Recolección de Basura:** Se añadió una rutina de descarga (`unloadAsync`) preventiva en la función de reinicio de la cola (`resetSpeechQueue`) para asegurar que los fragmentos de audio precargados no reproducidos se limpien correctamente de la memoria, evitando fugas de recursos.
+
+# AI DIARY: Finishing Touches and bug fixes v1.9.6.6 2026-07-01
+
+- **Corrección de Diseño en Modales y Overlayers (Fabric Android Layout Collapse Bug)**:
+  - **Eliminación del Evento Inestable `onShow`**: Se detectó que el evento nativo `onShow` no se disparaba de forma confiable en Android (Fabric) al montar los modales directamente con la propiedad `visible={true}`. Esto dejaba a los modales colapsados a tamaño cero, haciéndolos lucir completamente transparentes y no interactivos.
+  - **Patrón de Doble Renderizado Controlado por JS**: Se implementó una lógica basada en `useEffect` que inicia un temporizador de `50ms` al montarse el modal. Al completarse, incrementa un ticket de diseño (`layoutTicket`) que obliga a React Native a forzar un pase de redibujado de Yoga una vez que la ventana nativa está presentada.
+  - **Estiramiento Físico Absoluto del Contenedor**: Se forzó el ancho y alto del contenedor raíz del modal utilizando `Dimensions.get('screen')` para garantizar que la vista no colapse.
+  - **Inyección de Elemento Dummy**: Se agregó una vista dummy de alto microscópico (`0.5` píxeles) que cambia de tamaño reactivamente según el `layoutTicket`, forzando el recalculo de medidas de la jerarquía completa.
+  - **Modales Parcheados en su Totalidad (13 en total)**:
+    - Modales principales: `BookReaderModal`, `ProfileModal`, `IntroModal`, `VoiceSettingsModal`, `VaultExplorerModal`, `TestsMenuModal`, `PsyTestModal`.
+    - Modales de interfaz auxiliares: `VisionDownloadModal` (descarga local) y `MessageContextMenu` (menú contextual de burbujas).
+    - Modales inline de pestañas: Visor de imágenes a pantalla completa en `app/(tabs)/index.tsx`, Language Picker en `app/(tabs)/settings.tsx`, y Theme/Project Selectors en `app/(tabs)/projects.tsx`.
+
+- **Creación de Script Automatizado de Auditoría (`scripts/audit_modals.py`)**:
+  - Se desarrolló un script en Python que analiza el código fuente del proyecto y audita de forma automática cualquier archivo `.tsx` o `.ts` que renderice un componente `<Modal>`.
+  - El script verifica matemáticamente y estructuralmente que se cumplan las directivas de Fabric: uso de `transparent={true}`, `statusBarTranslucent={true}`, `Dimensions.get('screen')`, y la lógica de re-renderizado mediante `Ticket` o `ReRender`.
+  - Se configuró la salida en codificación UTF-8 para garantizar compatibilidad con terminales de Windows y evitar errores de encoding al imprimir símbolos de aprobación.
+

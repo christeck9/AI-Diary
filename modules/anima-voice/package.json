@@ -1,0 +1,10 @@
+{
+  "name": "anima-voice",
+  "version": "1.0.0",
+  "description": "AnimaVoice local native module",
+  "main": "src/AnimaVoiceModule.ts",
+  "types": "src/AnimaVoiceModule.ts",
+  "peerDependencies": {
+    "expo": "*"
+  }
+}

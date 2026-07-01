@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { StyleSheet, View, Text, Dimensions, Animated } from 'react-native';
 import { getTotalRAMValue } from '../lib/MemoryManager';
+import { useCircadianCycle } from '../hooks/useCircadianCycle';
 
 const { width, height } = Dimensions.get('window');
 const COLUMN_COUNT = Math.floor(width / 20);
@@ -10,12 +11,14 @@ const MatrixColumn = ({
   index, 
   paused, 
   isActive, 
-  onFinish 
+  onFinish,
+  isGardenDay
 }: { 
   index: number, 
   paused?: boolean, 
   isActive: boolean, 
-  onFinish: () => void 
+  onFinish: () => void,
+  isGardenDay?: boolean
 }) => {
   const [chars, setChars] = useState('');
   const moveAnim = useRef(new Animated.Value(-200)).current;
@@ -69,13 +72,15 @@ const MatrixColumn = ({
         { left: index * 20, transform: [{ translateY: moveAnim }] }
       ]}
     >
-      <Text style={styles.charText}>{chars}</Text>
+      <Text style={[styles.charText, isGardenDay && styles.charTextGardenDay]}>{chars}</Text>
     </Animated.View>
   );
 };
 
-export const MatrixRain = ({ paused }: { paused?: boolean }) => {
+export const MatrixRain = ({ paused, isGarden = false }: { paused?: boolean; isGarden?: boolean }) => {
   const [activeColumns, setActiveColumns] = useState<Set<number>>(new Set());
+  const { isDayTime } = useCircadianCycle();
+  const isGardenDay = isGarden && isDayTime;
 
   useEffect(() => {
     if (paused) return;
@@ -131,6 +136,7 @@ export const MatrixRain = ({ paused }: { paused?: boolean }) => {
           paused={paused} 
           isActive={activeColumns.has(i)}
           onFinish={() => handleColumnFinish(i)}
+          isGardenDay={isGardenDay}
         />
       ))}
     </View>
@@ -148,5 +154,9 @@ const styles = StyleSheet.create({
     fontFamily: 'monospace',
     textAlign: 'center',
     opacity: 0.3,
+  },
+  charTextGardenDay: {
+    color: '#00ff41',
+    opacity: 0.6,
   },
 });

@@ -14,7 +14,8 @@ export async function SanctuarySearchOrchestrator(
   lang: 'es' | 'en' = 'es'
 ): Promise<string> {
   const pureQuery = purifyQuery(query);
-  console.log(`[Orchestrator] Processing Stream [${stream}]: "${pureQuery}" (lang: ${lang})`);
+  const logSafeQuery = pureQuery.length > 0 ? `[Length: ${pureQuery.length}, Hash: ${pureQuery.substring(0,3)}***]` : `[Empty]`;
+  console.log(`[Orchestrator] Processing Stream [${stream}]: ${logSafeQuery} (lang: ${lang})`);
 
   // Layer 1: Brave LLM Context API (Motor Primario - Tiempo real)
   if (stream === 'FAST_FACT' || stream === 'DEEP_RESEARCH') {

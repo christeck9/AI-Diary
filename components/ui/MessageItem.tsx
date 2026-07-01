@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, TouchableWithoutFeedback, Image, ActivityIndicator, StyleSheet } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { Swipeable } from 'react-native-gesture-handler';
+import { Swipeable, TouchableOpacity as RNGHTouchableOpacity } from 'react-native-gesture-handler';
 import { IconSymbol } from './icon-symbol';
 import { CognitiveNode } from './CognitiveNode';
 
@@ -41,33 +41,38 @@ export const MessageItem = React.memo(({
   const renderRightActions = () => {
     return (
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 10, paddingBottom: 20 }}>
-        <TouchableOpacity style={styles.actionBtn} onPress={() => onAction('copy', item)}>
+        <RNGHTouchableOpacity style={styles.actionBtn} onPress={() => onAction('copy', item)}>
           <IconSymbol name="doc.on.doc" size={20} color={colors.primary} />
           <Text style={[styles.actionLabel, { color: colors.primary }]}>{lang === 'es' ? 'Copiar' : 'Copy'}</Text>
-        </TouchableOpacity>
+        </RNGHTouchableOpacity>
         {isAi && (
-          <TouchableOpacity style={styles.actionBtn} onPress={() => onAction('analyze', item)}>
+          <RNGHTouchableOpacity style={styles.actionBtn} onPress={() => onAction('analyze', item)}>
             <IconSymbol name="brain.head.profile" size={20} color={colors.secondary} />
             <Text style={[styles.actionLabel, { color: colors.secondary }]}>{lang === 'es' ? 'Analizar' : 'Analyze'}</Text>
-          </TouchableOpacity>
+          </RNGHTouchableOpacity>
         )}
         {isAi && (
-          <TouchableOpacity style={styles.actionBtn} onPress={() => onAction('report', item)}>
+          <RNGHTouchableOpacity style={styles.actionBtn} onPress={() => onAction('report', item)}>
             <IconSymbol name="exclamationmark.triangle" size={20} color="#D4A017" />
             <Text style={[styles.actionLabel, { color: '#D4A017' }]}>{lang === 'es' ? 'Reportar' : 'Report'}</Text>
-          </TouchableOpacity>
+          </RNGHTouchableOpacity>
         )}
-        <TouchableOpacity style={styles.actionBtn} onPress={() => onAction('delete', item)}>
+        <RNGHTouchableOpacity style={styles.actionBtn} onPress={() => onAction('delete', item)}>
           <IconSymbol name="trash" size={20} color="#ff3b30" />
           <Text style={[styles.actionLabel, { color: '#ff3b30' }]}>{lang === 'es' ? 'Borrar' : 'Delete'}</Text>
-        </TouchableOpacity>
+        </RNGHTouchableOpacity>
       </View>
     );
   };
 
   const innerContent = (
-    <Swipeable renderRightActions={renderRightActions} friction={2}>
-      <View style={[styles.messageWrapper, isAi ? styles.messageWrapperAi : styles.messageWrapperUser, item.status === 'pending' && { opacity: 0.5 }]}>
+    <Swipeable renderRightActions={renderRightActions} friction={2} overshootRight={false} activeOffsetX={[-10, 10]} failOffsetY={[-10, 10]}>
+      <View style={[
+        styles.messageWrapper,
+        isAi ? styles.messageWrapperAi : styles.messageWrapperUser,
+        item.status === 'pending' && { opacity: 0.5 },
+        isLatest && { marginBottom: 60, marginTop: 15 }
+      ]}>
         {isAi && (
           <View style={[
             styles.avatarAi,
@@ -83,7 +88,19 @@ export const MessageItem = React.memo(({
         <View style={[
           styles.messageBubble,
           isAi ? { backgroundColor: colors.surfaceSecondary, borderLeftWidth: 2, borderLeftColor: colors.secondary }
-            : { backgroundColor: colors.surfaceSecondary, borderRightWidth: 2, borderRightColor: colors.primary }
+            : { backgroundColor: colors.surfaceSecondary, borderRightWidth: 2, borderRightColor: colors.primary },
+          isLatest && {
+            backgroundColor: colors.surfaceSecondary === '#1a1a24' ? '#323248' :
+                             colors.surfaceSecondary === '#1a1e1a' ? '#2a382a' :
+                             colors.surfaceSecondary === '#f0f0f5' ? '#ffffff' :
+                             colors.surfaceSecondary === '#e8ebe4' ? '#ffffff' :
+                             colors.surfaceSecondary === '#e6e8f4' ? '#ffffff' :
+                             colors.surfaceSecondary,
+            borderWidth: 1,
+            borderColor: isAi ? colors.secondary : colors.primary,
+            borderLeftWidth: isAi ? 3 : 1,
+            borderRightWidth: isAi ? 1 : 3,
+          }
         ]}>
           {item.imageUri && (
             <TouchableOpacity

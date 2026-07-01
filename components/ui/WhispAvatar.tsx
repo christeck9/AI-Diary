@@ -10,7 +10,8 @@ import Animated, {
   withTiming, 
   withDelay,
   withSpring,
-  Easing 
+  Easing,
+  cancelAnimation
 } from 'react-native-reanimated';
 
 interface WhispAvatarProps {
@@ -37,16 +38,6 @@ export const WhispAvatar = ({ status = 'idle', size = 120 }: WhispAvatarProps) =
   const rightHandTargetX = useSharedValue(center + 35);
   const rightHandTargetY = useSharedValue(center + 15);
 
-  // Continuous time for hovering math
-  useEffect(() => {
-    // time.value increases by 2 units every second (2000 units over 1,000,000 ms)
-    time.value = withRepeat(
-      withTiming(2000, { duration: 1000000, easing: Easing.linear }),
-      -1,
-      true // Reverse to avoid jumps
-    );
-  }, []);
-
   useEffect(() => {
     // Float and Pulse based on status
     let floatDuration = 2000;
@@ -63,11 +54,11 @@ export const WhispAvatar = ({ status = 'idle', size = 120 }: WhispAvatarProps) =
       pulseDuration = 800;
       targetMouth = 0; // Neutral line
       targetEyeX = 0.8; // Squinting
-      // Right hand to chin, left hand lowered
-      targetRightHandX = center + 5;
-      targetRightHandY = center + 15;
-      targetLeftHandX = center - 30;
-      targetLeftHandY = center + 25;
+      // Ambas manitas apoyadas en los extremos de los cachetes (sobresaliendo un tercio)
+      targetLeftHandX = center - 26;
+      targetLeftHandY = center + 10;
+      targetRightHandX = center + 26;
+      targetRightHandY = center + 10;
     } else if (status === 'tired') {
       floatDuration = 4000;
       pulseDuration = 3000;
@@ -101,34 +92,48 @@ export const WhispAvatar = ({ status = 'idle', size = 120 }: WhispAvatarProps) =
       pulseDuration = 700;
       targetMouth = 1.0; // Wide open mouth (talking)
       targetEyeX = 1.2; // Bright, energetic eyes
-      // Arms open wide like presenting/talking
-      targetLeftHandX = center - 45;
-      targetLeftHandY = center;
-      targetRightHandX = center + 45;
-      targetRightHandY = center;
+      // Left hand at normal low position, right hand raised high
+      targetLeftHandX = center - 35;
+      targetLeftHandY = center + 15;
+      targetRightHandX = center + 32;
+      targetRightHandY = center - 20; // Raised hand bubble
     }
 
-    // Breathe / Pulse
-    pulseValue.value = withRepeat(
-      withSequence(
-        withTiming(0.95, { duration: pulseDuration, easing: Easing.inOut(Easing.ease) }),
-        withTiming(1.05, { duration: pulseDuration, easing: Easing.inOut(Easing.ease) })
-      ),
-      -1,
-      true
-    );
+    if (status === 'thinking') {
+      // FREEZE ANIMATIONS: Pausa absoluta para ahorrar CPU/GPU mientras la IA calcula
+      cancelAnimation(time);
+      pulseValue.value = withTiming(1, { duration: 500 });
+      flicker.value = withTiming(1, { duration: 500 });
+    } else {
+      // Resume continuous time and animations
+      time.value = withRepeat(
+        withTiming(time.value + 2000, { duration: 1000000, easing: Easing.linear }),
+        -1,
+        true
+      );
+      
+      // Breathe / Pulse
+      pulseValue.value = withRepeat(
+        withSequence(
+          withTiming(0.95, { duration: pulseDuration, easing: Easing.inOut(Easing.ease) }),
+          withTiming(1.05, { duration: pulseDuration, easing: Easing.inOut(Easing.ease) })
+        ),
+        -1,
+        true
+      );
 
-    // Flame Flickering (very rapid small jitter)
-    flicker.value = withRepeat(
-      withSequence(
-        withTiming(1.05, { duration: 60 }),
-        withTiming(0.95, { duration: 40 }),
-        withTiming(1.1, { duration: 80 }),
-        withTiming(0.9, { duration: 50 })
-      ),
-      -1,
-      true
-    );
+      // Flame Flickering (very rapid small jitter)
+      flicker.value = withRepeat(
+        withSequence(
+          withTiming(1.05, { duration: 60 }),
+          withTiming(0.95, { duration: 40 }),
+          withTiming(1.1, { duration: 80 }),
+          withTiming(0.9, { duration: 50 })
+        ),
+        -1,
+        true
+      );
+    }
 
     // Mouth and Eye expressions
     mouthCurve.value = withTiming(targetMouth, { duration: 500 });
@@ -299,12 +304,14 @@ export const WhispAvatar = ({ status = 'idle', size = 120 }: WhispAvatarProps) =
       cpY = center + 12; // Línea recta entre los dos puntos
     }
 
-    // Si está hablando, boca más grande (abrir más el arco)
+    // Si está hablando, boca de tipo óvalo abierto (tipo sorprendido/hablando)
     if (status === 'speaking') {
-      const speakStartX = center - 12;
-      const speakEndX = center + 12;
-      path.moveTo(speakStartX, center + 10);
-      path.quadTo(center, center + 22, speakEndX, center + 10);
+      const speakStartX = center - 6;
+      const speakEndX = center + 6;
+      path.moveTo(speakStartX, center + 12);
+      path.quadTo(center, center + 6, speakEndX, center + 12);
+      path.quadTo(center, center + 18, speakStartX, center + 12);
+      path.close();
       setMouthPath(path);
       return;
     }
@@ -315,6 +322,10 @@ export const WhispAvatar = ({ status = 'idle', size = 120 }: WhispAvatarProps) =
   }, [status]);
 
   const containerHeight = Math.round(size * 0.85);
+
+  const sweatDropSVG = Skia.Path.MakeFromSVGString(
+    `M ${center+15} ${center-26} C ${center+20} ${center-20} ${center+20} ${center-14} ${center+15} ${center-14} C ${center+10} ${center-14} ${center+10} ${center-20} ${center+15} ${center-26} Z`
+  );
 
   return (
     <Animated.View style={[styles.container, { width: size, height: containerHeight }, animatedStyle]}>
@@ -375,9 +386,22 @@ export const WhispAvatar = ({ status = 'idle', size = 120 }: WhispAvatarProps) =
             </Circle>
 
             {/* Mouth */}
-            <Path path={mouthPath} color="#ffffff" style="stroke" strokeWidth={1.5} strokeCap="round">
-              <BlurMask blur={0.2} style="normal" />
-            </Path>
+            {status === 'speaking' ? (
+              <Path path={mouthPath} color="#ffffff" style="fill">
+                <BlurMask blur={0.5} style="normal" />
+              </Path>
+            ) : (
+              <Path path={mouthPath} color="#ffffff" style="stroke" strokeWidth={1.5} strokeCap="round">
+                <BlurMask blur={0.2} style="normal" />
+              </Path>
+            )}
+
+            {/* Sweat Drop for Thinking state */}
+            {status === 'thinking' && sweatDropSVG && (
+              <Path path={sweatDropSVG} color="#88ddff">
+                <BlurMask blur={0.5} style="normal" />
+              </Path>
+            )}
           </Group>
         </Group>
       </Canvas>

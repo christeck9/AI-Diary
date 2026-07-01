@@ -1,4 +1,5 @@
 import React from 'react';
+import * as SQLite from 'expo-sqlite';
 import { SQLiteProvider, useSQLiteContext as useRealSQLiteContext } from 'expo-sqlite';
 import { initializeDatabase } from '../lib/db';
 import { View, Text, Button } from 'react-native';
@@ -28,10 +29,14 @@ export const MemoryProvider = ({ children }: { children: React.ReactNode }) => {
         </Text>
         <Button title="DESTROY DATABASE & RESTART" color="#ff4444" onPress={async () => {
           try {
-            const dbDir = `${FileSystem.documentDirectory}SQLite`;
-            await FileSystem.deleteAsync(`${dbDir}/gemma_memory.db`, { idempotent: true });
-            await FileSystem.deleteAsync(`${dbDir}/gemma_memory.db-wal`, { idempotent: true });
-            await FileSystem.deleteAsync(`${dbDir}/gemma_memory.db-shm`, { idempotent: true });
+            if (SQLite.deleteDatabaseAsync) {
+              await SQLite.deleteDatabaseAsync('gemma_memory.db');
+            } else {
+              const dbDir = `${FileSystem.documentDirectory}SQLite`;
+              await FileSystem.deleteAsync(`${dbDir}/gemma_memory.db`, { idempotent: true });
+              await FileSystem.deleteAsync(`${dbDir}/gemma_memory.db-wal`, { idempotent: true });
+              await FileSystem.deleteAsync(`${dbDir}/gemma_memory.db-shm`, { idempotent: true });
+            }
             setDbError(null);
           } catch (e) {
             console.error(e);

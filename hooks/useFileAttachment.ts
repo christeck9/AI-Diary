@@ -84,7 +84,7 @@ export interface AttachedFile {
 
 
 const MAX_FILE_SIZE_KB = 10240; // 🔱 A++: 10MB Limit (RAM Safety Limit)
-const MAX_BASE64_MEM_KB = 5120; // 🔱 A++: 5MB Limit for direct RAM read
+const MAX_BASE64_MEM_KB = 10240; // 🔱 A++: 10MB Limit for direct RAM read
 
 /**
  * useFileAttachment — Manages file picking, text extraction, and context injection.
@@ -230,6 +230,17 @@ export function useFileAttachment(lang: string) {
   };
 
   const extractTextFromImage = async (uri: string, metadata: any): Promise<string> => {
+    try {
+      const { extractTextFromImage: nativeImageOcr } = require('../lib/PdfToImage');
+      console.log('[FILE] Running native OCR on attached image...');
+      const recognizedText = await nativeImageOcr(uri);
+      if (recognizedText && recognizedText.trim().length > 0) {
+        console.log(`[FILE] Native image OCR extracted ${recognizedText.length} characters.`);
+        return `[VISION_DATA] Image: ${metadata.format}, Resolution: ${metadata.width}x${metadata.height}. Extracted Text via Native OCR:\n${recognizedText}`;
+      }
+    } catch (e) {
+      console.warn('[FILE] Native image OCR failed or not available:', e);
+    }
     return `[VISION_DATA] Image: ${metadata.format}, Resolution: ${metadata.width}x${metadata.height}. Content: [The image is attached. Please analyze the visual file directly.]`;
   };
 
@@ -262,7 +273,7 @@ export function useFileAttachment(lang: string) {
     }
   };
 
-  const pickDocument = useCallback(async () => {
+  const pickDocument = useCallback(async (onBeforeProcessImage?: () => Promise<boolean>) => {
     const docPicker = getResolvedDocumentPicker();
     if (!docPicker) return null;
     setIsProcessing(true);
@@ -303,6 +314,13 @@ export function useFileAttachment(lang: string) {
       let finalUri = fileUri;
 
       if (fileType === 'image') {
+        if (onBeforeProcessImage) {
+          const ok = await onBeforeProcessImage();
+          if (!ok) {
+            setIsProcessing(false);
+            return null;
+          }
+        }
         const processed = await processImage(fileUri, fileName, (asset as any).width, (asset as any).height);
         finalUri = processed.uri;
         imageMetadata = processed.metadata;
@@ -316,23 +334,62 @@ export function useFileAttachment(lang: string) {
                                    extractedText.includes('The PDF document is empty') ||
                                    extractedText.startsWith('[PDF Error:');
           if (isEmptyOrScanned) {
-            console.log('[FILE] 📸 Scanned/text-less PDF detected. Initiating Native PDF-to-Image conversion...');
+            console.log('[FILE] 📸 Scanned/text-less PDF detected. Initiating Native OCR extraction...');
             try {
-              const { convertPdfToImages } = require('../lib/PdfToImage');
-              const pageLimit = await getPdfPageLimit();
-              const renderedPages = await convertPdfToImages(fileUri, pageLimit);
-              if (renderedPages && renderedPages.length > 0) {
-                console.log(`[FILE] Native PDF conversion succeeded: ${renderedPages.length} pages converted.`);
-                imageMetadata = {
-                  pdfImages: renderedPages,
-                  format: 'JPEG',
-                  width: 1008,
-                  height: 1425
-                };
-                extractedText = `[VISION_DATA] PDF: "${fileName}", Pages: ${renderedPages.length}. Content: [This is a scanned PDF with no extractable text. It has been rendered to images. Please analyze the visual files directly.]`;
+              const { extractTextFromPdfPage } = require('../lib/PdfToImage');
+              let pageCount = 0;
+              if (PdfExtractor) {
+                try {
+                  const resolvedPdfExtractor = PdfExtractor.default && PdfExtractor.default.getPageCount ? PdfExtractor.default : PdfExtractor;
+                  pageCount = await resolvedPdfExtractor.getPageCount(fileUri);
+                } catch (e) {
+                  console.warn('[FILE] Could not get PDF page count for OCR:', e);
+                } 
+              }
+              if (pageCount === 0) {
+                pageCount = 5;
+              }
+              const maxOcrPages = Math.min(pageCount, 15); // Process up to 15 pages in picking to avoid blocking UI too long
+              let ocrText = '';
+              for (let pageIdx = 0; pageIdx < maxOcrPages; pageIdx++) {
+                try {
+                  const pageText = await extractTextFromPdfPage(fileUri, pageIdx);
+                  if (pageText && pageText.trim().length > 0) {
+                    ocrText += `--- Página ${pageIdx + 1} ---\n${pageText}\n\n`;
+                  } 
+                } catch (pageOcrErr) {
+                  console.warn(`[FILE] Native OCR failed on page ${pageIdx}:`, pageOcrErr);
+                }
+              }
+
+              if (ocrText.trim().length > 0) {
+                extractedText = ocrText.trim();
+                console.log(`[FILE] Native OCR extracted ${extractedText.length} characters from scanned PDF.`);
+              } else {
+                console.log('[FILE] Native OCR returned no text. Falling back to rendering PDF pages to images...');
+                if (onBeforeProcessImage) {
+                  const ok = await onBeforeProcessImage();
+                  if (!ok) {
+                    setIsProcessing(false);
+                    return null;
+                  } 
+                }
+                const { convertPdfToImages } = require('../lib/PdfToImage');
+                const pageLimit = await getPdfPageLimit();
+                const renderedPages = await convertPdfToImages(fileUri, pageLimit);
+                if (renderedPages && renderedPages.length > 0) {
+                  console.log(`[FILE] Native PDF conversion succeeded: ${renderedPages.length} pages converted.`);
+                  imageMetadata = {
+                    pdfImages: renderedPages,
+                    format: 'JPEG',
+                    width: 1008,
+                    height: 1425
+                  };
+                  extractedText = `[VISION_DATA] PDF: "${fileName}", Pages: ${renderedPages.length}. Content: [This is a scanned PDF with no extractable text. It has been rendered to images. Please analyze the visual files directly.]`;
+                }
               }
             } catch (err) {
-              console.error('[FILE] Native PDF-to-Image conversion failed:', err);
+              console.error('[FILE] Scanned PDF processing failed:', err);
             }
           }
         }
@@ -345,7 +402,7 @@ export function useFileAttachment(lang: string) {
     } catch (e) { setIsProcessing(false); return null; }
   }, [lang]);
 
-  const pickImage = useCallback(async () => {
+  const pickImage = useCallback(async (onBeforeProcessImage?: () => Promise<boolean>) => {
     const picker = getResolvedImagePicker();
     if (!picker) return null;
     setIsProcessing(true);
@@ -366,6 +423,15 @@ export function useFileAttachment(lang: string) {
         quality: 0.6 
       });
       if (result.canceled || !result.assets) { setIsProcessing(false); return null; }
+
+      if (onBeforeProcessImage) {
+        const ok = await onBeforeProcessImage();
+        if (!ok) {
+          setIsProcessing(false);
+          return null;
+        }
+      }
+
       const asset = result.assets[0];
       const fileUri = await ensureLocalFileUri(asset.uri);
       const fileName = fileUri.split('/').pop() || 'image.jpg';
@@ -392,7 +458,7 @@ export function useFileAttachment(lang: string) {
     } catch (e) { setIsProcessing(false); return null; }
   }, [lang]);
 
-  const takePhoto = useCallback(async () => {
+  const takePhoto = useCallback(async (onBeforeProcessImage?: () => Promise<boolean>) => {
     const picker = getResolvedImagePicker();
     if (!picker) return null;
     setIsProcessing(true);
@@ -409,6 +475,15 @@ export function useFileAttachment(lang: string) {
 
       const result = await picker.launchCameraAsync({ quality: 0.6 });
       if (result.canceled || !result.assets) { setIsProcessing(false); return null; }
+
+      if (onBeforeProcessImage) {
+        const ok = await onBeforeProcessImage();
+        if (!ok) {
+          setIsProcessing(false);
+          return null;
+        }
+      }
+
       const asset = result.assets[0];
       const fileUri = await ensureLocalFileUri(asset.uri);
       const fileName = `camera_${Date.now()}.jpg`;
@@ -470,5 +545,5 @@ export function useFileAttachment(lang: string) {
     return `\n\n--- ${lang === 'es' ? 'ARCHIVO' : 'FILE'}: "${targetFile.name}" ---\n${targetFile.extractedText}\n--- FIN ---\n`;
   }, [attachedFile, lang]);
 
-  return { attachedFile, isProcessing, pickDocument, pickImage, takePhoto, clearAttachment, buildFileContext, extractTextInChunks };
+  return { attachedFile, setAttachedFile, isProcessing, pickDocument, pickImage, takePhoto, clearAttachment, buildFileContext, extractTextInChunks };
 }

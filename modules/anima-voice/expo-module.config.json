@@ -1,0 +1,9 @@
+{
+  "platforms": ["android", "apple"],
+  "apple": {
+    "modules": ["AnimaVoiceModule"]
+  },
+  "android": {
+    "modules": ["com.christeck.animavoice.AnimaVoiceModule"]
+  }
+}

@@ -1,0 +1,8 @@
+# ninja log v5
+0	1591	8038513755521922	CMakeFiles/anima_voice.dir/AudioPlayer.cpp.o	19b1e8c9949fa2c7
+7	1823	8038513757865489	CMakeFiles/anima_voice.dir/cpp-adapter.cpp.o	9c27ceaa31bc9c95
+1824	1911	8038513758791440	C:/AI-Diary/modules/anima-voice/android/build/intermediates/cxx/RelWithDebInfo/5ti5w1w1/obj/arm64-v8a/libanima_voice.so	c05613df94d5765f
+0	10	0	clean	11f34aede1ea5eaa
+13	5100	8043754550132513	CMakeFiles/anima_voice.dir/AudioPlayer.cpp.o	19b1e8c9949fa2c7
+40	5194	8043754551091608	CMakeFiles/anima_voice.dir/cpp-adapter.cpp.o	9c27ceaa31bc9c95
+5195	5646	8043754555671337	C:/AI-Diary/modules/anima-voice/android/build/intermediates/cxx/RelWithDebInfo/5ti5w1w1/obj/arm64-v8a/libanima_voice.so	c05613df94d5765f

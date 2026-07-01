@@ -67,13 +67,15 @@ export function useDocumentProcessor(
   const processAttachments = useCallback(async (
     file: AttachedFile | null, 
     userQuery: string, 
-    setMessages: React.Dispatch<React.SetStateAction<Message[]>>
+    setMessages: React.Dispatch<React.SetStateAction<Message[]>>,
+    targetMessageId?: string,
+    abortSignal?: AbortSignal
   ) => {
     // 🛡️ Null Safety Inicial
-    if (!file) return { context: '', imageContent: null };
+    if (!file || typeof file !== 'object') return { context: '', imageContent: null };
 
     // --- MODO VISIÓN (Optimizado Sanctuary v4.0 Zero-Copy) ---
-    if (file.type === 'image' || (file.type as any) === 'image/vision-optimized') {
+    if (file.type === 'image') {
       // Prioridad 1: Buffer Binario (JSI) si ya existe
       if (file.binaryBuffer) {
         return {
@@ -112,11 +114,15 @@ export function useDocumentProcessor(
       const totalPages = file.metadata.pdfImages.length;
       
       for (let i = 0; i < totalPages; i++) {
+        if (abortSignal?.aborted) {
+          console.log('[DOC_PROCESSOR] Vision loop aborted by user');
+          break;
+        }
         const pageUri = file.metadata.pdfImages[i];
         
         // Visual feedback to the user
         setMessages(prev => prev.map(m => 
-          m.role === 'ai' && (m.text.includes('Analizando') || m.text.includes('Procesando') || m.text.includes('Transcribiendo') || m.text === '')
+          (targetMessageId ? m.id === targetMessageId : m.role === 'ai' && m.text === '')
             ? { 
                 ...m, 
                 text: lang === 'es' 
@@ -141,10 +147,11 @@ export function useDocumentProcessor(
     } else {
       // Extracción de bloques estándar para documentos con texto
       const extractedBlocks = await extractTextInChunks(file, (progress: number, current: number, total: number) => {
+        if (abortSignal?.aborted) return;
         // Feedback visual solo si hay más de 1 bloque para evitar parpadeos
         if (total > 1) {
           setMessages(prev => prev.map(m => 
-            m.role === 'ai' && (m.text.includes('Procesando') || m.text === '')
+            (targetMessageId ? m.id === targetMessageId : m.role === 'ai' && m.text === '')
               ? { ...m, text: lang === 'es' 
                   ? `📄 [LECTURA]: Procesando bloque ${current} de ${total} (${progress}%)...` 
                   : `📄 [READING]: Processing block ${current} of ${total} (${progress}%)...` } 
@@ -172,7 +179,9 @@ export function useDocumentProcessor(
             : m
         ));
 
-        const docId = file.uri.split('/').pop() || `doc_${Date.now()}`;
+        const docId = (file.uri && typeof file.uri === 'string')
+          ? (file.uri.split('/').pop() || `doc_${Date.now()}`)
+          : `doc_${Date.now()}`;
         
         const RAG_CHUNK_SIZE = 1000;
         const ragChunks: string[] = [];

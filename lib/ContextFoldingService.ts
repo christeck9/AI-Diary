@@ -65,16 +65,26 @@ ${currentFolded || 'None. This is the first iteration.'}
 ${transcript}${endUser}${startModel}[CONSOLIDATED EPISODIC MEMORY]: `;
       }
 
+      const stopTokens = arch === 'llama' 
+        ? ["<|eot_id|>", "<|eom_id|>", "<|begin_of_text|>"] 
+        : arch === 'gemma3'
+          ? ["<eos>", "<end_of_turn>", "<|endoftext|>"]
+          : ["<eos>", "<end_of_turn>", "<|turn|>"];
+
       // 4. Execute completion
       const response = await llamaContext.completion({
         prompt,
         n_predict: 250,
         temperature: 0.1,
+        stop: stopTokens,
         isBackground: true,
       });
 
-      const text = typeof response === 'string' ? response : response.text;
+      let text = typeof response === 'string' ? response : response.text;
       if (!text) return;
+
+      // 🛡️ Remove stop tokens that might leak despite the stop parameter
+      text = text.replace(/<\|eot_id\|>|<eos>|<end_of_turn>|<\|turn\|>|<\|im_end\|>|<\|begin_of_text\|>|<\|eom_id\|>|<\|endoftext\|>/g, '');
 
       const newFoldedText = text.trim();
 

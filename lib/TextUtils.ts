@@ -14,9 +14,9 @@ export function purifyQuery(query: string): string {
   return query
     .replace(/<[^>]*>/g, '') // Remove XML/HTML tags
     .replace(/\[[^\]]*\]/g, '') // Remove system brackets
-    .replace(/^(?:hi|hello|hola|please|por favor|hey|hey there|escucha|dime|encuentra|busca noticias de|investiga qu[eé] caracter[ií]sticas tiene|haz una investigaci[oó]n sobre|do a research on|research about|do some research on|busca en google|busca en la web|buscar en google|buscar en la web|investigar(?:lo|la|los|las|me|nos|se|te|les|le)?|invest[ií]game|invest[ií]ga(?:lo|la|los|las|me|nos|se|te|les|le)?|buscar(?:lo|la|los|las|me|nos|se|te|les|le)?|busc[aá]me|b[uú]sca(?:lo|la|los|las|me|nos|se|te|les|le)?|b[uú]sque(?:lo|la|los|las|me|nos|se|te|les|le)?|googlea(?:lo|la|los|las|me|nos|se|te|les|le)?|google|websearch|consultar(?:lo|la|los|las|me|nos|se|te|les|le)?|cons[uú]lta(?:lo|la|los|las|me|nos|se|te|les|le)?)\s*,?\s*/gi, '') // Remove leading conversational and research intent fluff
+    .replace(/^(?:hi|hello|hola|please|por favor|hey|hey there|escucha|dime|encuentra|busca noticias de|investiga qu[eé] caracter[ií]sticas tiene|haz una investigaci[oó]n sobre|do a research on|research about|do some research on|busca en google|busca en la web|buscar en google|buscar en la web|investigar(?:lo|la|los|las|me|nos|se|te|les|le)?|invest[ií]game|invest[ií]ga(?:lo|la|los|las|me|nos|se|te|les|le)?|buscar(?:lo|la|los|las|me|nos|se|te|les|le)?|busc[aá]me|b[uú]sca(?:lo|la|los|las|me|nos|se|te|les|le)?|b[uú]sque(?:lo|la|los|las|me|nos|se|te|les|le)?|googl[eé]a(?:lo|la|los|las|me|nos|se|te|les|le)?|google|websearch|consultar(?:lo|la|los|las|me|nos|se|te|les|le)?|cons[uú]lta(?:lo|la|los|las|me|nos|se|te|les|le)?)\s*,?\s*/gi, '')
     .replace(/(?:the user asked|user asked|searching for|looking up|i need to find|verifying|attempting to|therefore i have to).*?:?/gi, '') // Remove meta-dialogue
-    .replace(/\s+(?:en internet|on the web|en la web)\s*$/gi, '') // Remove trailing location fluff
+    .replace(/\s*(?:en internet|on the web|en la web|por favor)\s*/gi, ' ') // Remove location and polite fluff anywhere
     .replace(/[{}()]/g, '') // Remove structural characters but keep quotes for phrase searching
     .replace(/\s+/g, ' ')
     .trim();

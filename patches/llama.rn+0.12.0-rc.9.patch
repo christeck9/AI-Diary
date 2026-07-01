@@ -1,0 +1,15 @@
+diff --git a/node_modules/llama.rn/cpp/rn-common.hpp b/node_modules/llama.rn/cpp/rn-common.hpp
+index f491961..26306a4 100644
+--- a/node_modules/llama.rn/cpp/rn-common.hpp
++++ b/node_modules/llama.rn/cpp/rn-common.hpp
+@@ -23,6 +23,10 @@
+ #include <sys/sysctl.h>
+ #endif
+ 
++#include "nlohmann/json.hpp"
++
++using json = nlohmann::ordered_json;
++
+ namespace rnllama {
+ 
+ inline static std::string backend_devices_info() {

@@ -63,7 +63,7 @@ export function useInteractiveVoice(
 
   // Refs for the Speech Queue (Token-to-Sentence pipelining)
   const sentenceQueueRef = useRef<string[]>([]);
-  const preloadedMapRef = useRef<Record<string, string>>({});
+  const preloadedMapRef = useRef<Record<string, any>>({});
   const isPlayingQueueRef = useRef<boolean>(false);
   const isGeneratingRef = useRef<boolean>(false);
 
@@ -146,6 +146,20 @@ export function useInteractiveVoice(
       clearTimeout(watchdogIdRef.current);
       watchdogIdRef.current = null;
     }
+
+    // Cleanup preloaded sounds to prevent memory leaks and orphan audio sessions
+    Object.values(preloadedMapRef.current).forEach((preloaded) => {
+      if (preloaded instanceof Promise) {
+        preloaded.then((data: any) => {
+          if (data && data.sound && data.sound.unloadAsync) {
+            data.sound.unloadAsync().catch(() => {});
+          }
+        }).catch(() => {});
+      } else if (preloaded && preloaded.sound && preloaded.sound.unloadAsync) {
+        preloaded.sound.unloadAsync().catch(() => {});
+      }
+    });
+    preloadedMapRef.current = {};
   }, []);
 
   // Function to release microphone resources after Walkie-Talkie cycle completes
@@ -203,10 +217,20 @@ export function useInteractiveVoice(
         setVoiceState('SPEAKING');
       }
 
-      // Skip preload lookup for first sentence — speak immediately to minimize TTFS
-      const preloadedUri = isFirstSentenceRef.current
-        ? null
-        : (preloadedMapRef.current[nextSentence] || null);
+      // Preload lookup: await the promise if it's still fetching
+      let preloadedData = null;
+      if (!isFirstSentenceRef.current) {
+        const preloaded = preloadedMapRef.current[nextSentence];
+        if (preloaded instanceof Promise) {
+          try {
+            preloadedData = await preloaded;
+          } catch (e) {
+            preloadedData = null;
+          }
+        } else {
+          preloadedData = preloaded || null;
+        }
+      }
 
       delete preloadedMapRef.current[nextSentence];
 
@@ -237,7 +261,7 @@ export function useInteractiveVoice(
         lastQueueActivityRef.current = Date.now();
         isPlayingQueueRef.current = false;
         setTimeout(() => { processSpeechQueue(); }, 0);
-      }, preloadedUri);
+      }, preloadedData);
 
       // Preload next sentences while this one is playing
       // Check if Cloud TTS is active to determine prefetch depth
@@ -246,17 +270,9 @@ export function useInteractiveVoice(
         for (let i = 0; i < prefetchDepth; i++) {
           const upcoming = sentenceQueueRef.current[i];
           if (upcoming && !preloadedMapRef.current[upcoming]) {
-            preloadedMapRef.current[upcoming] = "pending";
             if (voice.preloadSpeech) {
-              voice.preloadSpeech(upcoming).then((uri: any) => {
-                if (uri) {
-                  preloadedMapRef.current[upcoming] = uri;
-                } else {
-                  delete preloadedMapRef.current[upcoming];
-                }
-              }).catch(() => {
-                delete preloadedMapRef.current[upcoming];
-              });
+              const preloadPromise = voice.preloadSpeech(upcoming).catch(() => null);
+              preloadedMapRef.current[upcoming] = preloadPromise;
             }
           }
         }

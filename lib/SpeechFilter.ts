@@ -53,47 +53,47 @@ export class SpeechFilter {
 
   // Regex patterns to match substrings or bracketed descriptions (e.g. [Music], (silence))
   private static readonly HALLUCINATION_REGEXES: RegExp[] = [
-    /thanks?\s+for\s+watching/gi,
-    /please\s+subscribe/gi,
-    /subtitles\s+by/gi,
-    /transcribed\s+by/gi,
-    /gracias\s+por\s+ver/gi,
-    /suscr(i|í)bete/gi,
-    /foreign\s+language/gi,
-    /blank\s+audio/gi,
-    /amara\.org/gi,
+    /thanks?\s+for\s+watching/i,
+    /please\s+subscribe/i,
+    /subtitles\s+by/i,
+    /transcribed\s+by/i,
+    /gracias\s+por\s+ver/i,
+    /suscr(i|í)bete/i,
+    /foreign\s+language/i,
+    /blank\s+audio/i,
+    /amara\.org/i,
     /^you$/i,
-    /pauses\s*\(silence/gi,
-    /microphone\s*is\s*waiting/gi,
-    /speak\s*to\s*start/gi,
-    /\[.*\]/,  // Bracketed audio tags (e.g., [BLANK_AUDIO], [Music])
-    /\(.*\)/   // Parenthesized audio tags
+    /pauses\s*\(silence/i,
+    /microphone\s*is\s*waiting/i,
+    /speak\s*to\s*start/i,
+    /^\[[^\]]+\]$/i,  // Bracketed audio tags (e.g., [BLANK_AUDIO], [Music])
+    /^\([^)]+\)$/i   // Parenthesized audio tags
   ];
 
   // Patterns that indicate music or non-speech audio
   private static readonly MUSIC_NOISE_PATTERNS: RegExp[] = [
-    /\[music\]/gi,
-    /\[musik\]/gi,
-    /\[song\]/gi,
-    /\[singing\]/gi,
-    /\[guitar\]/gi,
-    /\[piano\]/gi,
-    /\[violin\]/gi,
-    /\[drum\]/gi,
-    /\[beat\]/gi,
-    /\[bass\]/gi,
-    /\[audio\]/gi,
-    /\[noise\]/gi,
-    /\[background\s+noise\]/gi,
-    /\[crowd\]/gi,
-    /\[applause\]/gi,
-    /\[laughter\]/gi,
-    /\[cheering\]/gi,
-    /\[talking\]/gi,
-    /\[speech\]/gi,
-    /\[radio\]/gi,
-    /\[tv\]/gi,
-    /\[movie\]/gi,
+    /\[music\]/i,
+    /\[musik\]/i,
+    /\[song\]/i,
+    /\[singing\]/i,
+    /\[guitar\]/i,
+    /\[piano\]/i,
+    /\[violin\]/i,
+    /\[drum\]/i,
+    /\[beat\]/i,
+    /\[bass\]/i,
+    /\[audio\]/i,
+    /\[noise\]/i,
+    /\[background\s+noise\]/i,
+    /\[crowd\]/i,
+    /\[applause\]/i,
+    /\[laughter\]/i,
+    /\[cheering\]/i,
+    /\[talking\]/i,
+    /\[speech\]/i,
+    /\[radio\]/i,
+    /\[tv\]/i,
+    /\[movie\]/i,
   ];
 
   /**
@@ -256,5 +256,25 @@ export class SpeechFilter {
     }
 
     return false;
+  }
+
+  /**
+   * Centralized method to clean up common Whisper hallucination tags.
+   */
+  public static cleanWhisperText(text: string): string {
+    if (!text) return '';
+    return text
+      .replace(/\[BLANK_AUDIO\]/gi, '')
+      .replace(/\[silence\]/gi, '')
+      .replace(/\[\s*SILENCE\s*\]/gi, '')
+      .replace(/\(silence\)/gi, '')
+      .replace(/\b(silence)\b/gi, '')
+      .replace(/\b(blank_audio)\b/gi, '')
+      .replace(/pauses\s*\(silence\.?\s*microphone\s*is\s*waiting\.?\s*speak\s*to\s*start\.?/gi, '')
+      .replace(/microphone\s*is\s*waiting/gi, '')
+      .replace(/speak\s*to\s*start/gi, '')
+      .replace(/\bpauses\b/gi, '')
+      .replace(/\s+/g, ' ')
+      .trim();
   }
 }

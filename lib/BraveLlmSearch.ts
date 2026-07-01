@@ -66,7 +66,7 @@ async function getBraveApiKey(): Promise<string> {
 export async function searchBraveLlm(query: string, timeoutMs: number = 5000): Promise<string> {
   const apiKey = await getBraveApiKey();
   if (!apiKey) {
-    console.error('[BRAVE_LLM] No API Key found.');
+    console.log('[BRAVE_LLM] No API Key found. Skipping Brave Search.');
     return "NO_DATA";
   }
 

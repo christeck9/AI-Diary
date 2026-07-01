@@ -8,7 +8,7 @@ import * as Haptics from 'expo-haptics';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useRef, useState, useMemo } from 'react';
-import { ActivityIndicator, Alert, AppState, Image, Keyboard, KeyboardAvoidingView, LayoutAnimation, Modal, Platform, SafeAreaView, ScrollView, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, AppState, Image, Keyboard, KeyboardAvoidingView, LayoutAnimation, Modal, Platform, SafeAreaView, ScrollView, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, View, Dimensions } from 'react-native';
 import * as ExpoClipboard from 'expo-clipboard';
 import { Directions, Gesture, GestureDetector, Swipeable } from 'react-native-gesture-handler';
 import Animated, { FadeInDown, FadeOutUp, interpolate, runOnJS, useAnimatedStyle, useSharedValue, withRepeat, withSequence, withTiming } from 'react-native-reanimated';
@@ -18,17 +18,18 @@ import { VoiceOverlay } from '../../components/modals/VoiceOverlay';
 import { SanctuaryHeader } from '../../components/SanctuaryHeader';
 import { KebabMenuOverlay } from '../../components/KebabMenuOverlay';
 import { WhispAvatar } from '../../components/ui/WhispAvatar';
-import { getAnimaMessage } from '../../db/zenGardenSchema';
+
 import { useTodos } from '../../hooks/useTodos';
 import { MarqueeText } from '../../components/ui/MarqueeText';
 
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useAppTheme } from '../../contexts/ThemeContext';
-import { useLlmState, useLlmActions } from '../../contexts/LlmContext';
+import { useLlmState, useLlmProgress, useLlmActions } from '../../contexts/LlmContext';
 import { useVoiceContext } from '../../contexts/VoiceContext';
 import { useProfile } from '../../contexts/ProfileContext';
 import { useGlobalModals } from '../../contexts/GlobalModalsContext';
 import { useAgentEngine } from '../../hooks/useAgentEngine';
+import { useAnimaScanner } from '../../hooks/useAnimaScanner';
 import type { ModelInfo } from '../../hooks/useAppLlm';
 import { settingsService } from '../../lib/SettingsService';
 import { SpeechFilter } from '../../lib/SpeechFilter';
@@ -56,6 +57,7 @@ export default function NeuralLinkScreen() {
   const { colors, activeTheme, setTheme } = useAppTheme();
   const db = useSQLiteContext();
   const { lang, setLang, t } = useLanguage();
+  const animaScannerText = useAnimaScanner();
 
   const { todos, refreshTodos } = useTodos();
   const [currentTodoIndex, setCurrentTodoIndex] = useState(0);
@@ -82,11 +84,14 @@ export default function NeuralLinkScreen() {
     downloadingType,
     activeModel,
     AVAILABLE_MODELS,
+    deviceRAM } = useLlmState();
+
+  const {
     downloadedMB,
     downloadSpeed,
     downloadPercent,
-    currentContextSize,
-    deviceRAM } = useLlmState();
+    currentContextSize
+  } = useLlmProgress();
 
   const { selectModel,
     downloadModel,
@@ -120,19 +125,6 @@ export default function NeuralLinkScreen() {
   const modelReadyNotifiedRef = useRef(false);
   const flashListRef = useRef<any>(null);
 
-  const scrollToBottom = useCallback((animated = true) => {
-    if (flashListRef.current) {
-      setTimeout(() => {
-        try {
-          flashListRef.current.scrollToEnd({ animated });
-        } catch (e) {
-          // Avoid scroll crashes
-        }
-      }, 120);
-    }
-  }, []);
-
-
   const stopKebabTimer = () => {
     if (kebabTimerRef.current) {
       clearTimeout(kebabTimerRef.current);
@@ -149,6 +141,16 @@ export default function NeuralLinkScreen() {
   const [showVoiceNoteModal, setShowVoiceNoteModal] = useState(false);
   const [micPhase, setMicPhase] = useState<'idle' | 'permission' | 'init' | 'warming_up' | 'ready'>('idle');
   const [fullScreenImage, setFullScreenImage] = useState<string | null>(null);
+  const [imageViewerTicket, setImageViewerTicket] = useState(0);
+
+  useEffect(() => {
+    if (fullScreenImage) {
+      const timer = setTimeout(() => {
+        setImageViewerTicket(prev => prev + 1);
+      }, 50);
+      return () => clearTimeout(timer);
+    }
+  }, [fullScreenImage]);
   const [selectedContextMsg, setSelectedContextMsg] = useState<Message | null>(null);
   const [psyStep, setPsyStep] = useState(0);
   const [psyAnswers, setPsyAnswers] = useState<number[]>([]);
@@ -162,35 +164,18 @@ export default function NeuralLinkScreen() {
   const [batteryLevel, setBatteryLevel] = useState(1);
   const [manualEcoMode, setManualEcoMode] = useState(false);
   const [isEcoMode, setIsEcoMode] = useState(false);
-  const [animaMessage, setAnimaMessage] = useState('');
+
   const [initNotification, setInitNotification] = useState<string | null>(null);
 
-  const fetchAnimaMessage = useCallback(async () => {
-    if (db) {
-      try {
-        const msg = await getAnimaMessage(db, lang);
-        setAnimaMessage(msg);
-      } catch (e) {
-        console.error('Error fetching anima message:', e);
-      }
-    }
-  }, [db, lang]);
-
-  useEffect(() => {
-    fetchAnimaMessage();
-  }, [fetchAnimaMessage, messages.length]);
-
-  useEffect(() => {
-    const unsubscribe = navigation.addListener('focus', () => {
-      fetchAnimaMessage();
-    });
-    return unsubscribe;
-  }, [navigation, fetchAnimaMessage]);
 
   // 🔍 Sanctuary SEARCH STATES
   const [isSearching, setIsSearching] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [isFiltering, setIsFiltering] = useState(false);
+
+  // --- RECURRING REPORTS STATE ---
+  const [pendingReports, setPendingReports] = useState<any[]>([]);
+  const [isProcessingReport, setIsProcessingReport] = useState(false);
 
   useEffect(() => {
     const loadSettings = async () => {
@@ -228,12 +213,12 @@ export default function NeuralLinkScreen() {
     if (status === 'loading') {
       setInitNotification(`${t('model.system')}: ${t('model.loading')}`);
     } else if (status === 'downloading') {
-      const totalSize = selectedModel.sizeMB + (selectedModel.mmprojSizeMB || 0);
+      const totalSize = downloadingType === 'vision' ? (selectedModel.mmprojSizeMB || 0) : selectedModel.sizeMB;
       setInitNotification(prev => prev || `${t('model.system')}: ${t('model.startDownload')} ${selectedModel[lang === 'es' ? 'labelEs' : 'labelEn']} (${totalSize} MB)...`);
     } else if (status === 'ready') {
       setInitNotification(null);
     }
-  }, [status, t, selectedModel, lang]);
+  }, [status, t, selectedModel, lang, downloadingType]);
 
   useEffect(() => {
     const showSub = Keyboard.addListener('keyboardDidShow', (e) => setKeyboardHeight(e.endCoordinates.height));
@@ -418,11 +403,11 @@ export default function NeuralLinkScreen() {
         text,
         userMsgId,
         setMessages,
-        undefined,
-        true,
-        consciousnessLevel,
-        onSentenceGenerated,
-        onClearSpeechQueue
+        {
+          isVoice: true,
+          onSentenceGenerated,
+          onClearSpeechQueue
+        }
       );
       return aiResponse || '';
     },
@@ -499,11 +484,22 @@ export default function NeuralLinkScreen() {
       if (activeModel) {
         await downloadVisionModel(activeModel);
         clearAttachment();
+        
+        // Auto-reload the model to initialize the newly downloaded vision projector in memory
+        if (status === 'ready') {
+          console.log('[LLM] Auto-reloading model to initialize the newly downloaded vision projector...');
+          try {
+            await loadModel();
+          } catch (loadErr) {
+            console.warn('[LLM] Failed to auto-reload model after vision download:', loadErr);
+          }
+        }
+
         Alert.alert(
           lang === 'es' ? 'Descarga Completa' : 'Download Complete',
           lang === 'es'
-            ? 'El soporte visual ya está listo. Puedes volver a seleccionar tu imagen.'
-            : 'Vision support is ready. You can select your image again.'
+            ? 'El soporte visual ya está listo e inicializado. Puedes volver a seleccionar tu imagen.'
+            : 'Vision support is ready and initialized. You can select your image again.'
         );
       }
     } catch (err: any) {
@@ -557,7 +553,8 @@ export default function NeuralLinkScreen() {
     isTypingRef,
     queueRef,
     stopGeneration,
-    registerInterruption
+    registerInterruption,
+    earnedBadge
   } = useAgentEngine(
     lang,
     db,
@@ -577,8 +574,9 @@ export default function NeuralLinkScreen() {
     generateEmbeddings
   );
 
-  const filteredMessages = useMemo(() => {
-    return messages.filter(m => m.text.trim() !== '' || (m.role === 'ai' && isTyping && m === messages[messages.length - 1]));
+  const reversedFilteredMessages = useMemo(() => {
+    const filtered = messages.filter(m => m.text.trim() !== '' || (m.role === 'ai' && isTyping && m === messages[messages.length - 1]));
+    return [...filtered].reverse();
   }, [messages, isTyping]);
 
   const whispStatus = useMemo((): 'idle' | 'thinking' | 'tired' | 'happy' | 'listening' | 'speaking' => {
@@ -595,13 +593,16 @@ export default function NeuralLinkScreen() {
     if (whispStatus === 'speaking') return lang === 'es' ? '🔊 Estoy hablando...' : "🔊 I'm speaking...";
     if (whispStatus === 'thinking') return lang === 'es' ? '💭 Estoy pensando...' : "💭 I'm thinking...";
     if (whispStatus === 'tired') return lang === 'es' ? '🔋 Tengo poca batería...' : "🔋 My battery is low...";
-    if (whispStatus === 'happy') return lang === 'es' ? '✨ ¡Estoy feliz!' : "✨ I'm happy!";
-    return animaMessage || (lang === 'es' ? 'Hola, soy IA Diary' : "Hi, I'm AI Diary");
-  }, [whispStatus, animaMessage, lang]);
+    if (whispStatus === 'happy') return lang === 'es' ? '✨ ¡Listo para escuchar!' : "✨ I'm ready to listen!";
+    return (lang === 'es' ? 'Hola, soy Anima. Estoy lista.' : "Hi, I'm Anima. I'm ready.");
+  }, [whispStatus, lang]);
 
   const whispRightLabel = useMemo(() => {
     if (initNotification) {
       return initNotification;
+    }
+    if (earnedBadge) {
+      return `✨ ${earnedBadge.emoji} ${earnedBadge.name} (+${earnedBadge.count})`;
     }
     if (whispStatus === 'thinking') {
       if (processingPhase === 'reading_file') return lang === 'es' ? 'Leyendo\narchivo...' : 'Reading\nfile...';
@@ -621,6 +622,11 @@ export default function NeuralLinkScreen() {
     if (whispStatus === 'happy') {
       return (lang === 'es' ? 'Batería: ' : 'Battery: ') + `${Math.round(batteryLevel * 100)}%`;
     }
+    if (whispStatus === 'idle' && pendingReports.length > 0) {
+      return lang === 'es' 
+        ? `✨ Tarea Pendiente: ${pendingReports[0].title}. Toca para procesar.` 
+        : `✨ Pending Task: ${pendingReports[0].title}. Tap to process.`;
+    }
     if (activeModel) {
       return activeModel[lang === 'es' ? 'labelEs' : 'labelEn'] || 'AI Diary';
     }
@@ -631,28 +637,107 @@ export default function NeuralLinkScreen() {
       return `${activeTodo.text}${dateTimeStr}`;
     }
     return lang === 'es' ? 'Sistema\nListo' : 'System\nReady';
-  }, [initNotification, whispStatus, processingPhase, isSearchingWeb, batteryLevel, activeModel, lang, activeTodo]);
+  }, [initNotification, earnedBadge, whispStatus, processingPhase, isSearchingWeb, batteryLevel, activeModel, lang, activeTodo, pendingReports]);
 
   const isSendingRef = useRef(false);
   const hasScrolledToBottomRef = useRef(false);
 
   useEffect(() => {
-    if (filteredMessages.length === 0) {
+    if (earnedBadge) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    }
+  }, [earnedBadge]);
+
+
+  const checkPendingReports = useCallback(async () => {
+    if (!db) return;
+    try {
+      const rows = await db.getAllAsync(`
+        SELECT p.*, r.title FROM pending_reports p
+        INNER JOIN recurring_tasks r ON p.task_id = r.id
+        WHERE p.is_processed = 0
+        ORDER BY p.created_at ASC
+      `);
+      setPendingReports(rows);
+    } catch (e) {
+      console.error('[INDEX] Error checking pending reports:', e);
+    }
+  }, [db]);
+
+  useFocusEffect(
+    useCallback(() => {
+      checkPendingReports();
+    }, [checkPendingReports])
+  );
+
+  const handleProcessPendingReport = async () => {
+    if (pendingReports.length === 0 || isProcessingReport || isTypingRef.current || isSendingRef.current) return;
+    const report = pendingReports[0];
+    
+    setIsProcessingReport(true);
+    isSendingRef.current = true;
+    clearSpeechQueue();
+    startSpeechSession();
+
+    const userMsgId = `rep-user-${Date.now()}`;
+    const promptText = lang === 'es' 
+      ? `Por favor analiza este reporte y genera un resumen conciso y amigable en español:\n\n${report.raw_content}`
+      : `Please analyze this report and generate a concise and friendly summary in English:\n\n${report.raw_content}`;
+      
+    const displayMsg = lang === 'es'
+      ? `[Procesando reporte de automatización: ${report.title}]`
+      : `[Processing automation report: ${report.title}]`;
+
+    const userMsg: Message = {
+      id: userMsgId,
+      role: 'user',
+      text: displayMsg,
+      created_at: Date.now(),
+      status: 'sent'
+    };
+
+    setMessages(prev => [...prev, userMsg]);
+    try {
+      if (db) {
+        await DatabaseService.insertMessage(db, userMsg.id, userMsg.role, userMsg.text);
+      }
+    } catch (err) {
+      console.error('[INDEX] Error saving automation message:', err);
+    }
+
+    try {
+      await processMessage(
+        promptText,
+        userMsg.id,
+        setMessages,
+        {
+          isVoice: false,
+          consciousness: consciousnessLevel,
+          onSentenceGenerated: queueSpeech,
+          onClearSpeechQueue: clearSpeechQueue
+        }
+      );
+
+      // Marcar reporte como procesado
+      if (db) {
+        await db.runAsync('UPDATE pending_reports SET is_processed = 1 WHERE id = ?', [report.id]);
+      }
+      
+      await checkPendingReports();
+    } catch (e: any) {
+      addSystemMessage(`[AUTOMATION PROCESS ERROR]: ${e.message}`);
+    } finally {
+      endSpeechSession();
+      setIsProcessingReport(false);
+      isSendingRef.current = false;
+    }
+  };
+
+  useEffect(() => {
+    if (reversedFilteredMessages.length === 0) {
       hasScrolledToBottomRef.current = false;
     }
-  }, [filteredMessages.length]);
-
-  useEffect(() => {
-    if (messages.length > 0 && hasScrolledToBottomRef.current) {
-      scrollToBottom(true);
-    }
-  }, [messages.length, isTyping, scrollToBottom]);
-
-  useEffect(() => {
-    if (keyboardHeight > 0) {
-      scrollToBottom(true);
-    }
-  }, [keyboardHeight, scrollToBottom]);
+  }, [reversedFilteredMessages.length]);
 
   // 🛡️ User Input Logic
   const handleInputChange = (text: string) => {
@@ -727,21 +812,8 @@ export default function NeuralLinkScreen() {
         const expectedBytes = selectedModel.sizeMB * 1024 * 1024 * 0.9;
         let modelValid = typeof size === 'number' ? size > expectedBytes : Number(size) > expectedBytes;
 
-        if (modelValid && selectedModel.mmprojFileName && selectedModel.mmprojSizeMB) {
-          const mmprojPath = `${baseDir}/${selectedModel.mmprojFileName}`;
-          const mmprojInfo = await FileSystem.getInfoAsync(mmprojPath);
-          if (mmprojInfo.exists) {
-            const mmprojSize = (mmprojInfo as any).size;
-            const expectedMmprojBytes = selectedModel.mmprojSizeMB * 1024 * 1024 * 0.9;
-            modelValid = typeof mmprojSize === 'number' ? mmprojSize > expectedMmprojBytes : Number(mmprojSize) > expectedMmprojBytes;
-            console.log(`[CHECK_FILE] Model valid: ${modelValid}, Main: ${size}, Mmproj: ${mmprojSize}`);
-          } else {
-            modelValid = false;
-            console.log(`[CHECK_FILE] Mmproj file missing at ${mmprojPath}`);
-          }
-        } else {
-          console.log(`[CHECK_FILE] Size: ${size}, Expected: ${expectedBytes}, Valid: ${modelValid}`);
-        }
+        // We do not enforce mmproj checks here as vision model management is separated from core model activation.
+        console.log(`[CHECK_FILE] Size: ${size}, Expected: ${expectedBytes}, Valid: ${modelValid}`);
         existsAndValid = modelValid;
       } else {
         console.log(`[CHECK_FILE] File does not exist at ${path}`);
@@ -770,30 +842,6 @@ export default function NeuralLinkScreen() {
                 console.log(`[CHECK_FILE] Reconstructed manual resume JSON for main model at size ${(mainFileInfo as any).size}`);
                 canResumeDownload = true;
               }
-            } else if (mainFileInfo.exists && (mainFileInfo as any).size >= expectedBytes && selectedModel.mmprojFileName && selectedModel.mmprojUrl && selectedModel.mmprojSizeMB) {
-              // Main file is fully downloaded, check mmproj
-              const mmprojPath = `${baseDir}/${selectedModel.mmprojFileName}`;
-              const mmprojInfo = await FileSystem.getInfoAsync(mmprojPath);
-              const mmprojResumePath = `${baseDir}/download_resume_${selectedModel.mmprojFileName}.json`;
-              const mmprojResumeInfo = await FileSystem.getInfoAsync(mmprojResumePath);
-              const expectedMmprojBytes = selectedModel.mmprojSizeMB * 1024 * 1024 * 0.9;
-
-              let mmprojCanResume = mmprojResumeInfo.exists;
-              if (mmprojInfo.exists && (mmprojInfo as any).size > 0 && (mmprojInfo as any).size < expectedMmprojBytes) {
-                if (!mmprojCanResume) {
-                  // Reconstruct mmproj resume JSON
-                  const manualState = {
-                    url: selectedModel.mmprojUrl,
-                    fileUri: `file://${mmprojPath}`,
-                    options: { headers: { 'User-Agent': 'Mozilla/5.0 (Linux; Android 10; K)' } },
-                    resumeData: String((mmprojInfo as any).size)
-                  };
-                  await FileSystem.writeAsStringAsync(mmprojResumePath, JSON.stringify(manualState));
-                  console.log(`[CHECK_FILE] Reconstructed manual resume JSON for mmproj at size ${(mmprojInfo as any).size}`);
-                  mmprojCanResume = true;
-                }
-              }
-              canResumeDownload = mmprojCanResume;
             }
           } catch (reconErr) {
             console.warn('[CHECK_FILE] Error reconstructing resume JSON:', reconErr);
@@ -933,12 +981,14 @@ export default function NeuralLinkScreen() {
       // const loadOptions = isEcoMode ? { n_threads: 2 } : undefined;
       await loadModel();
     } catch (e: any) {
+      const { Alert } = require('react-native');
+      Alert.alert(lang === 'es' ? 'Memoria Insuficiente' : 'Insufficient Memory', e.message);
       addSystemMessage(`[SYSTEM ERROR]: ${e.message}`);
     }
   }, [isDownloading, lang, selectedModel, activeModel, selectModel, isEcoMode, loadModel, addSystemMessage]);
 
   const handleDownload = useCallback(async () => {
-    const totalSize = selectedModel.sizeMB + (selectedModel.mmprojSizeMB || 0);
+    const totalSize = selectedModel.sizeMB;
     const startText = `${t('model.system')}: ${t('model.startDownload')} ${selectedModel[lang === 'es' ? 'labelEs' : 'labelEn']} (${totalSize} MB)...`;
     setInitNotification(startText);
 
@@ -1051,11 +1101,13 @@ export default function NeuralLinkScreen() {
         promptText,
         userMsg.id,
         setMessages,
-        localFile,
-        false,
-        consciousnessLevel,
-        queueSpeech,
-        clearSpeechQueue
+        {
+          attachedFile: localFile,
+          isVoice: false,
+          consciousness: consciousnessLevel,
+          onSentenceGenerated: queueSpeech,
+          onClearSpeechQueue: clearSpeechQueue
+        }
       );
     } catch (e: any) {
       addSystemMessage(`[PROCESS ERROR]: ${e.message}`);
@@ -1150,7 +1202,7 @@ export default function NeuralLinkScreen() {
   }, [db]);
 
   const renderMessage = useCallback(({ item, index }: { item: Message, index: number }) => {
-    const isLatest = index === filteredMessages.length - 1;
+    const isLatest = index === 0;
     return (
       <MessageItem
         item={item}
@@ -1163,7 +1215,7 @@ export default function NeuralLinkScreen() {
         onAction={(action, msg) => {
           if (action === 'copy') {
              ExpoClipboard.setStringAsync(msg.text);
-             Alert.alert(lang === 'es' ? "Copiado" : "Copied", lang === 'es' ? "Texto copiado al portapapeles." : "Text copied to clipboard.");
+             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
           } else if (action === 'analyze') {
              if (isTypingRef.current) {
                addSystemMessage(lang === 'es' ? '⏳ Espera a que termine la respuesta actual.' : '⏳ Wait for the current response to finish.');
@@ -1182,7 +1234,7 @@ export default function NeuralLinkScreen() {
         onImagePress={handleImagePress}
       />
     );
-  }, [filteredMessages.length, colors, isTyping, processingPhase, lang, handleReportMessage, handleImagePress, isTypingRef, addSystemMessage, handleSend, handleDeleteMessage]);
+  }, [colors, isTyping, processingPhase, lang, handleReportMessage, handleImagePress, isTypingRef, addSystemMessage, handleSend, handleDeleteMessage]);
 
   const onKebabAction = useCallback(async (action: string) => {
     if (action === 'intro') openModal('intro');
@@ -1258,19 +1310,28 @@ export default function NeuralLinkScreen() {
         />
         
         {/* Fila 2: Sub-Barra de Diary Anima (Blob interactivo) - Solo en el Home/Diary */}
-        <View style={{
-          flexDirection: 'row',
-          borderTopWidth: 1,
-          borderBottomWidth: 1,
-          borderTopColor: colors.border,
-          borderBottomColor: colors.border,
-          backgroundColor: activeTheme === 'matrix' ? 'transparent' : colors.surfaceSecondary,
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          paddingVertical: 2,
-          paddingHorizontal: 15,
-          zIndex: 100, // Menor que el header para que los dropdowns lo cubran
-        }}>
+        <TouchableOpacity 
+          activeOpacity={whispStatus === 'idle' && pendingReports.length > 0 ? 0.7 : 1}
+          onPress={() => {
+            if (whispStatus === 'idle' && pendingReports.length > 0) {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+              handleProcessPendingReport();
+            }
+          }}
+          style={{
+            flexDirection: 'row',
+            borderTopWidth: 1,
+            borderBottomWidth: 1,
+            borderTopColor: colors.border,
+            borderBottomColor: colors.border,
+            backgroundColor: activeTheme === 'matrix' ? 'transparent' : colors.surfaceSecondary,
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            paddingVertical: 2,
+            paddingHorizontal: 15,
+            zIndex: 100, // Menor que el header para que los dropdowns lo cubran
+          }}
+        >
           {/* Izquierda: Mensajes simples o saludo */}
           <View style={{ flex: 1, alignItems: 'flex-start' }}>
             <Text style={{ 
@@ -1282,6 +1343,22 @@ export default function NeuralLinkScreen() {
             }}>
               {whispStatusLabel}
             </Text>
+            {whispStatus === 'idle' && !!animaScannerText && (
+              <View
+                style={{ marginTop: 2, overflow: 'hidden', width: '100%' }}
+              >
+                <MarqueeText 
+                  text={animaScannerText} 
+                  style={{
+                    fontSize: 9,
+                    color: colors.textSecondary,
+                    fontStyle: 'italic'
+                  }}
+                  duration={15000} 
+                  gap={20}
+                />
+              </View>
+            )}
           </View>
 
           {/* Centro: Avatar */}
@@ -1291,7 +1368,7 @@ export default function NeuralLinkScreen() {
 
           {/* Derecha: Estados complejos u otros */}
           <View style={{ flex: 1, alignItems: 'flex-end', overflow: 'hidden' }}>
-            {(whispStatus === 'idle' && activeTodo) || initNotification ? (
+            {(whispStatus === 'idle' && (activeTodo || pendingReports.length > 0)) || initNotification ? (
               <MarqueeText 
                 text={whispRightLabel} 
                 style={{ fontSize: 10, color: colors.primary, opacity: 0.8 }} 
@@ -1309,7 +1386,7 @@ export default function NeuralLinkScreen() {
               </Text>
             )}
           </View>
-        </View>
+        </TouchableOpacity>
 
 
         {isEcoMode && (
@@ -1365,6 +1442,19 @@ export default function NeuralLinkScreen() {
           setIsOnboardingComplete={setIsOnboardingComplete}
           setPsyCompleted={setPsyCompleted}
           db={db}
+          handleDownload={handleDownload}
+          canResume={canResume}
+          status={status}
+          modelExists={modelExists}
+          downloadPercent={downloadPercent}
+          downloadedMB={downloadedMB}
+          downloadingModel={downloadingModel}
+          downloadingType={downloadingType}
+          activeModel={activeModel}
+          downloadSpeed={downloadSpeed}
+          waitPhrase={waitPhrase}
+          handleLoad={handleLoad}
+          selectedModel={selectedModel}
         />
 
         <ModelLoaderPanel
@@ -1387,6 +1477,7 @@ export default function NeuralLinkScreen() {
           downloadPercent={downloadPercent}
           downloadedMB={downloadedMB}
           downloadingModel={downloadingModel}
+          downloadingType={downloadingType}
           activeModel={activeModel}
           downloadSpeed={downloadSpeed}
           waitPhrase={waitPhrase}
@@ -1397,20 +1488,15 @@ export default function NeuralLinkScreen() {
             <FlashList
               ref={flashListRef}
               estimatedItemSize={120}
-              data={filteredMessages}
+              data={reversedFilteredMessages}
               keyExtractor={(item) => String(item.id ?? `msg_${item.created_at}`)}
               renderItem={renderMessage}
               contentContainerStyle={styles.chatContainer}
               overScrollMode="never"
               bounces={false}
               extraData={{ isTyping, colors, activeTheme }}
-              onContentSizeChange={() => {
-                if (filteredMessages.length > 0 && !hasScrolledToBottomRef.current) {
-                  hasScrolledToBottomRef.current = true;
-                  scrollToBottom(false);
-                }
-              }}
-              ListHeaderComponent={
+              ListHeaderComponent={null}
+              ListFooterComponent={
                 (!isFiltering && messages.length >= messagesLimit) ? (
                   <TouchableOpacity
                     style={{
@@ -1433,7 +1519,7 @@ export default function NeuralLinkScreen() {
                     accessibilityLabel={lang === 'es' ? 'Cargar mensajes anteriores' : 'Load older messages'}
                     accessibilityHint={lang === 'es' ? 'Carga 50 mensajes más del historial de conversación' : 'Loads 50 more messages from the conversation history'}
                   >
-                    <IconSymbol name="chevron.up" size={14} color={colors.primary} />
+                    <IconSymbol name="chevron.down" size={14} color={colors.primary} />
                     <Text style={{ color: colors.primary, fontSize: 12, fontWeight: 'bold' }}>
                       {lang === 'es' ? 'Cargar mensajes anteriores' : 'Load older messages'}
                     </Text>
@@ -1507,11 +1593,11 @@ export default function NeuralLinkScreen() {
                   cleaned,
                   userMsgId,
                   setMessages,
-                  undefined,
-                  true,
-                  consciousnessLevel,
-                  queueSpeech,
-                  clearSpeechQueue
+                  {
+                    isVoice: true,
+                    onSentenceGenerated: queueSpeech,
+                    onClearSpeechQueue: clearSpeechQueue
+                  }
                 );
               } catch (e: any) {
                 console.error('[VoiceNote] processMessage error:', e);
@@ -1567,8 +1653,19 @@ export default function NeuralLinkScreen() {
         {/* CONTEXT MENU MODAL HAS BEEN REMOVED IN FAVOR OF SWIPEABLE */}
 
         {/* FULL SCREEN IMAGE VIEWER WITH PINCH TO ZOOM */}
-        <Modal visible={!!fullScreenImage} transparent={true} animationType="fade">
-          <View style={{ flex: 1, backgroundColor: 'black', justifyContent: 'center', alignItems: 'center' }}>
+        <Modal visible={!!fullScreenImage} transparent={true} animationType="fade" statusBarTranslucent={true}>
+          {Platform.OS === 'android' && <View style={{ height: (imageViewerTicket % 2 === 1) ? 0.5 : 0 }} />}
+          <View 
+            style={{ 
+              flex: 1, 
+              width: Dimensions.get('screen').width, 
+              height: Dimensions.get('screen').height, 
+              backgroundColor: 'black', 
+              justifyContent: 'center', 
+              alignItems: 'center',
+              paddingTop: Platform.OS === 'android' && (imageViewerTicket % 2 === 1) ? 0.5 : 0
+            }}
+          >
             <TouchableOpacity
               style={{ position: 'absolute', top: 50, right: 20, zIndex: 10, padding: 10 }}
               onPress={() => setFullScreenImage(null)}
@@ -1624,7 +1721,6 @@ export default function NeuralLinkScreen() {
           { emoji: '👓', labelEs: 'Introducción', labelEn: 'Introduction', onPress: () => { setShowKebabMenu(false); onKebabAction('intro'); } },
           { emoji: '🔊', labelEs: 'Configuración Voz Android', labelEn: 'Android Voice Settings', onPress: () => { setShowKebabMenu(false); onKebabAction('voice_settings'); } },
           { emoji: '🔒', labelEs: 'Encriptación de Datos', labelEn: 'Data Encryption', onPress: () => { setShowKebabMenu(false); onKebabAction('vault'); } },
-          { emoji: 'Ψ', labelEs: 'Test de Personalidad', labelEn: 'Personality Test', onPress: () => { setShowKebabMenu(false); onKebabAction('psy'); } },
           { emoji: '🗑️', labelEs: 'Borrar Historial', labelEn: 'Clear History', onPress: () => { setShowKebabMenu(false); onKebabAction('clear'); } },
         ]}
       />

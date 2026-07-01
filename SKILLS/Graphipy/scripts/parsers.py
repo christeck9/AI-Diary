@@ -18,6 +18,26 @@ class CodebaseParser:
         self.root_dir = Path(root_dir).resolve()
         self.nodes = {}  # filepath relative to root -> metadata
         self.edges = []  # list of (source, target, type)
+        self.ignored = self._load_ignored()
+
+    def _load_ignored(self):
+        # Default ignored set
+        ignored = {"node_modules", "dist", ".git", ".expo", "venv", ".idea", ".vscode", "assets", "website", "scratch", "build", ".gradle", ".cxx", "BACKUPS"}
+        easignore_path = self.root_dir / ".easignore"
+        if easignore_path.exists():
+            try:
+                with open(easignore_path, "r", encoding="utf-8") as f:
+                    for line in f:
+                        line = line.strip()
+                        if not line or line.startswith("#"):
+                            continue
+                        clean = line.rstrip('/').replace('**/', '')
+                        if clean.startswith('!'):
+                            continue
+                        ignored.add(clean)
+            except Exception as e:
+                print(f"[!] Warning: Failed to parse .easignore: {e}")
+        return ignored
 
     def is_target_file(self, path):
         ext = path.suffix.lower()
@@ -25,9 +45,11 @@ class CodebaseParser:
 
     def walk_codebase(self):
         for root, dirs, files in os.walk(self.root_dir):
-            dirs[:] = [d for d in dirs if d not in IGNORED_DIRS]
+            dirs[:] = [d for d in dirs if d not in self.ignored]
             for file in files:
                 p = Path(root) / file
+                if file in self.ignored or f"*{p.suffix.lower()}" in self.ignored:
+                    continue
                 if self.is_target_file(p):
                     self.parse_file(p)
 

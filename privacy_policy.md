@@ -15,7 +15,7 @@ We take your privacy very seriously. The App is designed with an **offline-first
 
 ### B. Voice Recordings and Audio Data
 * The App uses your device's microphone to allow voice-to-text journaling.
-* All audio transcription (using Whisper) and speech synthesis (using Sherpa ONNX) are executed **100% locally on your device**.
+* All audio transcription (using Whisper) and speech synthesis are executed **100% locally on your device**.
 * We **do not** collect, listen to, or upload your audio files, voice recordings, or transcripts to any remote servers.
 
 ### C. Local AI Model Processing

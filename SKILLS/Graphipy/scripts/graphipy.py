@@ -65,6 +65,12 @@ def generate_markdown(G, communities, output_path):
     lines.append("> **1. Split High-Frequency States in LlmContext:** Separate streaming/download progress (high-frequency) from active model/configuration states (stable) to prevent global app re-renders during active downloads/generation.")
     lines.append("> **2. SQLite Batch Transaction:** Wrap multiple inserts/updates in `KnowledgeGraphService.ts` within a transaction to boost writing performance and prevent file-locking delay on mobile devices.\n")
 
+    # ADDING NATIVE VOICE ARCHITECTURE
+    lines.append("## 🏆 Native Voice Acceleration Architecture")
+    lines.append("- **JSI Bridge:** Direct injection via `global.animaFeedAudioChunk(arrayBuffer)` and `global.animaInterruptAudio()`.")
+    lines.append("- **Oboe Audio Engine (C++):** Writes 24kHz float32 PCM straight to the Android audio hardware bypassing Expo AV.")
+    lines.append("- **Gapless Native TTS:** Android `TextToSpeech` API generates WAV locally, we strip the 44-byte header and stream the pure Uint8Array directly into the C++ `LockFreeRingBuffer`.")
+    lines.append("- **Zero-Latency:** Translates base64 chunks directly to Float32Array in JS memory and pushes them instantly via JSI.\n")
     
     for i, comm in enumerate(communities):
         lines.append(f"## Community {i}")
@@ -296,6 +302,10 @@ def generate_html_visualizer(G, communities, output_path):
                     <div class="bg-white/5 border border-white/10 rounded-xl p-3 text-xs">
                         <strong class="text-gray-100 block mb-1">2. SQLite Batch Transactions</strong>
                         <p class="text-gray-400 leading-relaxed">Wrap multiple insert/update commands inside <code>KnowledgeGraphService.ts</code> in explicit transactions to accelerate mobile disk writes.</p>
+                    </div>
+                    <div class="bg-white/5 border border-white/10 rounded-xl p-3 text-xs">
+                        <strong class="text-gray-100 block mb-1">3. Native Voice Acceleration (JSI & Oboe)</strong>
+                        <p class="text-gray-400 leading-relaxed">Audio is streamed gapless via a C++ JSI Bridge (<code>global.animaFeedAudioChunk</code>) bypassing React Native's Audio API entirely, utilizing a Lock-Free Ring Buffer to prevent Native TTS UI-thread stutter.</p>
                     </div>
                 </div>
             </div>

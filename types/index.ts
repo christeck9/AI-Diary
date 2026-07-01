@@ -7,10 +7,10 @@ export interface UserProfile {
   formality?: 'casual' | 'formal';
   expertise_level?: 'normal' | 'teacher' | 'phd';
   format_preference?: 'continuous' | 'bullets';
-  values?: string[];
-  shortTermGoal?: string;
-  longTermGoal?: string;
-  responseStyle?: string[];
+  values: string[];
+  shortTermGoal: string;
+  longTermGoal: string;
+  responseStyle: string[];
 }
 
 export interface PsyProfile {
@@ -32,7 +32,7 @@ export interface Message {
 }
 
 // ModelId: restricted to Gemma models and Llama light core.
-export type ModelId = 'gemma3-4b-q4' | 'gemma4-e2b-q3' | 'llama3.2-1b-q4';
+export type ModelId = 'gemma3-4b-q4' | 'gemma4-e2b-qat' | 'llama3.2-1b-q4';
 
 
 export interface ModelInfo {

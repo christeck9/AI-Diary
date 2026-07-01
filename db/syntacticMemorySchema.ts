@@ -24,15 +24,15 @@ export async function initializeSyntacticMemory(db: SQLite.SQLiteDatabase): Prom
         "PRAGMA table_info(knowledge_base)"
       );
       if (idInfo && idInfo.type.toLowerCase().includes('text')) {
-        console.log('[DB] 🚨 Estructura heredada de knowledge_base detectada (id: TEXT). Forzando migración a id: INTEGER...');
+        console.log('[DB] 🚨 Estructura heredada de knowledge_base detectada (id: TEXT). Migrando a id: INTEGER de forma segura...');
         await db.execAsync(`
           DROP TRIGGER IF EXISTS kb_after_insert;
           DROP TRIGGER IF EXISTS kb_after_delete;
           DROP TRIGGER IF EXISTS kb_after_update;
           DROP TABLE IF EXISTS knowledge_base_fts;
-          DROP TABLE IF EXISTS knowledge_base;
+          ALTER TABLE knowledge_base RENAME TO kb_old_migration_temp;
         `);
-        console.log('[DB] 🚀 Tablas antiguas eliminadas con éxito para la migración.');
+        console.log('[DB] 🚀 Tablas antiguas renombradas para la migración.');
       }
     } catch (e) {
       console.log('[DB] Sin conflicto de migración detectado en el esquema de tablas.');
@@ -72,6 +72,27 @@ export async function initializeSyntacticMemory(db: SQLite.SQLiteDatabase): Prom
         INSERT INTO knowledge_base_fts(rowid, category, fact) 
         VALUES (new.id, new.category, new.fact); 
       END;`);
+
+    // Crear índices recomendados por la auditoría
+    await db.execAsync(`CREATE INDEX IF NOT EXISTS idx_kb_category_ts ON knowledge_base(category, timestamp);`);
+
+    // Finalizar la migración si existe la tabla temporal
+    try {
+      const tempTable = await db.getFirstAsync<{count: number}>(
+        "SELECT count(*) as count FROM sqlite_master WHERE type='table' AND name='kb_old_migration_temp'"
+      );
+      if (tempTable && tempTable.count > 0) {
+        console.log('[DB] 🚀 Copiando datos de kb_old_migration_temp a knowledge_base...');
+        await db.execAsync(`
+          INSERT INTO knowledge_base (category, fact, confidence, timestamp)
+          SELECT category, fact, confidence, timestamp FROM kb_old_migration_temp;
+          DROP TABLE kb_old_migration_temp;
+        `);
+        console.log('[DB] 🚀 Migración de datos completada exitosamente.');
+      }
+    } catch (e) {
+      console.log('[DB] No se requirió finalizar migración.');
+    }
     console.log('[DB] Memoria Sintáctica forjada exitosamente con compatibilidad INTEGER rowid.');
   } catch (error) {
     console.error('[DB] Error crítico al inicializar Memoria Sintáctica:', error);

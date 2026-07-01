@@ -121,7 +121,7 @@ export const SanctuaryHeader = ({
           <View key="header-title-stack">
             <Text key="header-main-title" style={[styles.headerTitle, { color: colors.secondary }]}>AI Diary</Text>
             <Text key="header-subtitle" style={{ color: colors.primary, fontSize: 10, fontWeight: 'bold', opacity: 0.8 }}>
-              {lang === 'es' ? 'Diario Personal' : 'Diary Journal'}
+              {lang === 'es' ? 'Diario Personal' : 'Off-Line AI'}
             </Text>
           </View>
           {/* ICONO ESPIRAL: Botón de Reinicio Maestro */}

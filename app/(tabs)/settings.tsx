@@ -5,7 +5,7 @@ import * as FileSystem from 'expo-file-system';
 import * as SecureStore from 'expo-secure-store';
 import * as Linking from 'expo-linking';
 import React, { useEffect, useState, useCallback, useRef } from 'react';
-import { Alert, KeyboardAvoidingView, Platform, SafeAreaView, ScrollView, StatusBar, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View, BackHandler, Modal } from 'react-native';
+import { Alert, KeyboardAvoidingView, Platform, SafeAreaView, ScrollView, StatusBar, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View, BackHandler, Modal, Dimensions } from 'react-native';
 import { useSQLiteContext } from '../../components/MemoryProvider';
 import { AppThemeType } from '../../constants/Themes';
 import { ManifestoCard } from '../../components/SanctuaryUI';
@@ -20,10 +20,11 @@ import { runOnJS } from 'react-native-reanimated';
 import { SanctuaryHeader } from '../../components/SanctuaryHeader';
 import { KebabMenuOverlay } from '../../components/KebabMenuOverlay';
 import { useFocusEffect } from '@react-navigation/native';
-import { getAnimaMessage } from '../../db/zenGardenSchema';
+
 import { useGlobalModals } from '../../contexts/GlobalModalsContext';
 import { settingsService } from '../../lib/SettingsService';
 import { cloudTTSService } from '../../lib/CloudTTSService';
+import { getAllBadges } from '../../db/badgeSchema';
 
 const OPENAI_VOICES = ['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer'];
 const GOOGLE_VOICES = {
@@ -31,7 +32,8 @@ const GOOGLE_VOICES = {
     { name: 'es-419-Chirp3-HD-Aoede', label: 'Chirp 3 HD (Latinoamérica)' },
     { name: 'es-ES-Chirp3-HD-Aoede', label: 'Chirp 3 HD (España - Aoede)' },
     { name: 'es-ES-Chirp3-HD-Kore', label: 'Chirp 3 HD (España - Kore)' },
-    { name: 'es-MX-Studio-B', label: 'Studio Femenina (México)' }
+    { name: 'es-MX-Neural2-A', label: 'Neural2 Femenina (México)' },
+    { name: 'es-US-Studio-B', label: 'Studio Femenina (EE.UU./Latam)' }
   ],
   en: [
     { name: 'en-US-Chirp3-HD-Aoede', label: 'Chirp 3 HD (US - Aoede)' },
@@ -57,28 +59,7 @@ export default function SettingsScreen() {
   const { lang, setLang, t } = useLanguage();
   const db = useSQLiteContext();
   const { openModal } = useGlobalModals();
-  const [animaMessage, setAnimaMessage] = useState('');
 
-  const fetchAnimaMessage = useCallback(async () => {
-    if (db) {
-      try {
-        const msg = await getAnimaMessage(db, lang);
-        setAnimaMessage(msg);
-      } catch (e) {
-        console.error('Error fetching anima message:', e);
-      }
-    }
-  }, [db, lang]);
-
-  useEffect(() => {
-    fetchAnimaMessage();
-  }, [fetchAnimaMessage]);
-
-  useFocusEffect(
-    useCallback(() => {
-      fetchAnimaMessage();
-    }, [fetchAnimaMessage])
-  );
 
   const [showResetModal, setShowResetModal] = useState(false);
   const [resetInputText, setResetInputText] = useState('');
@@ -99,7 +80,18 @@ export default function SettingsScreen() {
 
   const [showStorageMenu, setShowStorageMenu] = useState(false);
   const [scannedModels, setScannedModels] = useState<ScannedModel[]>([]);
+  const [badges, setBadges] = useState<any[]>([]);
   const [showLangPicker, setShowLangPicker] = useState(false);
+  const [langPickerTicket, setLangPickerTicket] = useState(0);
+
+  useEffect(() => {
+    if (showLangPicker) {
+      const timer = setTimeout(() => {
+        setLangPickerTicket(prev => prev + 1);
+      }, 50);
+      return () => clearTimeout(timer);
+    }
+  }, [showLangPicker]);
   const [showKebabMenu, setShowKebabMenu] = useState(false);
   const [kebabMenuTop, setKebabMenuTop] = useState(Platform.OS === 'android' ? (StatusBar.currentHeight || 0) + 70 : 85);
   const kebabTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -247,6 +239,19 @@ export default function SettingsScreen() {
     loadSettings();
     return () => { isMounted = false; };
   }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      let isActive = true;
+      const fetchBadges = async () => {
+        if (!db) return;
+        const b = await getAllBadges(db);
+        if (isActive) setBadges(b);
+      };
+      fetchBadges();
+      return () => { isActive = false; };
+    }, [db])
+  );
 
   const saveSettings = async (updates: any) => {
     try {
@@ -471,11 +476,11 @@ export default function SettingsScreen() {
             if (next) startKebabTimer();
             else stopKebabTimer();
           }}
-          animaMessage={animaMessage}
+
         />
 
 
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
           <ScrollView contentContainerStyle={styles.scrollContent}>
             
             <View style={styles.section}>
@@ -486,6 +491,39 @@ export default function SettingsScreen() {
                 {renderThemeButton('aura', 'AURA')}
                 {renderThemeButton('matrix', 'ZION')}
               </View>
+
+            </View>
+
+            {/* 🏆 Mis Insignias */}
+            <View style={styles.section}>
+              <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>
+                {lang === 'es' ? 'MIS INSIGNIAS' : 'MY BADGES'}
+              </Text>
+              {badges.length > 0 ? (
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ paddingHorizontal: 5 }}>
+                  {badges.map((badge, idx) => (
+                    <View key={badge.id} style={{
+                      backgroundColor: 'rgba(0,0,0,0.15)',
+                      padding: 12,
+                      borderRadius: 12,
+                      borderWidth: 1,
+                      borderColor: colors.border,
+                      marginRight: 10,
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      minWidth: 80
+                    }}>
+                      <Text style={{ fontSize: 24, marginBottom: 4 }}>{badge.emoji}</Text>
+                      <Text style={{ color: colors.textPrimary, fontSize: 10, fontWeight: 'bold' }}>{badge.name}</Text>
+                      <Text style={{ color: colors.textSecondary, fontSize: 10 }}>x{badge.count}</Text>
+                    </View>
+                  ))}
+                </ScrollView>
+              ) : (
+                <Text style={{ color: colors.textSecondary, fontSize: 12, fontStyle: 'italic', paddingHorizontal: 5 }}>
+                  {lang === 'es' ? 'Aún no has ganado insignias. Sigue charlando para descubrirlas.' : 'No badges earned yet. Keep chatting to discover them.'}
+                </Text>
+              )}
             </View>
 
             {/* 🌐 SOVEREIGN INTERNET / ANONYMOUS SEARCH SECTION */}
@@ -1534,8 +1572,19 @@ export default function SettingsScreen() {
 
         {/* Reset Confirmation Modal removed in favor of native double Alert.alert confirmations */}
       {/* --- LANGUAGE PICKER OVERLAY --- */}
-      <Modal visible={showLangPicker} transparent={true} animationType="fade">
-        <View style={{ flex: 1, alignItems: 'flex-end', zIndex: 9999, elevation: 999 }}>
+      <Modal visible={showLangPicker} transparent={true} animationType="fade" statusBarTranslucent={true}>
+        {Platform.OS === 'android' && <View style={{ height: (langPickerTicket % 2 === 1) ? 0.5 : 0 }} />}
+        <View 
+          style={{ 
+            flex: 1, 
+            width: Dimensions.get('screen').width, 
+            height: Dimensions.get('screen').height, 
+            alignItems: 'flex-end', 
+            zIndex: 9999, 
+            elevation: 999,
+            paddingTop: Platform.OS === 'android' && (langPickerTicket % 2 === 1) ? 0.5 : 0
+          }}
+        >
           <TouchableOpacity
             style={StyleSheet.absoluteFill}
             activeOpacity={1}
@@ -1583,7 +1632,6 @@ export default function SettingsScreen() {
           { emoji: '👓', labelEs: 'Introducción', labelEn: 'Introduction', onPress: () => { setShowKebabMenu(false); onKebabAction('intro'); } },
           { emoji: '🔊', labelEs: 'Configuración Voz Android', labelEn: 'Android Voice Settings', onPress: () => { setShowKebabMenu(false); onKebabAction('voice_settings'); } },
           { emoji: '🔒', labelEs: 'Encriptación de Datos', labelEn: 'Data Encryption', onPress: () => { setShowKebabMenu(false); onKebabAction('vault'); } },
-          { emoji: 'Ψ', labelEs: 'Test de Personalidad', labelEn: 'Personality Test', onPress: () => { setShowKebabMenu(false); onKebabAction('tests_menu'); } },
           { emoji: '🗑️', labelEs: 'Borrar Historial', labelEn: 'Clear History', onPress: () => { setShowKebabMenu(false); onKebabAction('clear'); } },
         ]}
       />

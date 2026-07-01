@@ -1,0 +1,172 @@
+--- LINES 1450-1500 ---
+Created At: 2026-06-22T07:32:44Z
+Completed At: 2026-06-22T07:32:44Z
+File Path: `file:///c:/AI-Diary/PROJECT_MANIFESTO.md`
+Total Lines: 1644
+Total Bytes: 162880
+Showing lines 1450 to 1500
+The following code has been modified to include a line number before every line, in the format: <line_number>: <original_line>. Please note that any changes targeting the original code should remove the line number, colon, and leading space.
+1450: ## 4. Bug fixing
+1451: - **Archivos:** `app/(tabs)/tools.tsx`, `hooks/useTodos.ts`
+1452: - **Cambios:**
+1453:   - Se incrementó el `paddingBottom` de `scrollContent` en `tools.tsx` a `120` para evitar que la tarjeta de To-Do List y el botón "ADD NOTE" queden a medias u ocultos tras la barra de navegación inferior en dispositivos físicos y emuladores.
+1454:   - Se agregaron logs de diagnóstico detallados (`[useTodos]`) en el hook `useTodos.ts` para rastrear las llamadas SQL de inserción (`addTodo`), obtención (`fetchTodos`) y borrado (`removeTodo`), permitiendo visualizar fallos silenciosos de la base de datos o de tipos de datos.
+1455: 
+1456: ## 5. El Juez Filosófico (ZenPhilosophyService.ts) y Juicio del Zen Garden
+1457: - **Archivos:** `services/ZenPhilosophyService.ts`
+1458: - **Descripción:** Se implementó una capa intermedia ("Capa 2") llamada el **Juez Filosófico** (`ZenPhilosophyService.ts`) que analiza los clústers matemáticos del Grafo de Conocimiento (Capa 1) para decidir la evolución, tipo y atributos de la flora de forma totalmente autónoma, libre de la inferencia costosa y el control directo del LLM.
+1459: - **Mecánica de Juicio y Evolución:**
+1460:   - **Extracción de la Esencia y Densidad:** El juez escanea las comunidades temáticas generadas por el algoritmo de Louvain. Según el número de nodos (hechos) interconectados en un clúster, determina la madurez del pensamiento:
+1461:     - **Baja Densidad (<3 nodos):** Se cataloga y siembra como una **Semilla (Seed)**, representando una idea o pensamiento incipiente.
+1462:     - **Densidad Medi
+<truncated 4122 bytes>
+ copiar y serializar repetidamente megabytes de datos de imagen de la capa Kotlin/Java a la capa C++ del motor de IA, saturando la CPU y la memoria. Ahora (con el Vision Bridge corregido): Compartimos un puntero directo de hardware (AHardwareBuffer) de la cámara al motor de C++. El motor lee los datos directamente del hardware de video sin duplicar un solo byte en memoria, reduciendo drásticamente la latencia, el consumo de batería y el uso de memoria RAM.
+1489:   - **Entorno NDK:** Se reinstaló el NDK versión `26.1.10909125` en la ruta `C:\Android_NDK\26.1.10909125`.
+1490:   - **Gradle:** Se modificaron los archivos de Gradle para compilar y vincular correctamente las llamadas nativas de `vision_bridge.cpp` con el motor JSI en modo "Debug", permitiendo transferencias de datos eficientes en memoria compartida sin sobrecosto de serialización.
+1491:   
+1492: 
+1493: 
+1494:   # AI DIARY: Speed improvements v1.9.6.2
+1495: 
+1496: ## 1. Se instalo una nueva version de Gemma4:e2b que acaba de sacar google Q4 mas ligera en MB
+1497: https://huggingface.co/unsloth/gemma-4-E2B-it-qat-GGUF/resolve/main/gemma-4-E2B-it-qat-UD-Q4_K_XL.gguf
+1498: Beneficio adicional (Calidad superior): En lugar de la cuantización estándar q4_0 (que pierde cierta precisión), ahora descargará la versión UD-Q4_K_XL (cuantización dinámica de Unsloth). Esta variante recupera casi el 100% de la precisión del modelo original BF16 de Google y es ligeramente más ligera (pesa 2.5 GB en lugar de 2.68 GB).
+1499: ## 2. Se optimizo el LLM para que sea mas rapigo. version prueva en rn-slot-manager.cpp`con gettid(), -20)
+1500:   - **Fase A: Token Batching (UI)**: Implementación de un buffer de 40ms en `useAppLlm.ts` para agrupar tokens y reducir drásticamente los re-renderizados del puente de React Native, asegurando fluidez a 60 FPS en la interfaz.
+The above content does NOT show the entire file contents. If you need to view any lines of the file which were not shown to complete your task, call this tool again to view those lines.
+
+
+--- LINES 1500-1550 ---
+Created At: 2026-06-22T07:32:41Z
+Completed At: 2026-06-22T07:32:41Z
+File Path: `file:///c:/AI-Diary/PROJECT_MANIFESTO.md`
+Total Lines: 1644
+Total Bytes: 162880
+Showing lines 1500 to 1550
+The following code has been modified to include a line number before every line, in the format: <line_number>: <original_line>. Please note that any changes targeting the original code should remove the line number, colon, and leading space.
+1500:   - **Fase A: Token Batching (UI)**: Implementación de un buffer de 40ms en `useAppLlm.ts` para agrupar tokens y reducir drásticamente los re-renderizados del puente de React Native, asegurando fluidez a 60 FPS en la interfaz.
+1501:   - **Fase B: Congelador de Gráficos (Skia Freeze)**: El componente `WhispAvatar.tsx` ahora detiene sus costosas animaciones procedurales (curvas y gradientes de Skia) cuando el modelo de IA está "pensando", dibujando en su lugar un estado estático (gota de sudor 😅) para liberar 100% de la GPU/CPU al LLM.
+1502:   - **Fase C: Sándwich de Prioridades y Aislamiento de Núcleos**:
+1503:     - Se modificó y parcheó `rn-slot-manager.cpp` (C++) para inyectar `setpriority(PRIO_PROCESS, gettid(), -20);` en Android/Linux y `QOS_CLASS_USER_INTERACTIVE` en iOS, otorgándole prioridad absoluta al hilo de inferencia en el nivel más bajo del OS.
+1504:     - Se implementó un límite estricto de núcleos en `useAppLlm.ts` para que el motor nativo deje siempre entre 1 y 2 hilos de CPU completamente libres. Esto aísla a la UI y el Audio (Whisper) garantizando que el audio no se entrecorte.
+1505:   - **Fase D: Detección Dinámica de `mmap`**: Se añadió validación de hardware al inicializar el contexto Llama. En dispositivos con >4GB de RAM (`use_mmap: true`), los modelos GGUF pesados cargan a velocidad ultrarrápida. En equipos limitados, se desactiva para blindar la app contra el `OOM Killer` de Android.4
+1506: 
+1507: 
+1508:  # AI DIARY: Improvements and Calendar v1.9.6.3
+1509:   - **Módulo de Calendario Interactivo Nativo**:
+1510:     - **Persiste
+<truncated 4298 bytes>
+()`).
+1537:         - **Flashcards de Estudio**: Tarjetas interactivas con efecto de volteo visual (cara para la pregunta, cruz para la respuesta) ideales para memorización de materias y conceptos.
+1538:     - **Consola de IA de Anima y Motor de Etiquetas (Tags)**:
+1539:       - Interfaz de terminal integrada para interactuar de forma aislada con la IA en el contexto de cada proyecto.
+1540:       - **Automatización Asíncrona de Tareas**: La IA procesa y ejecuta en segundo plano comandos integrados en la respuesta mediante etiquetas como `[SET_PIN: ...]`, `[ADD_CARD: ... || ...]` y `[ADD_STEP: ...]`. El backend los captura, actualiza la base de datos en tiempo real y los oculta en el chat para mantener la interfaz limpia de comandos de programación.
+1541:     - **Diseño Estético y Accesibilidad**:
+1542:       - Barra de navegación y herramientas con selector rápido de proyectos activos y botón rápido de creación.
+1543:       - Totalmente integrado con el tema Matrix de la aplicación (colores neon, textos retro y bordes estilizados).
+1544:   - **Separación de Módulos (Modelo Principal vs. Módulo de Visión)**:
+1545:     - **`hooks/useAppLlm.ts`**:
+1546:       - Se modificó `downloadModel` para descargar exclusivamente el modelo principal (`.gguf`).
+1547:       - Se implementó `downloadVisionModel` y `checkVisionModelExists` para gestionar la descarga e inspección del modelo de visión (`mmproj`) de manera independiente.
+1548:       - Se incorporó `downloadingType: 'model' | 'vision' | null` para rastrear qué módulo está en proceso de descarga.
+1549:       - Se optimizó `downloadFileResumable` para calcular el progreso individual por archivo en lugar de acumularlos.
+1550:       - `resumeIncompleteDownloads` ahora distingue y reanuda descargas incompletas del módulo de visión de forma dedicada.
+The above content does NOT show the entire file contents. If you need to view any lines of the file which were not shown to complete your task, call this tool again to view those lines.
+
+
+--- LINES 1550-1600 ---
+Created At: 2026-06-22T07:32:39Z
+Completed At: 2026-06-22T07:32:39Z
+File Path: `file:///c:/AI-Diary/PROJECT_MANIFESTO.md`
+Total Lines: 1644
+Total Bytes: 162880
+Showing lines 1550 to 1600
+The following code has been modified to include a line number before every line, in the format: <line_number>: <original_line>. Please note that any changes targeting the original code should remove the line number, colon, and leading space.
+1550:       - `resumeIncompleteDownloads` ahora distingue y reanuda descargas incompletas del módulo de visión de forma dedicada.
+1551:     - **`contexts/LlmContext.tsx`**:
+1552:       - Se expusieron las nuevas funciones `downloadVisionModel`, `checkVisionModelExists` y el estado `downloadingType` a través de los tipos `LlmState` y `LlmActions` en el contexto global.
+1553:     - **`components/VisionDownloadModal.tsx`**:
+1554:       - Creación de un modal bilingüe (ES/EN) con el diseño nativo premium de la app que alerta al usuario cuando intenta adjuntar una imagen sin tener el módulo de visión descargado. Muestra el tamaño del archivo y permite iniciar la descarga inmediatamente.
+1555:   - **Interceptación de Flujo de Adjuntos de Imagen**:
+1556:     - **`hooks/useFileAttachment.ts`**: Se añadió el callback `onBeforeProcessImage` en las funciones `pickDocument`, `pickImage` y `takePhoto` para poder abortar el procesamiento de imágenes si falta el módulo de visión.
+1557:     - **`app/(tabs)/index.tsx` (Home)** y **`app/(tabs)/projects.tsx`**:
+1558:       - Se implementó la interceptación `handleBeforeProcessImage` que valida la existencia del archivo de visión. Si no existe, muestra el modal de descarga.
+1559:       - Si el usuario confirma, se añade un adjunto temporal con estado `PENDING_VISION_DOWNLOAD` y se inicia la descarga en segundo plano. Al completarse, se limpia el estado pendiente para permitir adjuntar de nuevo. Si se cancela, se detiene la descarga activa.
+1560:       - Se renderiza el `VisionDownloadModal` al final de ambos componentes.
+1561:   - *
+<truncated 3028 bytes>
+ción vectorial selectiva de páginas de libros a fragmentos vectoriales de SQLite en `document_chunks` para poder interrogar al LLM local sobre textos específicos.
+1586:  
+1587:  ### 2. OCR Nativo Local y Offline de Alto Rendimiento
+1588:  - **Módulo en Kotlin (`PdfToImageModule.kt`):** Implementación nativa que encapsula Google Play Services ML Kit Text Recognition para ejecutar OCR de manera 100% offline, gratuita y directa.
+1589:  - **Extracción en Ingesta de Documentos (PDF Escaneados):** Cuando el usuario adjunta un PDF en el chat (herramientas **FILE**) que es escaneado o no posee texto seleccionable, el sistema ejecuta OCR página por página automáticamente (hasta un límite seguro de 15 páginas) para convertirlo a texto plano para el modelo local sin visión (`llama3.2-1b-q4`).
+1590:  - **OCR en Imágenes Adjuntas:** Al subir capturas de pantalla o fotos al chat, se realiza OCR nativo local y se inyecta el texto reconocido en el contexto del chat.
+1591:  - **Fallback Seguro:** Si el OCR falla o el documento carece de texto identificable, se mantiene la conversión secuencial a imágenes para modelos locales que admitan visión.
+1592:  - **Optimización de Memoria:** Sincronización del búfer de lectura en memoria base64 a un límite de 10MB para procesar de forma estable archivos DOCX complejos sin crasheos por desbordamiento.
+1593: 
+1594: 
+1595:  # AI DIARY: Transformacion de TTS a bajo Nivel de latencia v1.9.6.4
+1596:  🏆 Logros de Arquitectura: Native Voice Acceleration
+1597: 
+1598: ✅ Expusimos nuestro entorno a código nativo bajando el nivel desde Expo Go a un Prebuild real.
+1599: ✅ Creamos nuestro módulo local nativo AnimaVoice.
+1600: ✅ Programamos el Adaptador JSI en C++ para pasar el audio desde Javascript hacia el procesador sin gastar recursos del celular en conversiones Base64.
+The above content does NOT show the entire file contents. If you need to view any lines of the file which were not shown to complete your task, call this tool again to view those lines.
+
+
+--- LINES 1560-1644 ---
+Created At: 2026-06-22T07:32:47Z
+Completed At: 2026-06-22T07:32:47Z
+File Path: `file:///c:/AI-Diary/PROJECT_MANIFESTO.md`
+Total Lines: 1644
+Total Bytes: 162880
+Showing lines 1560 to 1644
+The following code has been modified to include a line number before every line, in the format: <line_number>: <original_line>. Please note that any changes targeting the original code should remove the line number, colon, and leading space.
+1560:       - Se renderiza el `VisionDownloadModal` al final de ambos componentes.
+1561:   - **Interfaz de Progreso de Descarga en el Input**:
+1562:     - **`components/ChatInputBar.tsx`**: Cuando hay una descarga de visión pendiente, el área del adjunto muestra una barra de progreso detallada (ActivityIndicator, barra visual, porcentaje y velocidad en MB/s) y deshabilita el botón de envío.
+1563:     - **`app/(tabs)/projects.tsx`**: Se integró una barra de progreso homóloga en el área de adjuntos del panel de proyectos, respetando el diseño temático Matrix.
+1564:   - **Compatibilidad y Comprobación de Modelos sin Visión (Llama 3.2)**:
+1565:     - Se validó que los modelos como Llama 3.2 (que no definen `mmprojFileName` en `ModelConfig.ts`) devuelven `true` inmediatamente en `checkVisionModelExists`, omitiendo el flujo de descarga de visión y procesando el chat de forma normal.
+1566:   - **Redirección de Búsquedas Web en Pestaña Proyectos**:
+1567:     - **`app/(tabs)/projects.tsx`**: Se actualizó el System Prompt del Consola de Proyectos (`getConsoleSystemPrompt`) indicándole explícitamente a la IA que si el usuario solicita búsquedas web (Brave Search, Wikipedia) o información en tiempo real, le dé instrucciones para ir a la pestaña "Home" a realizar la consulta y luego regresar al proyecto. También le orienta a sugerir la subida de documentos locales (PDF/DOCX) en caso de referenciar libros o textos desconocidos.
+1568:   - **Renombre de Pestaña Principal**:
+1569: - **`app/(tabs)/_layout.tsx`**: Se renombró formalmente la pestaña "Diary" a "Home" para mayor
+<truncated 4450 bytes>
+l botón de silenciar o las interrupciones del Walkie-Talkie ahora disparan instantáneamente global.animaInterruptAudio() para limpiar la cola circular en C++.
+1613: 
+1614: ## Fases Completadas
+1615: 
+1616: # Fase 1: Prebuild y Entorno Nativo
+1617: # Run npx expo prebuild --clean to generate Android/iOS native folders.
+1618:  Verify android/ and ios/ folders are created and configured correctly.
+1619: 
+1620: # Fase 2: JSI Bridge (JavaScript Interface) Inyección Directa (JSI):
+1621:  Create C++ JSI Module skeleton for React Native.
+1622:  Expose global.animaFeedAudioChunk(arrayBuffer) and global.animaInterruptAudio().
+1623:  Register JSI bindings in MainApplication.kt (Android).
+1624: 
+1625: # Fase 3: Audio Engines (Android / iOS)
+1626:  Implement Oboe Audio Engine in C++ for Android.
+1627:  Integrate Oboe library into Android CMakeLists.txt.
+1628:  Implement AVAudioEngine in Swift/Objective-C++ for iOS. (Deferred)
+1629:  Ensure gapless playback and barge-in interruption logic.
+1630: 
+1631: # Fase 4: Silero VAD (Edge STT Prep)
+1632:  Integrate ONNX Runtime Mobile C++ SDK. (Stubbed out architecture)
+1633:  Implement VAD 32ms sliding window buffer in C++. (VadProcessor.cpp)
+1634:  Bridge JS TTS streaming via Oboe native queue (JSI).
+1635:  Bridge VAD state (onSpeechDetected) back to JS via JSI.
+1636: 
+1637: # Fase 3.5: Gapless Native TTS & Lock-Free Architecture
+1638:  Refactor AudioPlayer.cpp to use a Lock-Free Ring Buffer instead of std::mutex.
+1639:  Implement synthesizeNativeToPCM in AnimaVoiceModule.kt using Android TextToSpeech API.
+1640:  Read local .wav files generated by Android TTS and return raw PCM Uint8Array.
+1641:  Modify useVoice.ts fallback to push Native TTS PCM to global.animaFeedAudioChunk.
+1642: 
+1643: 
+1644:  # AI DIARY: OCR and Creation of Library: Download/Listen Books v1.9.6.5
+The above content does NOT show the entire file contents. If you need to view any lines of the file which were not shown to complete your task, call this tool again to view those lines.
+
+
+

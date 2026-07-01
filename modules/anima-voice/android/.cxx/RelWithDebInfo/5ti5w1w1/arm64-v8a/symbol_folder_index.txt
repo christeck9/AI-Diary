@@ -1,0 +1,1 @@
+C:\AI-Diary\modules\anima-voice\android\build\intermediates\cxx\RelWithDebInfo\5ti5w1w1\obj\arm64-v8a

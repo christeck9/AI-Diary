@@ -1,4 +1,4 @@
-import { getIdentity, rotateIdentity } from './IdentityRotator';
+import { sentinelFetch } from './IdentityRotator';
 
 interface WikiPage {
   title: string;
@@ -20,30 +20,14 @@ const COMMON_FIRST_NAMES = new Set([
   'tim', 'timothy', 'richard', 'charles', 'thomas'
 ]);
 
-const fetchWithTimeout = async (url: string, options: any = {}, timeoutMs = 5000) => {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    const response = await fetch(url, { ...options, signal: controller.signal });
-    return response;
-  } finally {
-    clearTimeout(timer);
-  }
-};
-
 /**
  * fetchWikiSummary - Retrieves a summary of a Wikipedia page
  */
 async function fetchWikiSummary(query: string, lang: string): Promise<WikiPage | null> {
   try {
     const endpoint = `https://${lang}.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(query.replace(/\s+/g, '_'))}`;
-    const response = await fetchWithTimeout(endpoint, { headers: { 'User-Agent': getIdentity() } });
+    const response = await sentinelFetch(endpoint);
     
-    if (response.status === 403) {
-      rotateIdentity();
-      return null;
-    }
-
     if (!response.ok) return null;
     
     const data = await response.json();
@@ -66,12 +50,7 @@ async function fetchWikiSummary(query: string, lang: string): Promise<WikiPage |
 async function fetchWikiPageData(title: string, lang: string): Promise<string> {
   try {
     const endpoint = `https://${lang}.wikipedia.org/api/rest_v1/page/mobile-sections/${encodeURIComponent(title.replace(/\s+/g, '_'))}`;
-    const response = await fetchWithTimeout(endpoint, { headers: { 'User-Agent': getIdentity() } });
-    
-    if (response.status === 403) {
-      rotateIdentity();
-      return "";
-    }
+    const response = await sentinelFetch(endpoint);
     
     if (!response.ok) return "";
 
@@ -89,12 +68,9 @@ async function fetchWikiPageData(title: string, lang: string): Promise<string> {
 async function fetchWikiInfobox(title: string, lang: string): Promise<string> {
   try {
     const endpoint = `https://${lang}.wikipedia.org/w/api.php?action=query&prop=revisions&rvprop=content&rvsection=0&titles=${encodeURIComponent(title)}&format=json&origin=*`;
-    const response = await fetchWithTimeout(endpoint, { headers: { 'User-Agent': getIdentity() } });
+    const response = await sentinelFetch(endpoint);
     
-    if (response.status === 403) {
-      rotateIdentity();
-      return "";
-    }
+    if (!response.ok) return "";
     
     const data = await response.json();
     const pages = data.query?.pages;
@@ -137,8 +113,8 @@ async function fetchWikiInfobox(title: string, lang: string): Promise<string> {
 async function searchWikiTitles(searchTerm: string, lang: string): Promise<Array<{ title: string }>> {
   try {
     const endpoint = `https://${lang}.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(searchTerm)}&format=json&origin=*`;
-    const response = await fetchWithTimeout(endpoint, { headers: { 'User-Agent': getIdentity() } });
-    if (response.status === 403) { rotateIdentity(); return []; }
+    const response = await sentinelFetch(endpoint);
+    if (!response.ok) return [];
     const data = await response.json();
     return data.query?.search || [];
   } catch (e) {
@@ -152,7 +128,7 @@ async function searchWikiTitles(searchTerm: string, lang: string): Promise<Array
 async function getInterWikiTitle(title: string, fromLang: string, toLang: string): Promise<string | null> {
   try {
     const endpoint = `https://${fromLang}.wikipedia.org/w/api.php?action=query&prop=langlinks&lllang=${toLang}&titles=${encodeURIComponent(title)}&format=json&origin=*`;
-    const response = await fetchWithTimeout(endpoint, { headers: { 'User-Agent': getIdentity() } });
+    const response = await sentinelFetch(endpoint);
     const data = await response.json();
     const pages = data.query?.pages;
     if (!pages) return null;
@@ -166,7 +142,12 @@ async function getInterWikiTitle(title: string, fromLang: string, toLang: string
 /**
  * wikipediaSearch - Orchestrates bilingual Wikipedia data retrieval
  */
-export async function wikipediaSearch(query: string, preferredLang: 'es' | 'en' = 'es'): Promise<string> {
+export async function wikipediaSearch(query: string, preferredLang: 'es' | 'en' = 'es', depth: number = 0): Promise<string> {
+  if (depth > 1) {
+    console.log(`[WIKIPEDIA] Recursion aborted for query: "${query}"`);
+    return "SENTINEL_NULL_DATA: Too many redirections.";
+  }
+
   const cleanQuery = query.trim();
   const otherLang = preferredLang === 'es' ? 'en' : 'es';
 
@@ -210,9 +191,9 @@ export async function wikipediaSearch(query: string, preferredLang: 'es' | 'en' 
       }
 
       if (isMatchValid) {
-        return await wikipediaSearch(results[0].title, preferredLang);
+        return await wikipediaSearch(results[0].title, preferredLang, depth + 1);
       } else {
-        console.warn(`[WIKIPEDIA] Discarding irrelevant title match "${results[0].title}" for query "${cleanQuery}" due to lack of valid keyword overlap.`);
+        console.log(`[WIKIPEDIA] Discarding irrelevant title match "${results[0].title}" for query "${cleanQuery}" due to lack of valid keyword overlap.`);
       }
     }
     

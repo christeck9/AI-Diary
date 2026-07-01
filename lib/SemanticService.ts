@@ -27,9 +27,9 @@ export const SemanticService = {
       if (!queryEmbeddings || queryEmbeddings.length === 0) return "";
       const queryVector = queryEmbeddings[0];
 
-      // Fetch all chunks from the database
+      // Fetch the most recent chunks from the database to prevent memory exhaustion
       const rows = await db.getAllAsync<{ document_id: string, chunk_index: number, text: string, embedding: string }>(
-        `SELECT document_id, chunk_index, text, embedding FROM document_chunks`
+        `SELECT document_id, chunk_index, text, embedding FROM document_chunks ORDER BY id DESC LIMIT 2000`
       );
 
       if (rows.length === 0) return "";

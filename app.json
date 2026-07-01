@@ -12,7 +12,7 @@
     },
     "android": {
       "package": "com.christeck.aidiary",
-      "versionCode": 16,
+      "versionCode": 20,
       "launchMode": "singleTask",
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/icon_adaptive_foreground.png",
@@ -24,7 +24,8 @@
       "appleTeamId": "5BSRSHBRR6",
       "supportsTablet": true,
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "UIBackgroundModes": ["audio"]
       }
     },
     "extra": {

@@ -4,7 +4,8 @@
  * Provides access to the Open Library API for bibliographic research and knowledge expansion.
  */
 
-import { getIdentity, rotateIdentity } from './IdentityRotator';
+import { sentinelFetch } from './IdentityRotator';
+import { purifyQuery } from './TextUtils';
 
 const OPEN_LIBRARY_API = 'https://openlibrary.org/search.json';
 
@@ -25,22 +26,15 @@ export interface OpenLibraryResponse {
  * Returns a formatted string of recommended bibliography.
  */
 export async function consultCodex(query: string): Promise<string> {
+    const pureQuery = purifyQuery(query);
     try {
         const params = new URLSearchParams({
-            q: query,
+            q: pureQuery,
             limit: '3',
             fields: 'title,author_name,first_publish_year,key'
         });
 
-        const response = await fetch(`${OPEN_LIBRARY_API}?${params.toString()}`, {
-            headers: { 'User-Agent': getIdentity() }
-        });
-
-        if (response.status === 403) {
-            console.warn('[OPEN_LIBRARY] 403 Forbidden. Rotating identity...');
-            rotateIdentity();
-            return "";
-        }
+        const response = await sentinelFetch(`${OPEN_LIBRARY_API}?${params.toString()}`);
 
         if (!response.ok) {
             console.error(`[OPEN_LIBRARY] API Error: ${response.status} ${response.statusText}`);
@@ -56,7 +50,7 @@ export async function consultCodex(query: string): Promise<string> {
         const books = data.docs.map((book) => {
             const author = book.author_name ? book.author_name.join(', ') : 'Unknown Author';
             const year = book.first_publish_year || 'N/A';
-            return `- "${book.title}" by ${author} (${year}) [https://openlibrary.org${book.key}]`;
+            return `- "${book.title}" by ${author} (${year})`;
         });
 
         return `\n--- THE VAULT (Knowledge Expansion) ---\nRecommended Bibliography:\n${books.join('\n')}\n`;

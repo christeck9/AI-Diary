@@ -1,9 +1,8 @@
-import React, { useState } from 'react';
-import { Modal, View, Text, TouchableOpacity, TextInput, StyleSheet, ScrollView, Alert, SafeAreaView, Platform } from 'react-native';
-import { UserProfile } from '../../lib/PromptService';
+import React, { useState, useEffect } from 'react';
+import { Modal, View, Text, TouchableOpacity, TextInput, StyleSheet, ScrollView, Alert, SafeAreaView, Platform, Dimensions } from 'react-native';
 import { IconSymbol } from '../ui/icon-symbol';
-import { SnowflakeChart } from '../ui/SnowflakeChart';
 import { PsyProfile } from './PsyTestModal';
+import { UserProfile } from '../../contexts/ProfileContext';
 
 interface ProfileModalProps {
   visible: boolean;
@@ -67,9 +66,39 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
     </View>
   );
 
+  const [layoutTicket, setLayoutTicket] = useState(0);
+  const isAndroidEnvironment = Platform.OS === 'android';
+  const { width: absoluteScreenWidth, height: absoluteScreenHeight } = Dimensions.get('screen');
+
+  useEffect(() => {
+    if (visible) {
+      const timer = setTimeout(() => {
+        setLayoutTicket(prev => prev + 1);
+      }, 50);
+      return () => clearTimeout(timer);
+    }
+  }, [visible]);
+
   return (
-    <Modal visible={visible} animationType="slide" transparent={false} onRequestClose={onClose}>
-      <View style={{ flex: 1, backgroundColor: colors.background }}>
+    <Modal 
+      visible={visible} 
+      animationType="slide" 
+      transparent={true} 
+      statusBarTranslucent={true}
+      onRequestClose={onClose}
+    >
+      {isAndroidEnvironment && <View style={{ height: (layoutTicket % 2 === 1) ? 0.5 : 0 }} />}
+      <View 
+        style={{ 
+          flex: 1, 
+          width: absoluteScreenWidth, 
+          height: absoluteScreenHeight, 
+          backgroundColor: colors.background, 
+          margin: 0, 
+          padding: 0,
+          paddingTop: isAndroidEnvironment && (layoutTicket % 2 === 1) ? 0.5 : 0
+        }}
+      >
         <SafeAreaView style={{ flex: 1 }}>
           <View style={{ flex: 1, padding: 20, paddingBottom: Platform.OS === 'android' ? 85 : 20 }}>
             <Text style={[styles.modalTitle, { color: colors.primary }]}>
@@ -132,33 +161,6 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
 
             <Text style={styles.label}>{lang === 'es' ? '¿Cómo quieres que te conteste la AI? (Máximo 3)' : 'How should the AI respond? (Max 3)'}</Text>
             {renderTags(STYLE_OPTIONS[lang], userProfile.responseStyle, 3, 'responseStyle', STYLE_OPTIONS.en)}
-
-            <View style={styles.divider} />
-            
-            <Text style={[styles.label, { fontWeight: 'bold' }]}>{lang === 'es' ? 'Copo de Nieve (Análisis Cognitivo)' : 'Snowflake Analysis (Cognitive)'}</Text>
-            <View style={[styles.chartBox, { backgroundColor: colors.surfaceSecondary, borderColor: colors.border }]}>
-              <SnowflakeChart 
-                data={{
-                  O: psyProfile.O || 0,
-                  C: psyProfile.C || 0,
-                  E: psyProfile.E || 0,
-                  A: psyProfile.A || 0,
-                  S: 1 - (psyProfile.N || 0), // Stability = Inverted Neuroticism
-                  M: psyProfile.moodBalance || 0
-                }}
-                size={220}
-                colors={colors}
-                lang={lang}
-              />
-              <Text style={{ color: colors.textSecondary, fontSize: 11, textAlign: 'center', marginTop: -10, marginBottom: 10 }}>
-                {lang === 'es' ? 'Tu silueta cognitiva se ajusta con cada test.' : 'Your cognitive silhouette adjusts with each test.'}
-              </Text>
-            </View>
-
-            <Text style={[styles.label, { fontWeight: 'bold' }]}>{lang === 'es' ? 'Mapa Mental' : 'Mind Map'}</Text>
-            <View style={[styles.placeholderBox, { backgroundColor: colors.surfaceSecondary, borderColor: colors.border, height: 100 }]}>
-              <IconSymbol name="brain" size={32} color={colors.textSecondary} />
-            </View>
           </ScrollView>
 
           <View style={styles.buttonRow}>

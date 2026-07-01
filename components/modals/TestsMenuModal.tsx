@@ -1,5 +1,5 @@
-import React from 'react';
-import { Modal, View, Text, TouchableOpacity, ScrollView, StyleSheet, Platform, SafeAreaView } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { Modal, View, Text, TouchableOpacity, ScrollView, StyleSheet, Platform, SafeAreaView, Dimensions } from 'react-native';
 
 interface TestsMenuModalProps {
   visible: boolean;
@@ -16,9 +16,39 @@ export const TestsMenuModal: React.FC<TestsMenuModalProps> = ({
   colors,
   onSelectTest
 }) => {
+  const [layoutTicket, setLayoutTicket] = useState(0);
+  const isAndroidEnvironment = Platform.OS === 'android';
+  const { width: absoluteScreenWidth, height: absoluteScreenHeight } = Dimensions.get('screen');
+
+  useEffect(() => {
+    if (visible) {
+      const timer = setTimeout(() => {
+        setLayoutTicket(prev => prev + 1);
+      }, 50);
+      return () => clearTimeout(timer);
+    }
+  }, [visible]);
+
   return (
-    <Modal visible={visible} animationType="slide" transparent={false} onRequestClose={onClose}>
-      <View style={{ flex: 1, backgroundColor: colors.background }}>
+    <Modal 
+      visible={visible} 
+      animationType="slide" 
+      transparent={true} 
+      statusBarTranslucent={true}
+      onRequestClose={onClose}
+    >
+      {isAndroidEnvironment && <View style={{ height: (layoutTicket % 2 === 1) ? 0.5 : 0 }} />}
+      <View 
+        style={{ 
+          flex: 1, 
+          width: absoluteScreenWidth, 
+          height: absoluteScreenHeight, 
+          backgroundColor: colors.background, 
+          margin: 0, 
+          padding: 0,
+          paddingTop: isAndroidEnvironment && (layoutTicket % 2 === 1) ? 0.5 : 0
+        }}
+      >
         <SafeAreaView style={{ flex: 1 }}>
           <View style={{ flex: 1, padding: 20, paddingBottom: Platform.OS === 'android' ? 85 : 20 }}>
             <Text style={{ color: colors.primary, fontSize: 24, fontWeight: 'bold', textAlign: 'center', marginBottom: 15 }}>

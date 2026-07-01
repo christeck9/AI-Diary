@@ -16,6 +16,15 @@ class CPUSemaphore {
     if (!this.paused) return;
     return new Promise<void>((resolve) => {
       this.resumeListeners.push(resolve);
+
+      // 🛡️ Safety timeout to prevent permanent deadlocks
+      setTimeout(() => {
+        if (this.resumeListeners.includes(resolve)) {
+          console.warn('[CPUSemaphore] ⏱️ 15s timeout exceeded. Releasing stuck token.');
+          this.resumeListeners = this.resumeListeners.filter(fn => fn !== resolve);
+          resolve();
+        }
+      }, 15000);
     });
   }
 
@@ -39,6 +48,14 @@ class CPUSemaphore {
   /** Returns the current pause state. */
   get paused(): boolean {
     return this.pauseSources.size > 0;
+  }
+
+  /** Force release all paused sources and listeners (Emergency fallback). */
+  forceReleaseAll(): void {
+    console.warn('[CPUSemaphore] 🚨 forceReleaseAll invoked. Unblocking entire LLM stream.');
+    this.pauseSources.clear();
+    const listeners = this.resumeListeners.splice(0);
+    listeners.forEach(fn => fn());
   }
 }
 

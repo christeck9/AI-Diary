@@ -152,8 +152,8 @@ export function VoiceOverlay({
            {voiceState === 'WAITING' && (
              <Text style={[styles.instructionText, { color: colors.textSecondary }]}>
                {lang === 'es' 
-                 ? '🎙️ Mantén presionado el botón PULSA para hablar. Usa entre 3 y 12 palabras.' 
-                 : '🎙️ Press and hold the TALK button to speak. Use 3-12 words.'}
+                 ? '🎙️ Mantén presionado o presiona una vez el botón PULSA para hablar. Usa de 3-12 palabras.' 
+                 : '🎙️ Press and hold or tap the ACTIVE TALK button to speak. Use 3-12 words.'}
              </Text>
            )}
 
@@ -255,8 +255,8 @@ export function VoiceOverlay({
                     { color: voiceState === 'RECORDING' ? '#ff3b30' : 'white' }
                   ]}>
                     {voiceState === 'RECORDING' 
-                      ? (lang === 'es' ? 'SUELTA' : 'RELEASE') 
-                      : (lang === 'es' ? 'PULSA' : 'TALK')}
+                      ? (lang === 'es' ? 'DETENER' : 'STOP') 
+                      : (lang === 'es' ? 'PULSA' : 'ACTIVE TALK')}
                   </Text>
                 </Pressable>
               </Animated.View>

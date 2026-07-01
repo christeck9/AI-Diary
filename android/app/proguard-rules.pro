@@ -29,3 +29,8 @@
 
 # Prevent R8 from stripping expo-secure-store native module (prevents silent null returns in release)
 -keep class expo.modules.securestore.** { *; }
+
+# Ensure expo-speech and AnimaVoice are not stripped in Release
+-keep class expo.modules.speech.** { *; }
+-keep class com.christeck.animavoice.** { *; }
+

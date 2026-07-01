@@ -4,7 +4,9 @@ import Constants from 'expo-constants';
 
 LogBox.ignoreLogs([
   'transcribeRealtime', 
-  'Looks like you have configured linking in multiple places'
+  'Looks like you have configured linking in multiple places',
+  '[BRAVE_LLM]',
+  '[SENTINEL_FETCH]'
 ]);
 
 // 🛡️ RNWhisper Safety Shim (Prevents app crashes in Expo Go or Web environments)
