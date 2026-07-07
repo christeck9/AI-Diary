@@ -38,10 +38,10 @@ export const CognitiveNode = React.memo(({ thought, toolQuery, colors, lang }: {
 
   return (
     <View style={{
-      backgroundColor: 'rgba(255,255,255,0.05)',
+      backgroundColor: colors.secondary + '15',
       borderRadius: 12,
       borderWidth: 1,
-      borderColor: 'rgba(255,255,255,0.1)',
+      borderColor: colors.secondary + '30',
       marginBottom: 10,
       overflow: 'hidden'
     }}>
@@ -108,4 +108,9 @@ export const CognitiveNode = React.memo(({ thought, toolQuery, colors, lang }: {
       </Animated.View>
     </View>
   );
-});
+}, (prev, next) => 
+  prev.thought === next.thought &&
+  prev.toolQuery === next.toolQuery &&
+  prev.colors.secondary === next.colors.secondary &&
+  prev.lang === next.lang
+);

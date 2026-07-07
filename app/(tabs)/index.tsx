@@ -47,7 +47,7 @@ import { CognitiveNode } from '../../components/ui/CognitiveNode';
 import { VoiceNoteOverlay } from '../../components/VoiceNoteOverlay';
 import { ModelLoaderPanel } from '../../components/ModelLoaderPanel';
 import { ChatInputBar } from '../../components/ChatInputBar';
-import { MessageContextMenu } from '../../components/MessageContextMenu';
+
 import { VisionDownloadModal } from '../../components/VisionDownloadModal';
 
 export default function NeuralLinkScreen() {
@@ -152,8 +152,6 @@ export default function NeuralLinkScreen() {
     }
   }, [fullScreenImage]);
   const [selectedContextMsg, setSelectedContextMsg] = useState<Message | null>(null);
-  const [psyStep, setPsyStep] = useState(0);
-  const [psyAnswers, setPsyAnswers] = useState<number[]>([]);
   const [activeTest, setActiveTest] = useState<'ocean' | 'aptitude' | 'vocational' | 'anxiety' | 'mood' | 'mbti'>('ocean');
   const { userProfile, setUserProfile, psyProfile, setPsyProfile, psyCompleted, setPsyCompleted } = useProfile();
   const { openModal } = useGlobalModals();
@@ -465,24 +463,26 @@ export default function NeuralLinkScreen() {
     });
   }, [activeModel, checkVisionModelExists]);
 
-  const handleConfirmVisionDownload = async () => {
+  const handleConfirmVisionDownload = async (modelOverride?: any) => {
     setShowVisionModal(false);
     if (visionPromiseResolveRef.current) {
       visionPromiseResolveRef.current(false);
       visionPromiseResolveRef.current = null;
     }
 
+    const targetModel = modelOverride || activeModel;
+
     setAttachedFile({
-      name: activeModel?.mmprojFileName || 'vision.gguf',
+      name: targetModel?.mmprojFileName || 'vision.gguf',
       type: 'image',
       uri: '',
-      sizeKB: activeModel?.mmprojSizeMB || 940,
+      sizeKB: targetModel?.mmprojSizeMB || 940,
       extractedText: 'PENDING_VISION_DOWNLOAD'
     });
 
     try {
-      if (activeModel) {
-        await downloadVisionModel(activeModel);
+      if (targetModel) {
+        await downloadVisionModel(targetModel);
         clearAttachment();
         
         // Auto-reload the model to initialize the newly downloaded vision projector in memory
@@ -575,9 +575,11 @@ export default function NeuralLinkScreen() {
   );
 
   const reversedFilteredMessages = useMemo(() => {
-    const filtered = messages.filter(m => m.text.trim() !== '' || (m.role === 'ai' && isTyping && m === messages[messages.length - 1]));
+    const filtered = messages.filter(m => 
+      m.text.trim() !== '' || (m.role === 'ai' && m === messages[messages.length - 1])
+    );
     return [...filtered].reverse();
-  }, [messages, isTyping]);
+  }, [messages]);
 
   const whispStatus = useMemo((): 'idle' | 'thinking' | 'tired' | 'happy' | 'listening' | 'speaking' => {
     if (voiceState === 'RECORDING' || dictation.isListening) return 'listening';
@@ -802,39 +804,52 @@ export default function NeuralLinkScreen() {
   useEffect(() => {
     let isMounted = true;
     const checkFile = async () => {
-      const baseDir = FileSystem.documentDirectory?.replace(/\/+$/, '') + '/llm_models';
-      const path = `${baseDir}/${selectedModel.fileName}`;
-      const info = await FileSystem.getInfoAsync(path);
+      const localDir = `${FileSystem.documentDirectory?.replace(/\/+$/, '')}/llm_models`;
+      const localPath = `${localDir}/${selectedModel.fileName}`;
+      
+      const pathsToCheck = [localPath];
+      if (Platform.OS === 'android') {
+        pathsToCheck.push(
+          `file:///data/user/0/com.christeck.worldtrans/files/llm_models/${selectedModel.fileName}`,
+          `file:///data/user/0/com.christeck.aiworldtrans/files/llm_models/${selectedModel.fileName}`,
+          `file:///data/user/0/com.christeck.aidiary/files/llm_models/${selectedModel.fileName}`
+        );
+      }
 
       let existsAndValid = false;
-      if (info.exists) {
-        const size = (info as any).size;
-        const expectedBytes = selectedModel.sizeMB * 1024 * 1024 * 0.9;
-        let modelValid = typeof size === 'number' ? size > expectedBytes : Number(size) > expectedBytes;
-
-        // We do not enforce mmproj checks here as vision model management is separated from core model activation.
-        console.log(`[CHECK_FILE] Size: ${size}, Expected: ${expectedBytes}, Valid: ${modelValid}`);
-        existsAndValid = modelValid;
-      } else {
-        console.log(`[CHECK_FILE] File does not exist at ${path}`);
+      let foundPath = localPath;
+      for (const path of pathsToCheck) {
+        try {
+          const info = await FileSystem.getInfoAsync(path);
+          if (info.exists) {
+            const size = (info as any).size;
+            const expectedBytes = selectedModel.sizeMB * 1024 * 1024 * 0.9;
+            let modelValid = typeof size === 'number' ? size > expectedBytes : Number(size) > expectedBytes;
+            if (modelValid) {
+              existsAndValid = true;
+              foundPath = path;
+              break;
+            }
+          }
+        } catch (err) {}
       }
 
       let canResumeDownload = false;
       if (!existsAndValid) {
-        const resumeStatePath = `${baseDir}/download_resume_${selectedModel.fileName}.json`;
+        const resumeStatePath = `${localDir}/download_resume_${selectedModel.fileName}.json`;
         const resumeInfo = await FileSystem.getInfoAsync(resumeStatePath);
         canResumeDownload = resumeInfo.exists;
 
         if (Platform.OS === 'android') {
           try {
-            const mainFileInfo = await FileSystem.getInfoAsync(path);
+            const mainFileInfo = await FileSystem.getInfoAsync(localPath);
             const expectedBytes = selectedModel.sizeMB * 1024 * 1024 * 0.9;
             if (mainFileInfo.exists && (mainFileInfo as any).size > 0 && (mainFileInfo as any).size < expectedBytes) {
               if (!canResumeDownload) {
                 // Reconstruct main file resume JSON
                 const manualState = {
                   url: selectedModel.url,
-                  fileUri: `file://${path}`,
+                  fileUri: `file://${localPath}`,
                   options: { headers: { 'User-Agent': 'Mozilla/5.0 (Linux; Android 10; K)' } },
                   resumeData: String((mainFileInfo as any).size)
                 };
@@ -858,6 +873,37 @@ export default function NeuralLinkScreen() {
 
     return () => { isMounted = false; };
   }, [selectedModel, status]);
+
+  const checkSpecificModelExists = useCallback(async (model: any) => {
+    try {
+      const localDir = `${FileSystem.documentDirectory?.replace(/\/+$/, '')}/llm_models`;
+      const localPath = `${localDir}/${model.fileName}`;
+      
+      const pathsToCheck = [localPath];
+      if (Platform.OS === 'android') {
+        pathsToCheck.push(
+          `file:///data/user/0/com.christeck.worldtrans/files/llm_models/${model.fileName}`,
+          `file:///data/user/0/com.christeck.aiworldtrans/files/llm_models/${model.fileName}`,
+          `file:///data/user/0/com.christeck.aidiary/files/llm_models/${model.fileName}`
+        );
+      }
+      
+      for (const path of pathsToCheck) {
+        try {
+          const info = await FileSystem.getInfoAsync(path);
+          if (info.exists) {
+            const size = (info as any).size;
+            const expectedBytes = model.sizeMB * 1024 * 1024 * 0.9;
+            const valid = typeof size === 'number' ? size > expectedBytes : Number(size) > expectedBytes;
+            if (valid) return true;
+          }
+        } catch (err) {}
+      }
+    } catch (e) {
+      console.warn('[CHECK_SPECIFIC] Error checking model:', e);
+    }
+    return false;
+  }, []);
 
   const heartbeatAnim = useSharedValue(0); // For Neuronal Heartbeat
   const hasSentSystemPromptRef = useRef(false);
@@ -987,14 +1033,15 @@ export default function NeuralLinkScreen() {
     }
   }, [isDownloading, lang, selectedModel, activeModel, selectModel, isEcoMode, loadModel, addSystemMessage]);
 
-  const handleDownload = useCallback(async () => {
-    const totalSize = selectedModel.sizeMB;
-    const startText = `${t('model.system')}: ${t('model.startDownload')} ${selectedModel[lang === 'es' ? 'labelEs' : 'labelEn']} (${totalSize} MB)...`;
+  const handleDownload = useCallback(async (modelOverride?: any) => {
+    const modelToUse = modelOverride?.id ? modelOverride : selectedModel;
+    const totalSize = modelToUse.sizeMB;
+    const startText = `${t('model.system')}: ${t('model.startDownload')} ${modelToUse[lang === 'es' ? 'labelEs' : 'labelEn']} (${totalSize} MB)...`;
     setInitNotification(startText);
 
     try {
-      await downloadModel(selectedModel);
-      const doneText = `${t('model.system')}: ${selectedModel[lang === 'es' ? 'labelEs' : 'labelEn']} ${t('model.downloaded')}`;
+      await downloadModel(modelToUse);
+      const doneText = `${t('model.system')}: ${modelToUse[lang === 'es' ? 'labelEs' : 'labelEn']} ${t('model.downloaded')}`;
       setInitNotification(doneText);
     } catch (e: any) {
       const errorStr = String(e?.message || e);
@@ -1200,6 +1247,28 @@ export default function NeuralLinkScreen() {
       setMessages(prev => prev.filter(m => m.id !== msgId));
     } catch (e) { console.error('Delete error:', e); }
   }, [db]);
+
+  const getMessageItemType = useCallback((item: Message) => {
+    if (item.role === 'user') return 'user';
+    if (item.imageUri) return 'ai-image';
+    if (item.thoughts || item.tool_query) return 'ai-thought';
+    if (!item.text) return 'ai-typing';
+    return 'ai-text';
+  }, []);
+
+  const overrideItemLayout = useCallback((layout: any, item: Message) => {
+    if (item.role === 'user') {
+      layout.size = 80;
+    } else if (item.imageUri) {
+      layout.size = 200;
+    } else if (item.thoughts || item.tool_query) {
+      layout.size = 180;
+    } else if (!item.text) {
+      layout.size = 60;
+    } else {
+      layout.size = 120;
+    }
+  }, []);
 
   const renderMessage = useCallback(({ item, index }: { item: Message, index: number }) => {
     const isLatest = index === 0;
@@ -1424,23 +1493,7 @@ export default function NeuralLinkScreen() {
           setOnboardingStep={setOnboardingStep}
           userProfile={userProfile}
           setUserProfile={setUserProfile}
-          psyStep={psyStep}
-          setPsyStep={setPsyStep}
-          psyAnswers={psyAnswers}
-          setPsyAnswers={setPsyAnswers}
-          setPsyProfile={(p) => setPsyProfile({
-            O: p.O,
-            C: p.C,
-            E: p.E,
-            A: p.A,
-            N: p.N,
-            D: p.D,
-            L: p.L,
-            moodBalance: p.moodBalance ?? 0,
-            mbtiType: p.mbtiType ?? ''
-          })}
           setIsOnboardingComplete={setIsOnboardingComplete}
-          setPsyCompleted={setPsyCompleted}
           db={db}
           handleDownload={handleDownload}
           canResume={canResume}
@@ -1448,13 +1501,18 @@ export default function NeuralLinkScreen() {
           modelExists={modelExists}
           downloadPercent={downloadPercent}
           downloadedMB={downloadedMB}
-          downloadingModel={downloadingModel}
-          downloadingType={downloadingType}
+          downloadingModel={downloadingModel as any}
+          downloadingType={downloadingType as any}
           activeModel={activeModel}
           downloadSpeed={downloadSpeed}
           waitPhrase={waitPhrase}
           handleLoad={handleLoad}
           selectedModel={selectedModel}
+          setSelectedModel={setSelectedModel}
+          AVAILABLE_MODELS={AVAILABLE_MODELS}
+          handleConfirmVisionDownload={handleConfirmVisionDownload}
+          checkSpecificModelExists={checkSpecificModelExists}
+          checkVisionModelExists={checkVisionModelExists}
         />
 
         <ModelLoaderPanel
@@ -1490,6 +1548,8 @@ export default function NeuralLinkScreen() {
               estimatedItemSize={120}
               data={reversedFilteredMessages}
               keyExtractor={(item) => String(item.id ?? `msg_${item.created_at}`)}
+              getItemType={getMessageItemType}
+              overrideItemLayout={overrideItemLayout}
               renderItem={renderMessage}
               contentContainerStyle={styles.chatContainer}
               overScrollMode="never"
@@ -1717,11 +1777,11 @@ export default function NeuralLinkScreen() {
         downloadedMB={downloadedMB}
         downloadSpeed={downloadSpeed}
         menuItems={[
-          { emoji: '👤', labelEs: 'Perfil del Usuario', labelEn: 'User Profile', onPress: () => { setShowKebabMenu(false); onKebabAction('profile'); } },
-          { emoji: '👓', labelEs: 'Introducción', labelEn: 'Introduction', onPress: () => { setShowKebabMenu(false); onKebabAction('intro'); } },
-          { emoji: '🔊', labelEs: 'Configuración Voz Android', labelEn: 'Android Voice Settings', onPress: () => { setShowKebabMenu(false); onKebabAction('voice_settings'); } },
-          { emoji: '🔒', labelEs: 'Encriptación de Datos', labelEn: 'Data Encryption', onPress: () => { setShowKebabMenu(false); onKebabAction('vault'); } },
-          { emoji: '🗑️', labelEs: 'Borrar Historial', labelEn: 'Clear History', onPress: () => { setShowKebabMenu(false); onKebabAction('clear'); } },
+          { emoji: '👤', labelEs: 'Perfil del Usuario', labelEn: 'User Profile', onPress: () => { setShowKebabMenu(false); setTimeout(() => onKebabAction('profile'), Platform.OS === 'android' ? 100 : 0); } },
+          { emoji: '👓', labelEs: 'Introducción', labelEn: 'Introduction', onPress: () => { setShowKebabMenu(false); setTimeout(() => onKebabAction('intro'), Platform.OS === 'android' ? 100 : 0); } },
+          { emoji: '🔊', labelEs: 'Configuración Voz Android', labelEn: 'Android Voice Settings', onPress: () => { setShowKebabMenu(false); setTimeout(() => onKebabAction('voice_settings'), Platform.OS === 'android' ? 100 : 0); } },
+          { emoji: '🔒', labelEs: 'Encriptación de Datos', labelEn: 'Data Encryption', onPress: () => { setShowKebabMenu(false); setTimeout(() => onKebabAction('vault'), Platform.OS === 'android' ? 100 : 0); } },
+          { emoji: '🗑️', labelEs: 'Borrar Historial', labelEn: 'Clear History', onPress: () => { setShowKebabMenu(false); setTimeout(() => onKebabAction('clear'), Platform.OS === 'android' ? 100 : 0); } },
         ]}
       />
     </>
