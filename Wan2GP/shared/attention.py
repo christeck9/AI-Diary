@@ -205,10 +205,9 @@ def sdpa_wrapper(
     q = q.transpose(1,2)
     k = k.transpose(1,2)
     v = v.transpose(1,2)
+    print(f"[DEBUG SDPA] q shape: {q.shape}, k shape: {k.shape}, mask: {attention_mask is not None}, causal: {causal}")
     if attention_mask != None:
-        print(f"[DEBUG SDPA] q shape: {q.shape}, k shape: {k.shape}, mask shape: {attention_mask.shape}")
         attention_mask = attention_mask.transpose(1,2)
-        print(f"[DEBUG SDPA] after transpose, mask shape: {attention_mask.shape}")
     o = F.scaled_dot_product_attention(q, k, v, attn_mask=attention_mask, is_causal=causal).transpose(1,2)
     del q, k ,v
     qkv_list.clear()
