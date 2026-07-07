@@ -8,7 +8,7 @@ import { SanctuaryHeader } from '../../components/SanctuaryHeader';
 import { KebabMenuOverlay } from '../../components/KebabMenuOverlay';
 import { useSQLiteContext } from 'expo-sqlite';
 
-import { MatrixRain } from '@/components/MatrixRain';
+const MatrixRain = React.lazy(() => import('@/components/MatrixRain').then(m => ({ default: m.MatrixRain })));
 import { IconSymbol } from '../../components/ui/icon-symbol';
 import { consultCodex } from '../../lib/openlibrary';
 import { wikipediaSearch } from '../../lib/wikipedia';
@@ -30,7 +30,7 @@ import { InteractiveCalendar } from '../../components/ui/InteractiveCalendar';
 
 import * as DocumentPicker from 'expo-document-picker';
 import { LibraryManagerService, LibraryBook, SearchResult } from '../../lib/LibraryManagerService';
-import { BookReaderModal } from '../../components/modals/BookReaderModal';
+const BookReaderModal = React.lazy(() => import('../../components/modals/BookReaderModal').then(m => ({ default: m.BookReaderModal })));
 
 
 export default function ToolsScreen() {
@@ -647,7 +647,11 @@ export default function ToolsScreen() {
   return (
     <>
       <SafeAreaView style={[styles.container, { backgroundColor: activeTheme === 'matrix' ? '#000000' : colors.background }]}>
-        {activeTheme === 'matrix' && <MatrixRain />}
+        {activeTheme === 'matrix' && (
+          <React.Suspense fallback={null}>
+            <MatrixRain />
+          </React.Suspense>
+        )}
 
         <View style={{ zIndex: 100 }}>
           <SanctuaryHeader
@@ -705,7 +709,7 @@ export default function ToolsScreen() {
                 <View style={styles.cardHeader}>
                   <IconSymbol name="list.bullet.clipboard.fill" size={20} color={colors.primary} />
                   <Text style={[styles.cardTitle, { color: colors.primary }]}>
-                    {lang === 'es' ? 'TO-DO LIST / NOTAS' : 'TO-DO LIST / NOTES'}
+                    {lang === 'es' ? 'PENDIENTES / OBJETIVOS' : 'TO-DO LISTS / OBJECTIVES'}
                   </Text>
                 </View>
 
@@ -811,7 +815,7 @@ export default function ToolsScreen() {
                     onPress={() => setLibActiveTab('search')}
                   >
                     <Text style={{ color: libActiveTab === 'search' ? colors.primary : colors.textSecondary, fontWeight: 'bold', fontSize: 13 }}>
-                      {lang === 'es' ? 'Descargar' : 'Download'}
+                      {lang === 'es' ? 'Descargar PDFs' : 'Download PDFs'}
                     </Text>
                   </TouchableOpacity>
                   <TouchableOpacity
@@ -819,7 +823,7 @@ export default function ToolsScreen() {
                     onPress={() => { setLibActiveTab('library'); loadLibrary(); }}
                   >
                     <Text style={{ color: libActiveTab === 'library' ? colors.primary : colors.textSecondary, fontWeight: 'bold', fontSize: 13 }}>
-                      {lang === 'es' ? `Mi Biblioteca (${libraryBooks.length})` : `My Library (${libraryBooks.length})`}
+                      {lang === 'es' ? `Lee PDFs (${libraryBooks.length})` : `Read PDFs (${libraryBooks.length})`}
                     </Text>
                   </TouchableOpacity>
                 </View>
@@ -1011,7 +1015,7 @@ export default function ToolsScreen() {
                 <View style={styles.cardHeader}>
                   <IconSymbol name="globe" size={20} color={colors.primary} />
                   <Text style={[styles.cardTitle, { color: colors.primary }]}>
-                    {lang === 'es' ? 'BÚSQUEDA EN WIKIPEDIA' : 'WIKIPEDIA SEARCH'}
+                    {lang === 'es' ? 'BUSCA TÓPICOS DE WIKIPEDIA GRATIS' : 'SEARCH WIKIPEDIA TOPICS'}
                   </Text>
                 </View>
 
@@ -1088,6 +1092,11 @@ export default function ToolsScreen() {
                     {lang === 'es' ? 'HERRAMIENTA DE DICTADO' : 'DICTATION TOOL'}
                   </Text>
                 </View>
+                <Text style={{ fontSize: 12, color: colors.textSecondary, marginTop: -12, marginBottom: 15, lineHeight: 16 }}>
+                  {lang === 'es' 
+                    ? 'Con el micrófono, habla y conviértelo a texto, se guarda en memoria y lo puedes pegar fuera de la aplicación o crea un PDF con tu dictado.' 
+                    : 'With the microphone, speak and convert it to text. It is saved in memory and you can paste it outside the application or create a PDF with your dictation.'}
+                </Text>
 
                 {/* DICTATION TOOL EXTERNAL CARD (Simplified) */}
                 <View style={{ flexDirection: 'row', gap: 10, marginTop: 15 }}>
@@ -1489,10 +1498,10 @@ export default function ToolsScreen() {
         colors={colors}
         lang={lang}
         menuItems={[
-          { emoji: '👤', labelEs: 'Perfil del Usuario', labelEn: 'User Profile', onPress: () => { setShowKebabMenu(false); openModal('profile'); } },
-          { emoji: '👓', labelEs: 'Introducción', labelEn: 'Introduction', onPress: () => { setShowKebabMenu(false); openModal('intro'); } },
-          { emoji: '🔊', labelEs: 'Configuración Voz Android', labelEn: 'Android Voice Settings', onPress: () => { setShowKebabMenu(false); openModal('voice_settings'); } },
-          { emoji: '🔒', labelEs: 'Encriptación de Datos', labelEn: 'Data Encryption', onPress: () => { setShowKebabMenu(false); openModal('vault'); } },
+          { emoji: '👤', labelEs: 'Perfil del Usuario', labelEn: 'User Profile', onPress: () => { setShowKebabMenu(false); setTimeout(() => openModal('profile'), Platform.OS === 'android' ? 100 : 0); } },
+          { emoji: '👓', labelEs: 'Introducción', labelEn: 'Introduction', onPress: () => { setShowKebabMenu(false); setTimeout(() => openModal('intro'), Platform.OS === 'android' ? 100 : 0); } },
+          { emoji: '🔊', labelEs: 'Configuración Voz Android', labelEn: 'Android Voice Settings', onPress: () => { setShowKebabMenu(false); setTimeout(() => openModal('voice_settings'), Platform.OS === 'android' ? 100 : 0); } },
+          { emoji: '🔒', labelEs: 'Encriptación de Datos', labelEn: 'Data Encryption', onPress: () => { setShowKebabMenu(false); setTimeout(() => openModal('vault'), Platform.OS === 'android' ? 100 : 0); } },
           {
             emoji: '🗑️', labelEs: 'Borrar Historial', labelEn: 'Clear History', onPress: () => {
               setShowKebabMenu(false);
@@ -1508,14 +1517,16 @@ export default function ToolsScreen() {
       />
 
       {selectedBook && db && (
-        <BookReaderModal
-          visible={isReaderVisible}
-          onClose={() => setIsReaderVisible(false)}
-          book={selectedBook}
-          colors={colors}
-          lang={lang}
-          db={db}
-        />
+        <React.Suspense fallback={null}>
+          <BookReaderModal
+            visible={isReaderVisible}
+            onClose={() => setIsReaderVisible(false)}
+            book={selectedBook}
+            colors={colors}
+            lang={lang}
+            db={db}
+          />
+        </React.Suspense>
       )}
     </>
   );

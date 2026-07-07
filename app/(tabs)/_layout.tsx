@@ -7,14 +7,16 @@ import { IconSymbol } from '@/components/ui/icon-symbol';
 import { useAppTheme } from '../../contexts/ThemeContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { PsiIcon } from '../../components/ui/PsiIcon';
+import { GlobalModalsRenderer } from '../../contexts/GlobalModalsContext';
 
 export default function TabLayout() {
   const { colors, activeTheme } = useAppTheme();
   const { t, lang } = useLanguage();
 
   return (
-    <Tabs
-      screenOptions={{
+    <>
+      <Tabs
+        screenOptions={{
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.textSecondary,
         headerShown: false,
@@ -34,7 +36,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Home',
+          title: 'AI Home',
           tabBarIcon: ({ color }) => <IconSymbol size={28} name="house.fill" color={color} />,
         }}
       />
@@ -67,6 +69,8 @@ export default function TabLayout() {
         }}
       />
     </Tabs>
+      <GlobalModalsRenderer />
+    </>
   );
 }
 

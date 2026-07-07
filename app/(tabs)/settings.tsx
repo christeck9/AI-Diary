@@ -1,5 +1,5 @@
 // 🚨 MANDATORY: CHECK DESIGN_PROTOCOL_v1.8.0.md BEFORE MODIFYING UI OR LOGIC.
-import { MatrixRain } from '@/components/MatrixRain';
+const MatrixRain = React.lazy(() => import('@/components/MatrixRain').then(m => ({ default: m.MatrixRain })));
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import * as FileSystem from 'expo-file-system';
 import * as SecureStore from 'expo-secure-store';
@@ -457,7 +457,11 @@ export default function SettingsScreen() {
   return (
     <>
       <SafeAreaView style={[styles.container, { backgroundColor: activeTheme === 'matrix' ? '#000000' : colors.background }]}>
-        {activeTheme === 'matrix' && <MatrixRain />}
+        {activeTheme === 'matrix' && (
+          <React.Suspense fallback={null}>
+            <MatrixRain />
+          </React.Suspense>
+        )}
 
         <SanctuaryHeader 
           showVoiceIcon={false}
@@ -1628,11 +1632,11 @@ export default function SettingsScreen() {
         colors={colors}
         lang={lang}
         menuItems={[
-          { emoji: '👤', labelEs: 'Perfil del Usuario', labelEn: 'User Profile', onPress: () => { setShowKebabMenu(false); onKebabAction('profile'); } },
-          { emoji: '👓', labelEs: 'Introducción', labelEn: 'Introduction', onPress: () => { setShowKebabMenu(false); onKebabAction('intro'); } },
-          { emoji: '🔊', labelEs: 'Configuración Voz Android', labelEn: 'Android Voice Settings', onPress: () => { setShowKebabMenu(false); onKebabAction('voice_settings'); } },
-          { emoji: '🔒', labelEs: 'Encriptación de Datos', labelEn: 'Data Encryption', onPress: () => { setShowKebabMenu(false); onKebabAction('vault'); } },
-          { emoji: '🗑️', labelEs: 'Borrar Historial', labelEn: 'Clear History', onPress: () => { setShowKebabMenu(false); onKebabAction('clear'); } },
+          { emoji: '👤', labelEs: 'Perfil del Usuario', labelEn: 'User Profile', onPress: () => { setShowKebabMenu(false); setTimeout(() => onKebabAction('profile'), Platform.OS === 'android' ? 100 : 0); } },
+          { emoji: '👓', labelEs: 'Introducción', labelEn: 'Introduction', onPress: () => { setShowKebabMenu(false); setTimeout(() => onKebabAction('intro'), Platform.OS === 'android' ? 100 : 0); } },
+          { emoji: '🔊', labelEs: 'Configuración Voz Android', labelEn: 'Android Voice Settings', onPress: () => { setShowKebabMenu(false); setTimeout(() => onKebabAction('voice_settings'), Platform.OS === 'android' ? 100 : 0); } },
+          { emoji: '🔒', labelEs: 'Encriptación de Datos', labelEn: 'Data Encryption', onPress: () => { setShowKebabMenu(false); setTimeout(() => onKebabAction('vault'), Platform.OS === 'android' ? 100 : 0); } },
+          { emoji: '🗑️', labelEs: 'Borrar Historial', labelEn: 'Clear History', onPress: () => { setShowKebabMenu(false); setTimeout(() => onKebabAction('clear'), Platform.OS === 'android' ? 100 : 0); } },
         ]}
       />
     </>

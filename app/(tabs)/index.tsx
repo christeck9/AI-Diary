@@ -1,5 +1,5 @@
 // 🚨 MANDATORY: CHECK DESIGN_PROTOCOL_v1.8.0.md BEFORE MODIFYING UI OR LOGIC.
-import { MatrixRain } from '@/components/MatrixRain';
+const MatrixRain = React.lazy(() => import('@/components/MatrixRain').then(m => ({ default: m.MatrixRain })));
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { FlashList } from '@shopify/flash-list';
 import * as Battery from 'expo-battery';
@@ -13,7 +13,7 @@ import * as ExpoClipboard from 'expo-clipboard';
 import { Directions, Gesture, GestureDetector, Swipeable } from 'react-native-gesture-handler';
 import Animated, { FadeInDown, FadeOutUp, interpolate, runOnJS, useAnimatedStyle, useSharedValue, withRepeat, withSequence, withTiming } from 'react-native-reanimated';
 import { useSQLiteContext } from '../../components/MemoryProvider';
-import { OnboardingModal } from '../../components/modals/OnboardingModal';
+const OnboardingModal = React.lazy(() => import('../../components/modals/OnboardingModal').then(m => ({ default: m.OnboardingModal })));
 import { VoiceOverlay } from '../../components/modals/VoiceOverlay';
 import { SanctuaryHeader } from '../../components/SanctuaryHeader';
 import { KebabMenuOverlay } from '../../components/KebabMenuOverlay';
@@ -48,7 +48,7 @@ import { VoiceNoteOverlay } from '../../components/VoiceNoteOverlay';
 import { ModelLoaderPanel } from '../../components/ModelLoaderPanel';
 import { ChatInputBar } from '../../components/ChatInputBar';
 
-import { VisionDownloadModal } from '../../components/VisionDownloadModal';
+const VisionDownloadModal = React.lazy(() => import('../../components/VisionDownloadModal').then(m => ({ default: m.VisionDownloadModal })));
 
 export default function NeuralLinkScreen() {
   const navigation = useNavigation();
@@ -1352,7 +1352,11 @@ export default function NeuralLinkScreen() {
   return (
     <>
       <SafeAreaView style={[styles.container, { backgroundColor: activeTheme === 'matrix' ? '#000000' : colors.background }]}>
-        {activeTheme === 'matrix' && <MatrixRain paused={isTyping} />}
+        {activeTheme === 'matrix' && (
+          <React.Suspense fallback={null}>
+            <MatrixRain paused={isTyping} />
+          </React.Suspense>
+        )}
         <SanctuaryHeader
           onVoicePress={() => {
             // CHAT VOICE: prende / apaga la voz de la IA (TTS)
@@ -1484,36 +1488,38 @@ export default function NeuralLinkScreen() {
           </View>
         )}
 
-        <OnboardingModal
-          visible={!isOnboardingComplete}
-          lang={lang}
-          setLang={setLang}
-          colors={colors}
-          onboardingStep={onboardingStep}
-          setOnboardingStep={setOnboardingStep}
-          userProfile={userProfile}
-          setUserProfile={setUserProfile}
-          setIsOnboardingComplete={setIsOnboardingComplete}
-          db={db}
-          handleDownload={handleDownload}
-          canResume={canResume}
-          status={status}
-          modelExists={modelExists}
-          downloadPercent={downloadPercent}
-          downloadedMB={downloadedMB}
-          downloadingModel={downloadingModel as any}
-          downloadingType={downloadingType as any}
-          activeModel={activeModel}
-          downloadSpeed={downloadSpeed}
-          waitPhrase={waitPhrase}
-          handleLoad={handleLoad}
-          selectedModel={selectedModel}
-          setSelectedModel={setSelectedModel}
-          AVAILABLE_MODELS={AVAILABLE_MODELS}
-          handleConfirmVisionDownload={handleConfirmVisionDownload}
-          checkSpecificModelExists={checkSpecificModelExists}
-          checkVisionModelExists={checkVisionModelExists}
-        />
+        <React.Suspense fallback={null}>
+          <OnboardingModal
+            visible={!isOnboardingComplete}
+            lang={lang}
+            setLang={setLang}
+            colors={colors}
+            onboardingStep={onboardingStep}
+            setOnboardingStep={setOnboardingStep}
+            userProfile={userProfile}
+            setUserProfile={setUserProfile}
+            setIsOnboardingComplete={setIsOnboardingComplete}
+            db={db}
+            handleDownload={handleDownload}
+            canResume={canResume}
+            status={status}
+            modelExists={modelExists}
+            downloadPercent={downloadPercent}
+            downloadedMB={downloadedMB}
+            downloadingModel={downloadingModel as any}
+            downloadingType={downloadingType as any}
+            activeModel={activeModel}
+            downloadSpeed={downloadSpeed}
+            waitPhrase={waitPhrase}
+            handleLoad={handleLoad}
+            selectedModel={selectedModel}
+            setSelectedModel={setSelectedModel}
+            AVAILABLE_MODELS={AVAILABLE_MODELS}
+            handleConfirmVisionDownload={handleConfirmVisionDownload}
+            checkSpecificModelExists={checkSpecificModelExists}
+            checkVisionModelExists={checkVisionModelExists}
+          />
+        </React.Suspense>
 
         <ModelLoaderPanel
           status={status}
@@ -1697,15 +1703,17 @@ export default function NeuralLinkScreen() {
             downloadedMB={downloadedMB}
             downloadSpeed={downloadSpeed}
           />
-          <VisionDownloadModal
-            visible={showVisionModal}
-            onClose={handleCloseVisionModal}
-            onConfirm={handleConfirmVisionDownload}
-            modelName={activeModel?.label || 'Anima AI'}
-            sizeMB={activeModel?.mmprojSizeMB || 940}
-            colors={colors}
-            lang={lang}
-          />
+          <React.Suspense fallback={null}>
+            <VisionDownloadModal
+              visible={showVisionModal}
+              onClose={handleCloseVisionModal}
+              onConfirm={handleConfirmVisionDownload}
+              modelName={activeModel?.label || 'Anima AI'}
+              sizeMB={activeModel?.mmprojSizeMB || 940}
+              colors={colors}
+              lang={lang}
+            />
+          </React.Suspense>
         </View>
 
         {/* Modales extracted to GlobalModalsContext */}

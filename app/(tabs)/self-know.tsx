@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View, Alert, Platform, StatusBar } from 'react-native';
+import { SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View, Alert, Platform, StatusBar, Dimensions } from 'react-native';
 import { useAppTheme } from '../../contexts/ThemeContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useProfile } from '../../contexts/ProfileContext';
@@ -145,7 +145,8 @@ export default function SelfKnowScreen() {
   ];
 
   // Layout Math
-  const cx = 135;
+  const screenWidth = Dimensions.get('window').width;
+  const cx = (screenWidth - 40) / 2;
   const cy = 135;
   const r = 85;
   const chipWidth = 84;
@@ -175,15 +176,17 @@ export default function SelfKnowScreen() {
     if (!db) return;
     try {
       const pRes: any[] = await db.getAllAsync('SELECT * FROM user_profile LIMIT 1');
-      const msgs: any[] = await db.getAllAsync('SELECT * FROM messages ORDER BY created_at ASC');
+      const msgsRaw: any[] = await db.getAllAsync('SELECT * FROM messages ORDER BY created_at ASC');
+      // Limit to 200 messages to prevent OOM / UI Thread block in PDF rendering
+      const msgs = msgsRaw.length > 200 ? msgsRaw.slice(-200) : msgsRaw;
       const profile = pRes[0] || { name: 'Unknown', nickname: 'User' };
       
       let chatHtml = '';
       if (msgs.length === 0) {
         chatHtml = `<p style="font-style: italic; color: #777;">${
           lang === 'es' 
-            ? 'No hay mensajes en el historial.' 
-            : 'No messages in chat history.'
+            ? 'No hay mensajes en el historial (mostrando últimos 200).' 
+            : 'No messages in chat history (showing last 200).'
         }</p>`;
       } else {
         chatHtml = msgs.map(m => {
@@ -236,7 +239,7 @@ export default function SelfKnowScreen() {
             </div>
 
             <div class="section">
-              <div class="section-title">${lang === 'es' ? 'Historial Completo de Conversaciones' : 'Complete Chat History'}</div>
+              <div class="section-title">${lang === 'es' ? 'Historial de Conversaciones (Últimos 200 mensajes)' : 'Chat History (Last 200 messages)'}</div>
               ${chatHtml}
             </div>
           </body>
@@ -572,17 +575,23 @@ export default function SelfKnowScreen() {
           {/* SVG Connecting Lines */}
           <Svg style={StyleSheet.absoluteFill}>
             {nodesToRender.map((node, i) => {
-              const angle = (i * 2 * Math.PI) / nodesToRender.length - Math.PI / 2;
+              const numNodes = Math.max(1, nodesToRender.length);
+              const angle = (i * 2 * Math.PI) / numNodes - Math.PI / 2;
               const x = cx + r * Math.cos(angle);
               const y = cy + r * Math.sin(angle);
+              
+              // Evitar valores NaN en coordenadas
+              const safeX = isNaN(x) ? cx : x;
+              const safeY = isNaN(y) ? cy : y;
+              
               return (
                 <Line
                   key={i}
                   x1={cx}
                   y1={cy}
-                  x2={x}
-                  y2={y}
-                  stroke={activeTheme === 'matrix' ? '#00FF00' : colors.primary}
+                  x2={safeX}
+                  y2={safeY}
+                  stroke={activeTheme === 'matrix' ? '#00FF00' : (colors.primary || '#6366f1')}
                   strokeWidth="1.5"
                   strokeDasharray="4,4"
                 />
@@ -592,9 +601,14 @@ export default function SelfKnowScreen() {
 
           {/* Surrounding Node Chips */}
           {nodesToRender.map((node, i) => {
-            const angle = (i * 2 * Math.PI) / nodesToRender.length - Math.PI / 2;
+            const numNodes = Math.max(1, nodesToRender.length);
+            const angle = (i * 2 * Math.PI) / numNodes - Math.PI / 2;
             const x = cx + r * Math.cos(angle);
             const y = cy + r * Math.sin(angle);
+            
+            const safeX = isNaN(x) ? cx : x;
+            const safeY = isNaN(y) ? cy : y;
+            
             return (
               <TouchableOpacity
                 key={i}
@@ -612,12 +626,12 @@ export default function SelfKnowScreen() {
                 style={[
                   styles.mindMapChip,
                   {
-                    left: x - chipWidth / 2,
-                    top: y - chipHeight / 2,
+                    left: safeX - chipWidth / 2,
+                    top: safeY - chipHeight / 2,
                     width: chipWidth,
                     height: chipHeight,
-                    borderColor: node.color,
-                    backgroundColor: colors.surface,
+                    borderColor: node.color || '#DDD',
+                    backgroundColor: colors.surface || '#FFF',
                   }
                 ]}
               >
@@ -714,11 +728,11 @@ export default function SelfKnowScreen() {
       colors={colors}
       lang={lang}
       menuItems={[
-        { emoji: '👤', labelEs: 'Perfil del Usuario', labelEn: 'User Profile', onPress: () => { setShowKebabMenu(false); onKebabAction('profile'); } },
-        { emoji: '👓', labelEs: 'Introducción', labelEn: 'Introduction', onPress: () => { setShowKebabMenu(false); onKebabAction('intro'); } },
-        { emoji: '🔊', labelEs: 'Configuración Voz Android', labelEn: 'Android Voice Settings', onPress: () => { setShowKebabMenu(false); onKebabAction('voice_settings'); } },
-        { emoji: '🔒', labelEs: 'Encriptación de Datos', labelEn: 'Data Encryption', onPress: () => { setShowKebabMenu(false); onKebabAction('vault'); } },
-        { emoji: '🗑️', labelEs: 'Borrar Historial', labelEn: 'Clear History', onPress: () => { setShowKebabMenu(false); onKebabAction('clear'); } },
+        { emoji: '👤', labelEs: 'Perfil del Usuario', labelEn: 'User Profile', onPress: () => { setShowKebabMenu(false); setTimeout(() => onKebabAction('profile'), Platform.OS === 'android' ? 100 : 0); } },
+        { emoji: '👓', labelEs: 'Introducción', labelEn: 'Introduction', onPress: () => { setShowKebabMenu(false); setTimeout(() => onKebabAction('intro'), Platform.OS === 'android' ? 100 : 0); } },
+        { emoji: '🔊', labelEs: 'Configuración Voz Android', labelEn: 'Android Voice Settings', onPress: () => { setShowKebabMenu(false); setTimeout(() => onKebabAction('voice_settings'), Platform.OS === 'android' ? 100 : 0); } },
+        { emoji: '🔒', labelEs: 'Encriptación de Datos', labelEn: 'Data Encryption', onPress: () => { setShowKebabMenu(false); setTimeout(() => onKebabAction('vault'), Platform.OS === 'android' ? 100 : 0); } },
+        { emoji: '🗑️', labelEs: 'Borrar Historial', labelEn: 'Clear History', onPress: () => { setShowKebabMenu(false); setTimeout(() => onKebabAction('clear'), Platform.OS === 'android' ? 100 : 0); } },
       ]}
     />
   </View>

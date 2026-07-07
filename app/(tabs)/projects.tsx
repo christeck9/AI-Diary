@@ -14,7 +14,7 @@ import { KebabMenuOverlay } from '../../components/KebabMenuOverlay';
 import { useGlobalModals } from '../../contexts/GlobalModalsContext';
 import { settingsService } from '../../lib/SettingsService';
 import { WisdomService } from '../../lib/WisdomService';
-import { VisionDownloadModal } from '../../components/VisionDownloadModal';
+const VisionDownloadModal = React.lazy(() => import('../../components/VisionDownloadModal').then(m => ({ default: m.VisionDownloadModal })));
 import * as Haptics from 'expo-haptics';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 
@@ -1242,15 +1242,17 @@ ${factsText}`;
                   </Text>
                 </View>
               )}
-              <VisionDownloadModal
-                visible={showVisionModal}
-                onClose={handleCloseVisionModal}
-                onConfirm={handleConfirmVisionDownload}
-                modelName={activeModel?.label || 'Anima AI'}
-                sizeMB={activeModel?.mmprojSizeMB || 940}
-                colors={colors}
-                lang={lang}
-              />
+              <React.Suspense fallback={null}>
+                <VisionDownloadModal
+                  visible={showVisionModal}
+                  onClose={handleCloseVisionModal}
+                  onConfirm={handleConfirmVisionDownload}
+                  modelName={activeModel?.label || 'Anima AI'}
+                  sizeMB={activeModel?.mmprojSizeMB || 940}
+                  colors={colors}
+                  lang={lang}
+                />
+              </React.Suspense>
             </View>
           </>
         )}
@@ -1344,11 +1346,11 @@ ${factsText}`;
         downloadedMB={downloadedMB}
         downloadSpeed={downloadSpeed}
         menuItems={[
-          { emoji: '👤', labelEs: 'Perfil del Usuario', labelEn: 'User Profile', onPress: () => { setShowKebabMenu(false); onKebabAction('profile'); } },
-          { emoji: '👓', labelEs: 'Introducción', labelEn: 'Introduction', onPress: () => { setShowKebabMenu(false); onKebabAction('intro'); } },
-          { emoji: '🔊', labelEs: 'Configuración Voz Android', labelEn: 'Android Voice Settings', onPress: () => { setShowKebabMenu(false); onKebabAction('voice_settings'); } },
-          { emoji: '🔒', labelEs: 'Encriptación de Datos', labelEn: 'Data Encryption', onPress: () => { setShowKebabMenu(false); onKebabAction('vault'); } },
-          { emoji: '🗑️', labelEs: 'Borrar Historial', labelEn: 'Clear History', onPress: () => { setShowKebabMenu(false); onKebabAction('clear'); } },
+          { emoji: '👤', labelEs: 'Perfil del Usuario', labelEn: 'User Profile', onPress: () => { setShowKebabMenu(false); setTimeout(() => onKebabAction('profile'), Platform.OS === 'android' ? 100 : 0); } },
+          { emoji: '👓', labelEs: 'Introducción', labelEn: 'Introduction', onPress: () => { setShowKebabMenu(false); setTimeout(() => onKebabAction('intro'), Platform.OS === 'android' ? 100 : 0); } },
+          { emoji: '🔊', labelEs: 'Configuración Voz Android', labelEn: 'Android Voice Settings', onPress: () => { setShowKebabMenu(false); setTimeout(() => onKebabAction('voice_settings'), Platform.OS === 'android' ? 100 : 0); } },
+          { emoji: '🔒', labelEs: 'Encriptación de Datos', labelEn: 'Data Encryption', onPress: () => { setShowKebabMenu(false); setTimeout(() => onKebabAction('vault'), Platform.OS === 'android' ? 100 : 0); } },
+          { emoji: '🗑️', labelEs: 'Borrar Historial', labelEn: 'Clear History', onPress: () => { setShowKebabMenu(false); setTimeout(() => onKebabAction('clear'), Platform.OS === 'android' ? 100 : 0); } },
         ]}
       />
     </View>
