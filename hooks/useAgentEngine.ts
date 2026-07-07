@@ -444,15 +444,18 @@ export const useAgentEngine = (
         textBufferRef.current = '';
 
         Logger.debug(`[AGENT_ENGINE] 🔫 Round ${toolRounds + 1} started.`);
-
         setProcessingPhase('generating');
         resetFlushTimer();
-
+        
         if (flushIntervalRef.current) {
           clearInterval(flushIntervalRef.current);
         }
+        let lastFilteredLength = -1;
         flushIntervalRef.current = setInterval(() => {
           const currentText = textBufferRef.current;
+          if (currentText.length === lastFilteredLength) return;
+          lastFilteredLength = currentText.length;
+          
           const filteredText = SentinelService.filterUI(currentText, arch);
           const thoughts = SentinelService.purifyThoughts(currentText);
           setMessagesUI((prev: any) => {
@@ -834,10 +837,10 @@ export const useAgentEngine = (
       if (llamaContextRef?.current && finalText && db) {
         (async () => {
           try {
-            if (isVoice) {
-              console.log('[AGENT_ENGINE] ⏳ Voice mode active: deferring background tasks by 35s to clear TTS path...');
-              await new Promise(resolve => setTimeout(resolve, 35000));
-            }
+      if (isVoice) {
+        console.log('[AGENT_ENGINE] ⏳ Voice mode active: deferring background tasks by 10s to clear TTS path...');
+        await new Promise(resolve => setTimeout(resolve, 10000));
+      }
              console.log('[AGENT_ENGINE] 🧠 Starting background fact extraction...');
              await factExtractionService.extractFacts(llamaContextRef.current, userText, finalText, db, arch, generateEmbeddings);
  
