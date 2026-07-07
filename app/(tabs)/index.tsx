@@ -1270,7 +1270,7 @@ export default function NeuralLinkScreen() {
     }
   }, []);
 
-  const renderMessage = useCallback(({ item, index }: { item: Message, index: number }) => {
+  const renderMessage = useCallback(({ item, index, extraData }: any) => {
     const isLatest = index === 0;
     return (
       <MessageItem
@@ -1278,8 +1278,8 @@ export default function NeuralLinkScreen() {
         colors={colors}
         isAi={item.role === 'ai'}
         isLatest={isLatest}
-        isTyping={isTyping}
-        processingPhase={processingPhase}
+        isTyping={extraData?.isTyping || false}
+        processingPhase={extraData?.processingPhase || 'idle'}
         lang={lang}
         onAction={(action, msg) => {
           if (action === 'copy') {
@@ -1303,7 +1303,7 @@ export default function NeuralLinkScreen() {
         onImagePress={handleImagePress}
       />
     );
-  }, [colors, isTyping, processingPhase, lang, handleReportMessage, handleImagePress, isTypingRef, addSystemMessage, handleSend, handleDeleteMessage]);
+  }, [colors, lang, handleReportMessage, handleImagePress, isTypingRef, addSystemMessage, handleSend, handleDeleteMessage]);
 
   const onKebabAction = useCallback(async (action: string) => {
     if (action === 'intro') openModal('intro');
@@ -1554,7 +1554,7 @@ export default function NeuralLinkScreen() {
               contentContainerStyle={styles.chatContainer}
               overScrollMode="never"
               bounces={false}
-              extraData={{ isTyping, colors, activeTheme }}
+              extraData={{ isTyping, processingPhase }}
               ListHeaderComponent={null}
               ListFooterComponent={
                 (!isFiltering && messages.length >= messagesLimit) ? (
