@@ -1,16 +1,16 @@
 @echo off
 setlocal enabledelayedexpansion
+cd /d "%~dp0"
 
 echo ====================================================
 echo   Wan2GP Standalone Installer ^& Launcher (NVIDIA)
 echo ====================================================
 echo.
-
-:: Path to Miniforge Conda from Pinokio
-set CONDA_BAT=C:\AI-Diary\Wan2GP\miniforge\condabin\conda.bat
+:: Path to Miniforge Conda
+set CONDA_BAT=%~dp0miniforge\condabin\conda.bat
 
 if not exist "%CONDA_BAT%" (
-    echo [ERROR] No se pudo encontrar Conda en la ruta: C:\PinokioSource\bin\miniforge\condabin\conda.bat
+    echo [ERROR] No se pudo encontrar Conda en la ruta: %CONDA_BAT%
     echo Por favor verifica que Miniforge se haya instalado correctamente en ese directorio.
     pause
     exit /b
@@ -36,19 +36,14 @@ if %errorlevel% neq 0 (
 
 :: Clone the Wan2GP repository if it doesn't exist
 echo [3/5] Descargando el codigo de Wan2GP...
-if not exist "Wan2GP" (
-    call git clone https://github.com/deepbeepmeep/Wan2GP.git
-    cd Wan2GP
+if not exist "wgp.py" (
+    echo Descargando codigo de Wan2GP en la carpeta actual...
+    call git init
+    call git remote add origin https://github.com/deepbeepmeep/Wan2GP.git
+    call git fetch
+    call git checkout -f main
 ) else (
-    echo La carpeta Wan2GP ya existe. Verificando archivos...
-    cd Wan2GP
-    if not exist "wgp.py" (
-        echo Descargando codigo de Wan2GP en la carpeta existente...
-        call git init
-        call git remote add origin https://github.com/deepbeepmeep/Wan2GP.git
-        call git fetch
-        call git checkout -f main
-    )
+    echo El codigo de Wan2GP ya existe.
 )
 
 :: Create the conda environment if it doesn't exist
