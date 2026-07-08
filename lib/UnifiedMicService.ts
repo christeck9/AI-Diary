@@ -22,8 +22,7 @@
 
 import { Audio, InterruptionModeAndroid, InterruptionModeIOS } from 'expo-av';
 import { PermissionsAndroid, Platform } from 'react-native';
-import { RealtimeTranscriber } from 'whisper.rn/lib/module/realtime-transcription';
-import { AudioPcmStreamAdapter } from 'whisper.rn/lib/module/realtime-transcription/adapters/AudioPcmStreamAdapter';
+// RealtimeTranscriber and AudioPcmStreamAdapter are dynamically imported
 
 export type MicCallback = (text: string, isCapturing: boolean, language?: string, sliceIndex?: number) => void;
 
@@ -114,9 +113,11 @@ class UnifiedMicService {
       });
 
       // 1. Instantiate the native PCM audio stream adapter
+      const { AudioPcmStreamAdapter } = await import('whisper.rn/lib/module/realtime-transcription/adapters/AudioPcmStreamAdapter');
       const audioStream = new AudioPcmStreamAdapter();
 
       // 2. Instantiate the Whisper RealtimeTranscriber
+      const { RealtimeTranscriber } = await import('whisper.rn/lib/module/realtime-transcription');
       const transcriber = new RealtimeTranscriber(
         {
           whisperContext,

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { Platform, AppState, AppStateStatus } from 'react-native';
 import { getCurrentTier, MemoryTier } from '../lib/MemoryManager';
 import * as FileSystem from 'expo-file-system';
@@ -168,11 +168,11 @@ const processNextTasks = async (context: any) => {
 
 
 export function useAppLlm(lang: string = 'es') {
-  const AVAILABLE_MODELS = MODEL_LIST.filter(m => m.id !== 'gemma3-4b-q4').map(m => ({
+  const AVAILABLE_MODELS = useMemo(() => MODEL_LIST.filter(m => m.id !== 'gemma3-4b-q4').map(m => ({
     ...m,
     label: lang === 'es' ? m.labelEs : m.labelEn,
     description: lang === 'es' ? m.descEs : m.descEn,
-  }));
+  })),[lang]);
   const [status, setStatus] = useState<'idle' | 'downloading' | 'loading' | 'ready'>('idle');
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloadingModel, setDownloadingModel] = useState<ModelDefinition | null>(null);
@@ -223,6 +223,7 @@ export function useAppLlm(lang: string = 'es') {
     if (Platform.OS === 'android') {
       const sharedPaths = [
         `file:///data/user/0/com.christeck.worldtrans/files/llm_models/${model.fileName}`,
+        `file:///data/user/0/com.christeck.aiworldtrans/files/llm_models/${model.fileName}`,
         `file:///data/user/0/com.christeck.aidiary/files/llm_models/${model.fileName}`
       ];
       for (const sPath of sharedPaths) {
@@ -361,6 +362,16 @@ export function useAppLlm(lang: string = 'es') {
       console.log('[LLM] Save model active state failed', e);
     }
   };
+
+  // 🛡️ Cleanup: Liberar slots de Llama al desmontar el hook (KiloAuditC-JSI)
+  useEffect(() => {
+    return () => {
+      if (llamaContextRef.current) {
+        releaseAllLlama().catch(e => console.warn('[LLM] Cleanup error:', e));
+        llamaContextRef.current = null;
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (!isDownloading) {
@@ -629,7 +640,7 @@ export function useAppLlm(lang: string = 'es') {
           console.error('[LLM] Error cleaning up partial download:', cleanupError);
         }
       } else {
-        console.warn('[LLM] Network or other resumable error occurred during download:', e.message);
+        console.log('[LLM] Network or other resumable error occurred during download:', e.message);
       }
 
       isDownloadingRef.current = false;
@@ -644,20 +655,31 @@ export function useAppLlm(lang: string = 'es') {
   const checkVisionModelExists = async (model: ModelDefinition): Promise<boolean> => {
     if (!model.mmprojFileName || !model.mmprojUrl) return true; // No vision required
     try {
-      const baseDir = FileSystem.documentDirectory?.replace(/\/+$/, '') + '/llm_models';
-      const mmprojPath = `${baseDir}/${model.mmprojFileName}`;
-      const mmprojInfo = await FileSystem.getInfoAsync(mmprojPath);
-
-      if (!mmprojInfo.exists || (mmprojInfo as any).size === 0) {
-        return false;
+      const localDir = `${FileSystem.documentDirectory?.replace(/\/+$/, '')}/llm_models`;
+      const localPath = `${localDir}/${model.mmprojFileName}`;
+      
+      const pathsToCheck = [localPath];
+      if (Platform.OS === 'android') {
+        pathsToCheck.push(
+          `file:///data/user/0/com.christeck.worldtrans/files/llm_models/${model.mmprojFileName}`,
+          `file:///data/user/0/com.christeck.aiworldtrans/files/llm_models/${model.mmprojFileName}`,
+          `file:///data/user/0/com.christeck.aidiary/files/llm_models/${model.mmprojFileName}`
+        );
       }
 
-      // Verify remote size to see if it is complete
-      const remoteMmprojSize = await getModelRemoteSize({ ...model, fileName: model.mmprojFileName, url: model.mmprojUrl } as ModelDefinition);
-      if (remoteMmprojSize && (mmprojInfo as any).size < remoteMmprojSize * 0.99) {
-        return false;
+      for (const path of pathsToCheck) {
+        try {
+          const mmprojInfo = await FileSystem.getInfoAsync(path);
+          if (mmprojInfo.exists && (mmprojInfo as any).size > 0) {
+            // Verify remote size to see if it is complete
+            const remoteMmprojSize = await getModelRemoteSize({ ...model, fileName: model.mmprojFileName, url: model.mmprojUrl } as ModelDefinition);
+            if (remoteMmprojSize && (mmprojInfo as any).size >= remoteMmprojSize * 0.99) {
+              return true;
+            }
+          }
+        } catch (err) {}
       }
-      return true;
+      return false;
     } catch (err) {
       console.warn('[LLM] Error checking vision model exists:', err);
       return false;
@@ -1223,7 +1245,7 @@ export function useAppLlm(lang: string = 'es') {
             await downloadModel(model);
             return; // Resume one at a time
           } catch (e) {
-            console.warn(`[LLM] Failed to resume ${model.id}:`, e);
+            console.log(`[LLM] Failed to resume ${model.id}:`, e);
           }
         }
       }
@@ -1241,7 +1263,7 @@ export function useAppLlm(lang: string = 'es') {
               await downloadVisionModel(model);
               return;
             } catch (e) {
-              console.warn(`[LLM] Failed to resume mmproj ${model.id}:`, e);
+              console.log(`[LLM] Failed to resume mmproj ${model.id}:`, e);
             }
           }
         }

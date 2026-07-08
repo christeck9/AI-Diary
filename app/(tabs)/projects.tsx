@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
-import DraggableFlatList, { ScaleDecorator } from 'react-native-draggable-flatlist';
+const DraggableFlatList = React.lazy(() => import('react-native-draggable-flatlist').then(m => ({ default: m.default })));
+const ScaleDecorator = React.lazy(() => import('react-native-draggable-flatlist').then(m => ({ default: m.ScaleDecorator })));
 import { StyleSheet, View, Text, TextInput, TouchableOpacity, Alert, Platform, StatusBar, ScrollView, FlatList, ActivityIndicator, KeyboardAvoidingView, Modal, Dimensions } from 'react-native';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useFocusEffect } from 'expo-router';
@@ -13,7 +14,7 @@ import { SanctuaryHeader } from '../../components/SanctuaryHeader';
 import { KebabMenuOverlay } from '../../components/KebabMenuOverlay';
 import { useGlobalModals } from '../../contexts/GlobalModalsContext';
 import { settingsService } from '../../lib/SettingsService';
-import { WisdomService } from '../../lib/WisdomService';
+// WisdomService dynamically imported
 const VisionDownloadModal = React.lazy(() => import('../../components/VisionDownloadModal').then(m => ({ default: m.VisionDownloadModal })));
 import * as Haptics from 'expo-haptics';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
@@ -504,6 +505,7 @@ export default function ProjectsScreen() {
     setIsGenerating(true);
     
     try {
+      const { WisdomService } = await import('../../lib/WisdomService');
       const ragContext = await WisdomService.getWisdomContext(db, combinedUserText);
       
       const historyRows = await db.getAllAsync<any>(
@@ -993,6 +995,7 @@ ${factsText}`;
                       {lang === 'es' ? 'Tarjetas de Estudio' : 'Study Flashcards'}
                     </Text>
                     <View style={{ height: 160 }}>
+                    <React.Suspense fallback={<ActivityIndicator style={{marginTop: 20}} />}>
                     <DraggableFlatList
                       data={worktable.cards}
                       horizontal={true}
@@ -1050,6 +1053,7 @@ ${factsText}`;
                         );
                       }}
                     />
+                    </React.Suspense>
                   </View>
                   </View>
                 )}

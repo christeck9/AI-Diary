@@ -6,7 +6,7 @@
  * 
  * v4.4: Real-time streaming mode with VAD (like Voice Notes)
  */
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { useVoice } from './useVoice';
 import { cpuSemaphore } from '../lib/CPUSemaphore';
 import { micService } from '../lib/UnifiedMicService';
@@ -126,16 +126,15 @@ export function useInteractiveVoice(
   }, [voiceState]);
 
   // Compute processing message with the local-hardware apology after 60s
-  const getProcessingMessage = useCallback(() => {
+  const processingMessage = useMemo(() => {
     if (processingTimeElapsed < 60) {
       return lang === 'es'
         ? 'Procesando información...'
         : 'Processing Information...';
-    } else {
-      return lang === 'es'
-        ? 'Disculpa, sé que es más de un momento, pero debido a las restricciones de correr una IA totalmente privada con los recursos de tu teléfono, se generan este tipo de demoras. Todos estamos trabajando para mejorar eso.'
-        : "Sorry, I know it's taking longer than a moment, but running a fully private AI locally with your phone's resources causes these kinds of delays. Everyone is working to improve this.";
     }
+    return lang === 'es'
+      ? 'Disculpa, sé que es más de un momento, pero debido a las restricciones de correr una IA totalmente privada con los recursos de tu teléfono, se generan este tipo de demoras. Todos estamos trabajando para mejorar eso.'
+      : "Sorry, I know it's taking longer than a moment, but running a fully private AI locally with your phone's resources causes these kinds of delays. Everyone is working to improve this.";
   }, [processingTimeElapsed, lang]);
 
   const resetSpeechQueue = useCallback(() => {
@@ -311,10 +310,10 @@ export function useInteractiveVoice(
         }
       }
 
-      // Wait if it's currently initializing
+      // Wait if it's currently initializing — faster polling for responsive recovery
       let attempts = 0;
-      while (voice.isInitializing && attempts < 10) {
-        await new Promise(resolve => setTimeout(resolve, 500));
+      while (voice.isInitializing && attempts < 25) {
+        await new Promise(resolve => setTimeout(resolve, 200));
         attempts++;
       }
 
@@ -636,7 +635,7 @@ export function useInteractiveVoice(
     endSpeechSession,
     handleTalkStart,
     handleTalkEnd,
-    processingMessage: getProcessingMessage(),
+    processingMessage,
     handleInterruptSpeech,
   };
 }

@@ -4,7 +4,7 @@
  * with Walkie-Talkie (Modo A) speech queue pipelining in useInteractiveVoice.ts.
  * Keep their lifecycles and variables completely decoupled.
  */
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import * as Speech from 'expo-speech';
 import * as FileSystem from 'expo-file-system';
 import AnimaVoice from '../modules/anima-voice/src/AnimaVoiceModule';
@@ -173,7 +173,7 @@ export function useVoice(lang: string = 'en', psyProfile?: { O: number, C: numbe
   }, [lang, availableVoices, selectedVoiceId]);
 
   // ── TTS Controls ──
-  const preloadSpeech = useCallback(async (text: string): Promise<string | Float32Array | { uri: string, sound: any } | null> => {
+  const preloadSpeech = useCallback(async (text: string): Promise<string | Float32Array | Int16Array | ArrayBuffer | { uri: string, sound: any } | null> => {
     if (isMuted || !ttsEnabled || !(text || "").trim()) {
       return null;
     }
@@ -191,12 +191,7 @@ export function useVoice(lang: string = 'en', psyProfile?: { O: number, C: numbe
           } else {
             try {
               const uint8Array = await AnimaVoice.synthesizeNativeToPCM(cleanText, lang);
-              const int16Array = new Int16Array(uint8Array.buffer, uint8Array.byteOffset, uint8Array.length / 2);
-              const float32Array = new Float32Array(int16Array.length);
-              for (let i = 0; i < int16Array.length; i++) {
-                float32Array[i] = int16Array[i] / 32768.0;
-              }
-              return float32Array;
+              return new Int16Array(uint8Array.buffer, uint8Array.byteOffset, uint8Array.length / 2);
             } catch (nativeErr) {
                // Fallthrough to null and classic playback
             }
@@ -219,7 +214,7 @@ export function useVoice(lang: string = 'en', psyProfile?: { O: number, C: numbe
     return null;
   }, [lang, ttsEnabled, isMuted]);
 
-  const speak = useCallback((text: string, dynamicPsyProfile?: typeof psyProfile, onDone?: () => void, preloadedData?: string | Float32Array | { uri: string, sound: any } | null) => {
+  const speak = useCallback((text: string, dynamicPsyProfile?: typeof psyProfile, onDone?: () => void, preloadedData?: string | Float32Array | Int16Array | ArrayBuffer | { uri: string, sound: any } | null) => {
     let onDoneCalled = false;
     let fallbackTimeoutId: NodeJS.Timeout | null = null;
 
@@ -287,36 +282,53 @@ export function useVoice(lang: string = 'en', psyProfile?: { O: number, C: numbe
       // 🚀 ZERO LATENCY FAST PATH (JSI + Oboe C++)
       if (typeof (global as any).animaFeedAudioChunk === 'function') {
         try {
-          let float32Array: Float32Array | null = null;
-          if (preloadedData && preloadedData instanceof Float32Array) {
-            float32Array = preloadedData;
+          let audioBuffer: Float32Array | Int16Array | ArrayBuffer | null = null;
+          if (preloadedData && (preloadedData instanceof Float32Array || preloadedData instanceof Int16Array || preloadedData instanceof ArrayBuffer)) {
+            audioBuffer = preloadedData as any;
           } else {
             const settings = await getSettings();
             if (settings.useCloudTTS && !isMuted) {
-              float32Array = await cloudTTSService.synthesizeJSI(cleanText, lang, settings as any);
+              audioBuffer = await cloudTTSService.synthesizeJSI(cleanText, lang, settings as any);
             } else if (!isMuted) {
               // 🚀 NATIVE TTS JSI FAST PATH (GAPLESS)
               try {
                 console.log('[VOICE] ⚡ Synthesizing Native TTS to PCM...');
                 const uint8Array = await AnimaVoice.synthesizeNativeToPCM(cleanText, lang);
-                // Convert Int16 (Uint8 bytes) to Float32
-                const int16Array = new Int16Array(uint8Array.buffer, uint8Array.byteOffset, uint8Array.length / 2);
-                float32Array = new Float32Array(int16Array.length);
-                for (let i = 0; i < int16Array.length; i++) {
-                  float32Array[i] = int16Array[i] / 32768.0;
-                }
+                audioBuffer = new Int16Array(uint8Array.buffer, uint8Array.byteOffset, uint8Array.length / 2);
               } catch (nativeErr) {
                 console.warn('[VOICE] Native PCM synthesis failed, falling back to expo-speech:', nativeErr);
               }
             }
           }
 
-          if (float32Array) {
+          if (audioBuffer) {
             console.log('[VOICE] ⚡ Pushing audio buffer via zero-latency JSI bridge.');
-            (global as any).animaFeedAudioChunk(float32Array.buffer);
+            let durationMs = 0;
             
-            // Simulate playback completion based on audio duration (24kHz)
-            const durationMs = (float32Array.length / 24000) * 1000;
+            if (audioBuffer instanceof Float32Array) {
+               (global as any).animaFeedAudioChunk(audioBuffer.buffer);
+               durationMs = (audioBuffer.length / 24000) * 1000;
+            } else if (audioBuffer instanceof Int16Array) {
+               if (typeof (global as any).animaFeedAudioChunkInt16 === 'function') {
+                   (global as any).animaFeedAudioChunkInt16(audioBuffer.buffer);
+               } else {
+                   const floats = new Float32Array(audioBuffer.length);
+                   for (let i = 0; i < audioBuffer.length; i++) floats[i] = audioBuffer[i] / 32768.0;
+                   (global as any).animaFeedAudioChunk(floats.buffer);
+               }
+               durationMs = (audioBuffer.length / 24000) * 1000;
+            } else if (audioBuffer instanceof ArrayBuffer) {
+               if (typeof (global as any).animaFeedAudioChunkInt16 === 'function') {
+                   (global as any).animaFeedAudioChunkInt16(audioBuffer);
+               } else {
+                   const int16 = new Int16Array(audioBuffer);
+                   const floats = new Float32Array(int16.length);
+                   for (let i = 0; i < int16.length; i++) floats[i] = int16[i] / 32768.0;
+                   (global as any).animaFeedAudioChunk(floats.buffer);
+               }
+               durationMs = (audioBuffer.byteLength / 2 / 24000) * 1000;
+            }
+
             setTimeout(() => {
               safeOnDone();
             }, durationMs);
@@ -413,7 +425,7 @@ export function useVoice(lang: string = 'en', psyProfile?: { O: number, C: numbe
         }
       };
 
-      if (preloadedData && typeof preloadedData === 'object' && !(preloadedData instanceof Float32Array)) {
+      if (preloadedData && typeof preloadedData === 'object' && !(preloadedData instanceof Float32Array) && !(preloadedData instanceof Int16Array) && !(preloadedData instanceof ArrayBuffer)) {
         const preloaded = preloadedData as { uri: string, sound: any };
         if (preloaded.uri && preloaded.sound) {
           await playAudio(preloaded.uri, preloaded.sound);
@@ -827,6 +839,12 @@ export function useVoice(lang: string = 'en', psyProfile?: { O: number, C: numbe
     micService.unregisterSession('USE_VOICE_HOOK');
 
     try {
+      await AnimaVoice.uninstallJSI();
+    } catch (e) {
+      console.warn('[VOICE] Error uninstalling JSI:', e);
+    }
+
+    try {
       if (whisperContextRef.current) {
         await whisperContextRef.current.release();
         whisperContextRef.current = null;
@@ -864,7 +882,14 @@ export function useVoice(lang: string = 'en', psyProfile?: { O: number, C: numbe
     return result.text;
   }, [lang]);
 
-  return {
+  // 🛡️ Cleanup: Liberar todos los recursos nativos de voz al desmontar (KiloAuditC-JSI)
+  useEffect(() => {
+    return () => {
+      releaseResources();
+    };
+  }, [releaseResources]);
+
+  return useMemo(() => ({
     isListening,
     transcript,
     startListening,
@@ -896,5 +921,31 @@ export function useVoice(lang: string = 'en', psyProfile?: { O: number, C: numbe
     vadLevel,
     changeVadLevel,
     isVadCapturing,
-  };
+  }), [
+    isListening,
+    transcript,
+    startListening,
+    stopListening,
+    warmupModels,
+    voiceError,
+    isSpeaking,
+    ttsEnabled,
+    speak,
+    preloadSpeech,
+    stopSpeaking,
+    toggleTts,
+    isInitializing,
+    isWhisperReady,
+    availableVoices,
+    selectedVoiceId,
+    isMuted,
+    toggleMute,
+    releaseResources,
+    transcribeFile,
+    selectedOfflineVoiceId,
+    selectedOfflineSpeakerId,
+    vadLevel,
+    changeVadLevel,
+    isVadCapturing,
+  ]);
 }

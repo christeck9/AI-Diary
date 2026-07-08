@@ -67,7 +67,7 @@ export async function searchBraveLlm(query: string, timeoutMs: number = 5000): P
   const apiKey = await getBraveApiKey();
   if (!apiKey) {
     console.log('[BRAVE_LLM] No API Key found. Skipping Brave Search.');
-    return "NO_DATA";
+    return "ERROR_NO_API_KEY";
   }
 
   const controller = new AbortController();

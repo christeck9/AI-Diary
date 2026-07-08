@@ -117,17 +117,21 @@ export function evaluateDeviceRAMCapabilities(freeRamMB: number, lang: string) {
     message = lang === 'es'
       ? `Detecté una memoria de ${freeRamMB} MB libres en tu dispositivo. Desafortunadamente, no cumples con el mínimo de ${thresholds.light.min} MB para correr ningún modelo. Por favor libera memoria cerrando otras aplicaciones.`
       : `Detected ${freeRamMB} MB of free memory on your device. Unfortunately, you do not meet the minimum of ${thresholds.light.min} MB to run any model. Please free up memory by closing other apps.`;
-    return { message, status, isLowRam };
+    return { message, status, isLowRam, canRunLight: false, canRunDeepMindText: false, canRunDeepMindVision: false };
   }
 
   // Determine the HIGHEST model they can run
   let highestModel = thresholds.light;
   let nextModel: any = thresholds.gemmaText;
   
-  if (freeRamMB >= thresholds.gemmaVision.min) {
+  const canRunLight = true;
+  const canRunDeepMindText = freeRamMB >= thresholds.gemmaText.min;
+  const canRunDeepMindVision = freeRamMB >= thresholds.gemmaVision.min;
+  
+  if (canRunDeepMindVision) {
     highestModel = thresholds.gemmaVision;
     nextModel = null;
-  } else if (freeRamMB >= thresholds.gemmaText.min) {
+  } else if (canRunDeepMindText) {
     highestModel = thresholds.gemmaText;
     nextModel = thresholds.gemmaVision;
   }
@@ -156,5 +160,5 @@ export function evaluateDeviceRAMCapabilities(freeRamMB: number, lang: string) {
   }
 
   message = baseMsg;
-  return { message, status, isLowRam };
+  return { message, status, isLowRam, canRunLight, canRunDeepMindText, canRunDeepMindVision };
 }

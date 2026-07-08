@@ -9,17 +9,22 @@ import { SentinelStream } from './SentinelService';
  * Orchestrates search across 3 functional layers: Brave LLM Context, Wikipedia, and Codex.
  */
 export async function SanctuarySearchOrchestrator(
-  stream: SentinelStream, 
+  stream: SentinelStream,
   query: string,
   lang: 'es' | 'en' = 'es'
 ): Promise<string> {
   const pureQuery = purifyQuery(query);
-  const logSafeQuery = pureQuery.length > 0 ? `[Length: ${pureQuery.length}, Hash: ${pureQuery.substring(0,3)}***]` : `[Empty]`;
+  const logSafeQuery = pureQuery.length > 0 ? `[Length: ${pureQuery.length}, Hash: ${pureQuery.substring(0, 3)}***]` : `[Empty]`;
   console.log(`[Orchestrator] Processing Stream [${stream}]: ${logSafeQuery} (lang: ${lang})`);
 
   // Layer 1: Brave LLM Context API (Motor Primario - Tiempo real)
   if (stream === 'FAST_FACT' || stream === 'DEEP_RESEARCH') {
     const braveResult = await searchBraveLlm(pureQuery);
+    if (braveResult === 'ERROR_NO_API_KEY') {
+      return lang === 'es'
+        ? 'Internet no está disponible, para habilitarlopuedes configurar la API Key de Brave en la pestaña Opciones.'
+        : 'Internet search is unavailable, to enable it you can configure the Brave Search API Key in Settings.';
+    }
     if (braveResult && braveResult !== 'NO_DATA') {
       console.log(`[Orchestrator] Layer 1 (Brave) succeeded.`);
       return braveResult;

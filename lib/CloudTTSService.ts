@@ -144,7 +144,7 @@ class CloudTTSService {
     text: string, 
     lang: string, 
     settings: TTSProviderSettings
-  ): Promise<Float32Array | null> {
+  ): Promise<Float32Array | Int16Array | ArrayBuffer | null> {
     if (!settings.useCloudTTS || !text) return null;
 
     try {
@@ -177,27 +177,7 @@ class CloudTTSService {
             throw new Error(`OpenAI PCM Error: ${response.status}`);
           }
 
-          const blob = await response.blob();
-          const reader = new FileReader();
-          const base64: string = await new Promise((resolve) => {
-            reader.onloadend = () => resolve(reader.result as string);
-            reader.readAsDataURL(blob);
-          });
-          
-          const base64Data = base64.split(',')[1];
-          if (!base64Data) return null;
-
-          // Convert Base64 to Uint8Array (Int16 PCM from OpenAI)
-          const bytes = toByteArray(base64Data);
-          const int16Array = new Int16Array(bytes.buffer, bytes.byteOffset, bytes.length / 2);
-          
-          // Convert Int16 to Float32 for Oboe Audio Engine
-          const float32Array = new Float32Array(int16Array.length);
-          for (let i = 0; i < int16Array.length; i++) {
-            float32Array[i] = int16Array[i] / 32768.0;
-          }
-
-          return float32Array;
+          return await response.arrayBuffer();
         }
       }
 
@@ -249,14 +229,7 @@ class CloudTTSService {
           const data = await response.json();
           if (data.audioContent) {
             const bytes = toByteArray(data.audioContent);
-            const int16Array = new Int16Array(bytes.buffer, bytes.byteOffset, bytes.length / 2);
-            
-            const float32Array = new Float32Array(int16Array.length);
-            for (let i = 0; i < int16Array.length; i++) {
-              float32Array[i] = int16Array[i] / 32768.0;
-            }
-
-            return float32Array;
+            return new Int16Array(bytes.buffer, bytes.byteOffset, bytes.length / 2);
           }
         }
       }

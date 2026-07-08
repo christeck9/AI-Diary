@@ -9,10 +9,7 @@ import { SanctuarySearchOrchestrator } from '../lib/tools';
 import { getDeviceTemperature } from '../lib/hardware';
 import * as SentinelService from '../lib/SentinelService';
 import { factExtractionService } from '../lib/FactExtractionService';
-import { WisdomService } from '../lib/WisdomService';
-import { contextFoldingService } from '../lib/ContextFoldingService';
-import { createKnowledgeManager } from '../lib/KnowledgeManager';
-import { badgeService } from '../lib/BadgeService';
+// WisdomService, ContextFoldingService, KnowledgeManager, and BadgeService are dynamically imported
 
 import * as SQLite from 'expo-sqlite';
 import { settingsService } from '../lib/SettingsService';
@@ -299,6 +296,7 @@ export const useAgentEngine = (
     if (!isZenMode && db) {
       setProcessingPhase('indexing');
       console.log('[AGENT_ENGINE] 🚀 Early Routing: BALANCE/DEEP active. Fetching Wisdom context (FTS5) and Semantic Context (RAG)...');
+      const { WisdomService } = await import('../lib/WisdomService');
       const ftsContext = await WisdomService.getWisdomContext(db, userText);
       const semanticContext = await require('../lib/SemanticService').SemanticService.getSemanticContext(db, userText, generateEmbeddings);
       ragContext = ftsContext + '\n' + semanticContext;
@@ -400,6 +398,7 @@ export const useAgentEngine = (
 
       if (db && searchResult && searchResult !== 'SENTINEL_NULL_DATA' && searchResult !== 'NO_DATA') {
         try {
+          const { createKnowledgeManager } = await import('../lib/KnowledgeManager');
           const km = createKnowledgeManager(db);
           await km.saveFact({
             category: 'Sabiduría',
@@ -492,6 +491,7 @@ export const useAgentEngine = (
                 // Persist results in the database as local semantic cache
                 if (db && results && results !== 'SENTINEL_NULL_DATA' && results !== 'NO_DATA') {
                   try {
+                    const { createKnowledgeManager } = await import('../lib/KnowledgeManager');
                     const km = createKnowledgeManager(db);
                     await km.saveFact({
                       category: 'Sabiduría',
@@ -621,6 +621,7 @@ export const useAgentEngine = (
               // Persist results in the database as local semantic cache
               if (db && results && results !== 'SENTINEL_NULL_DATA' && results !== 'NO_DATA') {
                 try {
+                  const { createKnowledgeManager } = await import('../lib/KnowledgeManager');
                   const km = createKnowledgeManager(db);
                   await km.saveFact({
                     category: 'Sabiduría',
@@ -845,6 +846,7 @@ export const useAgentEngine = (
              await factExtractionService.extractFacts(llamaContextRef.current, userText, finalText, db, arch, generateEmbeddings);
  
              console.log('[AGENT_ENGINE] 🏆 Starting background badge evaluation...');
+             const { badgeService } = await import('../lib/BadgeService');
              const badge = await badgeService.evaluateConversation(llamaContextRef.current, userText, finalText, db, arch);
             if (badge) {
               setEarnedBadge(badge);
@@ -855,6 +857,7 @@ export const useAgentEngine = (
             // 🗜️ Context Folding: If messages dropped, compress them in episodic memory
             if (messagesToDrop.length > 0) {
               console.log('[AGENT_ENGINE] 🗜️ Starting background context folding...');
+              const { contextFoldingService } = await import('../lib/ContextFoldingService');
               await contextFoldingService.foldHistoryThreshold(llamaContextRef.current, messagesToDrop, db, arch);
             }
           } catch (err) {
