@@ -10,11 +10,9 @@ import { useSQLiteContext } from 'expo-sqlite';
 
 const MatrixRain = React.lazy(() => import('@/components/MatrixRain').then(m => ({ default: m.MatrixRain })));
 import { IconSymbol } from '../../components/ui/icon-symbol';
-import { consultCodex } from '../../lib/openlibrary';
-import { wikipediaSearch } from '../../lib/wikipedia';
+// openlibrary and wikipedia dynamically imported
 import * as FileSystem from 'expo-file-system';
-import * as Print from 'expo-print';
-import * as Sharing from 'expo-sharing';
+// expo-print and expo-sharing dynamically imported
 import { useRouter } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import { useVoiceContext } from '../../contexts/VoiceContext';
@@ -26,10 +24,10 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { useTodos } from '../../hooks/useTodos';
 import { MarqueeText } from '../../components/ui/MarqueeText';
 import { useGlobalModals } from '../../contexts/GlobalModalsContext';
-import { InteractiveCalendar } from '../../components/ui/InteractiveCalendar';
+const InteractiveCalendar = React.lazy(() => import('../../components/ui/InteractiveCalendar').then(m => ({ default: m.InteractiveCalendar })));
 
 import * as DocumentPicker from 'expo-document-picker';
-import { LibraryManagerService, LibraryBook, SearchResult } from '../../lib/LibraryManagerService';
+import type { LibraryBook, SearchResult } from '../../lib/LibraryManagerService';
 const BookReaderModal = React.lazy(() => import('../../components/modals/BookReaderModal').then(m => ({ default: m.BookReaderModal })));
 
 
@@ -59,6 +57,7 @@ export default function ToolsScreen() {
 
   const loadLibrary = useCallback(async () => {
     if (db) {
+      const { LibraryManagerService } = await import('../../lib/LibraryManagerService');
       const books = await LibraryManagerService.getBooks(db);
       setLibraryBooks(books);
     }
@@ -80,6 +79,7 @@ export default function ToolsScreen() {
     setLibSearchResults([]);
     try {
       let results: SearchResult[] = [];
+      const { LibraryManagerService } = await import('../../lib/LibraryManagerService');
       if (libSearchSource === 'arxiv') {
         results = await LibraryManagerService.searchArXiv(libQuery);
       } else {
@@ -105,6 +105,7 @@ export default function ToolsScreen() {
     setDownloadingUrl(item.pdfUrl);
     setDownloadProgress(0);
     try {
+      const { LibraryManagerService } = await import('../../lib/LibraryManagerService');
       const book = await LibraryManagerService.downloadBook(
         db,
         item.title,
@@ -140,6 +141,7 @@ export default function ToolsScreen() {
       if (pickerResult.canceled || !pickerResult.assets) return;
 
       const asset = pickerResult.assets[0];
+      const { LibraryManagerService } = await import('../../lib/LibraryManagerService');
       const book = await LibraryManagerService.importLocalPdf(db, asset.uri, asset.name);
       if (book) {
         Alert.alert(
@@ -178,6 +180,7 @@ export default function ToolsScreen() {
             setIndexingBookId(bookId);
             setIndexingProgress({ current: 0, total: 0 });
             try {
+              const { LibraryManagerService } = await import('../../lib/LibraryManagerService');
               const success = await LibraryManagerService.indexBook(
                 db,
                 bookId,
@@ -214,6 +217,7 @@ export default function ToolsScreen() {
           text: lang === 'es' ? 'Eliminar' : 'Delete',
           style: 'destructive',
           onPress: async () => {
+            const { LibraryManagerService } = await import('../../lib/LibraryManagerService');
             const success = await LibraryManagerService.deleteBook(db, bookId);
             if (success) {
               loadLibrary();
@@ -510,6 +514,8 @@ export default function ToolsScreen() {
           </body>
         </html>
       `;
+      const Print = await import('expo-print');
+      const Sharing = await import('expo-sharing');
       const { uri } = await Print.printToFileAsync({ html });
       await Sharing.shareAsync(uri);
     } catch (e) {
@@ -585,6 +591,7 @@ export default function ToolsScreen() {
     setIsLoading(true);
     setResults('');
     try {
+      const { consultCodex } = await import('../../lib/openlibrary');
       const data = await consultCodex(query);
       if (data) {
         setResults(data);
@@ -604,6 +611,7 @@ export default function ToolsScreen() {
     setWikiResults('');
     setWikiLlmExplanation('');
     try {
+      const { wikipediaSearch } = await import('../../lib/wikipedia');
       const data = await wikipediaSearch(wikiQuery, lang);
       if (data) {
         setWikiResults(data);
@@ -1360,7 +1368,9 @@ export default function ToolsScreen() {
 
               {/* CALENDAR CARD */}
               <View style={{ width: '100%', marginTop: 20 }}>
+              <React.Suspense fallback={null}>
                 <InteractiveCalendar colors={colors} lang={lang as any} />
+              </React.Suspense>
               </View>
             </View>
           </ScrollView>

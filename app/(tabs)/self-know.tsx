@@ -7,10 +7,9 @@ import { useGlobalModals } from '../../contexts/GlobalModalsContext';
 import { useSQLiteContext } from 'expo-sqlite';
 import { IconSymbol } from '../../components/ui/icon-symbol';
 import { PsiIcon } from '../../components/ui/PsiIcon';
-import { SnowflakeChart } from '../../components/ui/SnowflakeChart';
+const SnowflakeChart = React.lazy(() => import('../../components/ui/SnowflakeChart').then(m => ({ default: m.SnowflakeChart })));
 import { SanctuaryHeader } from '../../components/SanctuaryHeader';
-import * as Print from 'expo-print';
-import * as Sharing from 'expo-sharing';
+// expo-print and expo-sharing are dynamically imported
 import Svg, { Line } from 'react-native-svg';
 import { useLlmState } from '../../contexts/LlmContext';
 import { KebabMenuOverlay } from '../../components/KebabMenuOverlay';
@@ -246,6 +245,8 @@ export default function SelfKnowScreen() {
         </html>
       `;
 
+      const Print = await import('expo-print');
+      const Sharing = await import('expo-sharing');
       const { uri } = await Print.printToFileAsync({ html });
       await Sharing.shareAsync(uri);
     } catch (e) { console.error(e); }
@@ -329,6 +330,8 @@ export default function SelfKnowScreen() {
         </html>
       `;
 
+      const Print = await import('expo-print');
+      const Sharing = await import('expo-sharing');
       const { uri } = await Print.printToFileAsync({ html });
       await Sharing.shareAsync(uri);
     } catch (e) { console.error(e); }
@@ -458,6 +461,8 @@ export default function SelfKnowScreen() {
         </html>
       `;
 
+      const Print = await import('expo-print');
+      const Sharing = await import('expo-sharing');
       const { uri } = await Print.printToFileAsync({ html });
       await Sharing.shareAsync(uri);
     } catch (e) { console.error(e); }
@@ -549,19 +554,21 @@ export default function SelfKnowScreen() {
           {lang === 'es' ? 'Copo de Nieve (Análisis Cognitivo)' : 'Snowflake Analysis (Cognitive)'}
         </Text>
         <View style={[styles.chartBox, { backgroundColor: colors.surfaceSecondary, borderColor: colors.border }]}>
-          <SnowflakeChart 
-            data={{
-              O: psyProfile.O || 0,
-              C: psyProfile.C || 0,
-              E: psyProfile.E || 0,
-              A: psyProfile.A || 0,
-              S: 1 - (psyProfile.N || 0),
-              M: psyProfile.moodBalance || 0
-            }}
-            size={220}
-            colors={colors}
-            lang={lang}
-          />
+          <React.Suspense fallback={null}>
+            <SnowflakeChart 
+              data={{
+                O: psyProfile.O || 0,
+                C: psyProfile.C || 0,
+                E: psyProfile.E || 0,
+                A: psyProfile.A || 0,
+                S: 1 - (psyProfile.N || 0),
+                M: psyProfile.moodBalance || 0
+              }}
+              size={220}
+              colors={colors}
+              lang={lang}
+            />
+          </React.Suspense>
           <Text style={{ color: colors.textSecondary, fontSize: 11, textAlign: 'center', marginTop: -10, marginBottom: 10 }}>
             {lang === 'es' ? 'Tu silueta cognitiva se ajusta con cada test.' : 'Your cognitive silhouette adjusts with each test.'}
           </Text>
