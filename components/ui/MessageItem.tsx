@@ -25,7 +25,12 @@ export const MessageItem = React.memo(({
   processingPhase,
   lang,
   onAction,
-  onImagePress
+  onImagePress,
+  ttsEnabled,
+  isSpeaking,
+  onPlayPress,
+  onStopPress,
+  onToggleMute
 }: {
   item: Message,
   colors: any,
@@ -36,6 +41,11 @@ export const MessageItem = React.memo(({
   lang: string,
   onAction: (action: 'copy' | 'analyze' | 'report' | 'delete', item: Message) => void,
   onImagePress: (uri: string) => void,
+  ttsEnabled?: boolean,
+  isSpeaking?: boolean,
+  onPlayPress?: (item: Message) => void,
+  onStopPress?: () => void,
+  onToggleMute?: () => void,
 }) => {
 
   const renderRightActions = () => {
@@ -74,15 +84,36 @@ export const MessageItem = React.memo(({
         isLatest && { marginBottom: 60, marginTop: 15 }
       ]}>
         {isAi && (
-          <View style={[
-            styles.avatarAi,
-            { backgroundColor: colors.surface, borderColor: colors.secondary, padding: 0 }
-          ]}>
-            <Image
-              source={require('../../assets/images/anima_spirit.png')}
-              style={{ width: 40, height: 40 }}
-              resizeMode="contain"
-            />
+          <View style={{ alignItems: 'center', marginRight: 10 }}>
+            <View style={[
+              styles.avatarAi,
+              { backgroundColor: colors.surface, borderColor: colors.secondary, padding: 0, marginRight: 0, marginBottom: 8 }
+            ]}>
+              <Image
+                source={require('../../assets/images/anima_spirit.png')}
+                style={{ width: 40, height: 40 }}
+                resizeMode="contain"
+              />
+            </View>
+
+            {/* Voice Controls underneath the Avatar */}
+            {isSpeaking ? (
+              <TouchableOpacity style={styles.voiceControlBtn} onPress={onStopPress}>
+                <IconSymbol name="stop.fill" size={18} color={colors.secondary} />
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity style={styles.voiceControlBtn} onPress={() => onPlayPress && onPlayPress(item)}>
+                <IconSymbol name="play.fill" size={18} color={colors.secondary} />
+              </TouchableOpacity>
+            )}
+
+            <TouchableOpacity style={[styles.voiceControlBtn, { marginTop: 6 }]} onPress={onToggleMute}>
+              <IconSymbol 
+                name={ttsEnabled ? "speaker.wave.2.fill" : "speaker.slash.fill"} 
+                size={12} 
+                color={ttsEnabled ? colors.primary : colors.textSecondary} 
+              />
+            </TouchableOpacity>
           </View>
         )}
         <View style={[
@@ -90,14 +121,18 @@ export const MessageItem = React.memo(({
           isAi ? { backgroundColor: colors.surfaceSecondary, borderLeftWidth: 2, borderLeftColor: colors.secondary }
             : { backgroundColor: colors.surfaceSecondary, borderRightWidth: 2, borderRightColor: colors.primary },
           isLatest && {
-            backgroundColor: colors.surfaceSecondary === '#1a1a24' ? '#323248' :
+            backgroundColor: isAi ? 
+                             (colors.surfaceSecondary === '#1a1a24' || colors.surfaceSecondary === '#1a1e1a' ? 'rgba(0, 243, 255, 0.15)' : '#e0f2fe') :
+                             colors.surfaceSecondary === '#1a1a24' ? '#323248' :
                              colors.surfaceSecondary === '#1a1e1a' ? '#2a382a' :
                              colors.surfaceSecondary === '#f0f0f5' ? '#ffffff' :
                              colors.surfaceSecondary === '#e8ebe4' ? '#ffffff' :
                              colors.surfaceSecondary === '#e6e8f4' ? '#ffffff' :
                              colors.surfaceSecondary,
             borderWidth: 1,
-            borderColor: isAi ? colors.secondary : colors.primary,
+            borderColor: isAi ? 
+                         (colors.surfaceSecondary === '#1a1a24' || colors.surfaceSecondary === '#1a1e1a' ? '#00f3ff' : '#0ea5e9') :
+                         colors.primary,
             borderLeftWidth: isAi ? 3 : 1,
             borderRightWidth: isAi ? 1 : 3,
           }
@@ -193,6 +228,10 @@ export const MessageItem = React.memo(({
   if (prevProps.isTyping !== nextProps.isTyping) return false;
   if (prevProps.processingPhase !== nextProps.processingPhase) return false;
 
+  // Voice state checking
+  if (prevProps.ttsEnabled !== nextProps.ttsEnabled) return false;
+  if (prevProps.isSpeaking !== nextProps.isSpeaking) return false;
+
   return true;
 });
 
@@ -221,5 +260,12 @@ const styles = StyleSheet.create({
     marginTop: 4,
     fontWeight: '500',
     textAlign: 'center',
+  },
+  voiceControlBtn: {
+    padding: 6,
+    borderRadius: 20,
+    backgroundColor: 'rgba(0,0,0,0.05)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });
