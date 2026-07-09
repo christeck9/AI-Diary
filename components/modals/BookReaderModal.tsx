@@ -366,37 +366,22 @@ export const BookReaderModal: React.FC<BookReaderModalProps> = ({
 
   if (!book) return null;
 
-  const [layoutTicket, setLayoutTicket] = useState(0);
-  const isAndroidEnvironment = Platform.OS === 'android';
-  const { width: absoluteScreenWidth, height: absoluteScreenHeight } = Dimensions.get('screen');
-
-  useEffect(() => {
-    if (visible) {
-      const timer = setTimeout(() => {
-        setLayoutTicket(prev => prev + 1);
-      }, 50);
-      return () => clearTimeout(timer);
-    }
-  }, [visible]);
-
   return (
     <Modal 
       visible={visible} 
       animationType="slide" 
-      transparent={true} 
-      statusBarTranslucent={true}
+      transparent={false} 
+      statusBarTranslucent={false}
       onRequestClose={handleClose}
     >
-      {isAndroidEnvironment && <View style={{ height: (layoutTicket % 2 === 1) ? 0.5 : 0 }} />}
       <View 
         style={{ 
           flex: 1, 
-          width: absoluteScreenWidth, 
-          height: absoluteScreenHeight, 
+          width: '100%', 
+          height: '100%', 
           backgroundColor: colors.background, 
           margin: 0, 
-          padding: 0,
-          paddingTop: isAndroidEnvironment && (layoutTicket % 2 === 1) ? 0.5 : 0
+          padding: 0
         }}
       >
         <SafeAreaView style={{ flex: 1 }}>

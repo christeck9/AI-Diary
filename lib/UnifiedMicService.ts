@@ -102,6 +102,11 @@ class UnifiedMicService {
     }
 
     try {
+      if (Platform.OS === 'ios') {
+        console.warn('[UnifiedMicService] Whisper.rn RealtimeTranscriber is not supported on iOS yet.');
+        return false;
+      }
+
       await Audio.setAudioModeAsync({
         allowsRecordingIOS: true,
         playsInSilentModeIOS: true,

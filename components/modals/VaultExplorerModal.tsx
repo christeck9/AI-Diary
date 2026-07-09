@@ -121,44 +121,33 @@ export const VaultExplorerModal: React.FC<VaultExplorerModalProps> = ({
     );
   };
 
-  const [layoutTicket, setLayoutTicket] = useState(0);
-  const isAndroidEnvironment = Platform.OS === 'android';
-  const { width: absoluteScreenWidth, height: absoluteScreenHeight } = Dimensions.get('screen');
-
-  useEffect(() => {
-    if (visible) {
-      const timer = setTimeout(() => {
-        setLayoutTicket(prev => prev + 1);
-      }, 50);
-      return () => clearTimeout(timer);
-    }
-  }, [visible]);
-
   return (
     <Modal 
       visible={visible} 
       animationType="slide" 
-      transparent={true} 
-      statusBarTranslucent={true}
+      transparent={false} 
+      statusBarTranslucent={false}
       onRequestClose={onClose}
     >
-      {isAndroidEnvironment && <View style={{ height: (layoutTicket % 2 === 1) ? 0.5 : 0 }} />}
       <View 
         style={{ 
           flex: 1, 
-          width: absoluteScreenWidth, 
-          height: absoluteScreenHeight, 
+          width: '100%', 
+          height: '100%', 
           backgroundColor: colors.background, 
           margin: 0, 
-          padding: 0,
-          paddingTop: isAndroidEnvironment && (layoutTicket % 2 === 1) ? 0.5 : 0
+          padding: 0
         }}
       >
         <SafeAreaView style={{ flex: 1 }}>
           <View style={styles.header}>
-            <TouchableOpacity onPress={selectedFileContent ? () => setSelectedFileContent(null) : onClose}>
-              <IconSymbol name={selectedFileContent ? "chevron.left" : "xmark"} size={24} color={colors.primary} />
-            </TouchableOpacity>
+            {(!selectedFileContent && !isUnlocked) ? (
+              <View style={{ width: 24 }} />
+            ) : (
+              <TouchableOpacity onPress={selectedFileContent ? () => setSelectedFileContent(null) : onClose}>
+                <IconSymbol name={selectedFileContent ? "chevron.left" : "xmark"} size={24} color={colors.primary} />
+              </TouchableOpacity>
+            )}
             <Text style={[styles.title, { color: colors.textPrimary }]}>
               {selectedFileContent ? selectedFileName : (lang === 'es' ? 'Encriptación de Datos' : 'Data Encryption')}
             </Text>
@@ -190,6 +179,23 @@ export const VaultExplorerModal: React.FC<VaultExplorerModalProps> = ({
                 placeholder="****"
                 placeholderTextColor={colors.textSecondary}
               />
+
+              <TouchableOpacity
+                style={{
+                  marginTop: 40,
+                  backgroundColor: colors.primary,
+                  paddingHorizontal: 40,
+                  paddingVertical: 12,
+                  borderRadius: 24,
+                  minWidth: 150,
+                  alignItems: 'center'
+                }}
+                onPress={onClose}
+              >
+                <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 14 }}>
+                  {lang === 'es' ? 'Cerrar' : 'Close'}
+                </Text>
+              </TouchableOpacity>
             </View>
           ) : loading ? (
             <ActivityIndicator size="large" color={colors.primary} style={{ marginTop: 50 }} />

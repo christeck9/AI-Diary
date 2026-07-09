@@ -80,6 +80,10 @@ class AnimaVoiceModule : Module(), TextToSpeech.OnInitListener {
       }
     }
 
+    AsyncFunction("uninstallJSI") {
+      nativeUninstallJSI()
+    }
+
     AsyncFunction("synthesizeNativeToPCM") { text: String, lang: String, promise: Promise ->
       if (!isTtsInitialized || tts == null) {
         promise.reject("TTS_NOT_READY", "TextToSpeech engine not initialized", null)
@@ -105,4 +109,5 @@ class AnimaVoiceModule : Module(), TextToSpeech.OnInitListener {
   }
 
   private external fun nativeInstallJSI(jsiPtr: Long)
+  private external fun nativeUninstallJSI()
 }

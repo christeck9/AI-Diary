@@ -28,9 +28,11 @@ export const MessageItem = React.memo(({
   onImagePress,
   ttsEnabled,
   isSpeaking,
+  isPaused,
   onPlayPress,
-  onStopPress,
-  onToggleMute
+  onPausePress,
+  onResumePress,
+  onStopPress
 }: {
   item: Message,
   colors: any,
@@ -43,9 +45,11 @@ export const MessageItem = React.memo(({
   onImagePress: (uri: string) => void,
   ttsEnabled?: boolean,
   isSpeaking?: boolean,
+  isPaused?: boolean,
   onPlayPress?: (item: Message) => void,
+  onPausePress?: () => void,
+  onResumePress?: () => void,
   onStopPress?: () => void,
-  onToggleMute?: () => void,
 }) => {
 
   const renderRightActions = () => {
@@ -96,24 +100,44 @@ export const MessageItem = React.memo(({
               />
             </View>
 
-            {/* Voice Controls underneath the Avatar */}
-            {isSpeaking ? (
-              <TouchableOpacity style={styles.voiceControlBtn} onPress={onStopPress}>
-                <IconSymbol name="stop.fill" size={18} color={colors.secondary} />
-              </TouchableOpacity>
-            ) : (
-              <TouchableOpacity style={styles.voiceControlBtn} onPress={() => onPlayPress && onPlayPress(item)}>
-                <IconSymbol name="play.fill" size={18} color={colors.secondary} />
-              </TouchableOpacity>
-            )}
-
-            <TouchableOpacity style={[styles.voiceControlBtn, { marginTop: 6 }]} onPress={onToggleMute}>
-              <IconSymbol 
-                name={ttsEnabled ? "speaker.wave.2.fill" : "speaker.slash.fill"} 
-                size={12} 
-                color={ttsEnabled ? colors.primary : colors.textSecondary} 
-              />
-            </TouchableOpacity>
+            {/* Unified Multimedia Button */}
+            {(() => {
+              if (isSpeaking) {
+                // PLAYING state: shows pause icon, short press pauses, long press stops/resets
+                return (
+                  <TouchableOpacity 
+                    style={[styles.voiceControlBtn, { backgroundColor: colors.surfaceSecondary, shadowColor: colors.primary, elevation: 2 }]} 
+                    onPress={onPausePress}
+                    onLongPress={onStopPress}
+                    delayLongPress={600}
+                  >
+                    <IconSymbol name="pause.fill" size={16} color={colors.primary} />
+                  </TouchableOpacity>
+                );
+              } else if (isPaused) {
+                // PAUSED state: shows play icon (colored), short press resumes, long press stops/resets
+                return (
+                  <TouchableOpacity 
+                    style={[styles.voiceControlBtn, { backgroundColor: colors.surfaceSecondary, shadowColor: colors.primary, elevation: 2 }]} 
+                    onPress={onResumePress}
+                    onLongPress={onStopPress}
+                    delayLongPress={600}
+                  >
+                    <IconSymbol name="play.fill" size={16} color={colors.primary} />
+                  </TouchableOpacity>
+                );
+              } else {
+                // STOPPED state: shows play icon (gray), short press starts playing
+                return (
+                  <TouchableOpacity 
+                    style={[styles.voiceControlBtn, { backgroundColor: colors.surfaceSecondary, shadowColor: colors.primary, elevation: 2 }]} 
+                    onPress={() => onPlayPress && onPlayPress(item)}
+                  >
+                    <IconSymbol name="play.fill" size={16} color={colors.textSecondary} />
+                  </TouchableOpacity>
+                );
+              }
+            })()}
           </View>
         )}
         <View style={[

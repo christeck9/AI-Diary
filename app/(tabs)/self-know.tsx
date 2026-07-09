@@ -7,6 +7,7 @@ import { useSQLiteContext } from 'expo-sqlite';
 import { IconSymbol } from '../../components/ui/icon-symbol';
 import { PsiIcon } from '../../components/ui/PsiIcon';
 const SnowflakeChart = React.lazy(() => import('../../components/ui/SnowflakeChart').then(m => ({ default: m.SnowflakeChart })));
+const ProfileModal = React.lazy(() => import('../../components/modals/ProfileModal').then(m => ({ default: m.ProfileModal })));
 const PsyTestModal = React.lazy(() => import('../../components/modals/PsyTestModal').then(m => ({ default: m.PsyTestModal })));
 import { MBTI_QUESTIONS, PSY_QUESTIONS } from '../../components/modals/PsyTestModal';
 import { SanctuaryHeader } from '../../components/SanctuaryHeader';
@@ -17,7 +18,7 @@ import { useLlmState } from '../../contexts/LlmContext';
 export default function SelfKnowScreen() {
   const { colors, activeTheme } = useAppTheme();
   const { lang } = useLanguage();
-  const { psyProfile, setPsyProfile, setPsyCompleted, userProfile } = useProfile();
+  const { psyProfile, setPsyProfile, setPsyCompleted, userProfile, setUserProfile } = useProfile();
   const db = useSQLiteContext();
   const { status, activeModel } = useLlmState();
 
@@ -27,6 +28,19 @@ export default function SelfKnowScreen() {
   const [activeTestType, setActiveTestType] = useState<'ocean' | 'aptitude' | 'vocational' | 'anxiety' | 'mood' | 'mbti'>('ocean');
   const [localPsyStep, setLocalPsyStep] = useState(0);
   const [localPsyAnswers, setLocalPsyAnswers] = useState<number[]>([]);
+
+  const [isProfileVisible, setIsProfileVisible] = useState(false);
+  const [isProfileMounted, setIsProfileMounted] = useState(false);
+
+  const handleOpenProfile = () => {
+    setIsProfileMounted(true);
+    setTimeout(() => setIsProfileVisible(true), 50);
+  };
+
+  const handleCloseProfile = () => {
+    setIsProfileVisible(false);
+    setTimeout(() => setIsProfileMounted(false), 500);
+  };
 
   const handleOpenTest = (type: typeof activeTestType) => {
     setActiveTestType(type);
@@ -504,7 +518,40 @@ export default function SelfKnowScreen() {
           contentContainerStyle={[styles.scrollContent, { paddingBottom: Platform.OS === 'android' ? 100 : 40 }]}
         >
         <Text style={[styles.title, { color: colors.primary }]}>
-          {lang === 'es' ? 'Centro de Autoconocimiento' : 'Self-Knowledge Center'}
+          {lang === 'es' ? 'AUTOCONOCIMIENTO' : 'SELF KNOWLEDGE'}
+        </Text>
+
+        <TouchableOpacity 
+          style={{
+            backgroundColor: colors.surfaceSecondary,
+            borderColor: colors.primary,
+            borderWidth: 1,
+            borderRadius: 25,
+            paddingVertical: 15,
+            marginBottom: 20,
+            alignItems: 'center',
+            justifyContent: 'center'
+          }}
+          onPress={handleOpenProfile}
+        >
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <Text style={{ fontSize: 18 }}>👤</Text>
+            <Text style={{ color: colors.primary, fontWeight: 'bold', fontSize: 13, letterSpacing: 0.5 }}>
+              {lang === 'es' ? 'PERFIL DEL USUARIO' : 'USER PROFILE'}
+            </Text>
+          </View>
+        </TouchableOpacity>
+
+        <Text style={{
+          color: colors.textSecondary,
+          fontSize: 12,
+          fontWeight: 'bold',
+          letterSpacing: 1.5,
+          textAlign: 'center',
+          marginTop: 15,
+          marginBottom: 20
+        }}>
+          {lang === 'es' ? 'TESTS' : 'TESTS'}
         </Text>
 
         {/* Cuestionarios */}
@@ -741,6 +788,21 @@ export default function SelfKnowScreen() {
         />
       </React.Suspense>
     )}
+
+    {isProfileMounted && (
+      <React.Suspense fallback={null}>
+        <ProfileModal
+          visible={isProfileVisible}
+          onClose={handleCloseProfile}
+          lang={lang}
+          colors={colors}
+          userProfile={userProfile}
+          setUserProfile={setUserProfile}
+          psyProfile={{ ...psyProfile, moodBalance: psyProfile.moodBalance ?? 0 }}
+          db={db}
+        />
+      </React.Suspense>
+    )}
   </View>
   );
 }
@@ -862,5 +924,26 @@ const styles = StyleSheet.create({
     color: '#FFF',
     fontWeight: 'bold',
     fontSize: 14,
+  },
+  quickButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  quickButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  quickButtonEmoji: {
+    fontSize: 18,
+  },
+  quickButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
   },
 });

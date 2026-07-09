@@ -28,12 +28,17 @@ export const SnowflakeChart: React.FC<SnowflakeChartProps> = ({ data, size = 300
   const a4 = 2.6179;  // 5PI/6
   const a5 = 3.6651;  // 7PI/6
 
-  const vO = Math.max(data.O || 0.1, 0.1);
-  const vC = Math.max(data.C || 0.1, 0.1);
-  const vE = Math.max(data.E || 0.1, 0.1);
-  const vA = Math.max(data.A || 0.1, 0.1);
-  const vS = Math.max(data.S || 0.1, 0.1);
-  const vM = Math.max(data.M || 0.1, 0.1);
+  const safeNum = (val: any) => {
+    const num = Number(val);
+    return isNaN(num) ? 0.1 : Math.max(num, 0.1);
+  };
+
+  const vO = safeNum(data.O);
+  const vC = safeNum(data.C);
+  const vE = safeNum(data.E);
+  const vA = safeNum(data.A);
+  const vS = safeNum(data.S);
+  const vM = safeNum(data.M);
 
   const p0 = `${C + R * vO * Math.cos(a0)},${C + R * vO * Math.sin(a0)}`;
   const p1 = `${C + R * vC * Math.cos(a1)},${C + R * vC * Math.sin(a1)}`;

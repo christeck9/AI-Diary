@@ -16,7 +16,8 @@ bool AudioPlayer::start() {
            ->setSharingMode(oboe::SharingMode::Exclusive)
            ->setFormat(oboe::AudioFormat::Float)
            ->setChannelCount(1) // Mono
-           ->setSampleRate(24000) // Adjust based on TTS output (e.g. OpenAI TTS is 24kHz)
+           ->setSampleRate(24000) // Inform Oboe that our DATA is 24kHz
+           ->setSampleRateConversionQuality(oboe::SampleRateConversionQuality::Medium) // Let Oboe handle resampling to device native hardware rate (Fast Path)
            ->setDataCallback(this);
 
     oboe::Result result = builder.openStream(mStream);

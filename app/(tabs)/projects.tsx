@@ -1,6 +1,5 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
-const DraggableFlatList = React.lazy(() => import('react-native-draggable-flatlist').then(m => ({ default: m.default })));
-const ScaleDecorator = React.lazy(() => import('react-native-draggable-flatlist').then(m => ({ default: m.ScaleDecorator })));
+import DraggableFlatList, { ScaleDecorator } from 'react-native-draggable-flatlist';
 import { StyleSheet, View, Text, TextInput, TouchableOpacity, Alert, Platform, StatusBar, ScrollView, FlatList, ActivityIndicator, KeyboardAvoidingView, Modal, Dimensions } from 'react-native';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useFocusEffect } from 'expo-router';

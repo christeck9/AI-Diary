@@ -36,6 +36,13 @@ export const getVadConfigForLevel = (level: number) => {
   }
 };
 
+const promiseWithTimeout = <T>(promise: Promise<T>, ms: number, errorMsg = 'Timeout'): Promise<T> => {
+  return Promise.race([
+    promise,
+    new Promise<never>((_, reject) => setTimeout(() => reject(new Error(errorMsg)), ms))
+  ]);
+};
+
 import { useSafeState } from './useSafeState';
 
 export function useVoice(lang: string = 'en', psyProfile?: { O: number, C: number, E: number, A: number, N: number, D: number, L: number }) {
@@ -68,6 +75,12 @@ export function useVoice(lang: string = 'en', psyProfile?: { O: number, C: numbe
   const whisperContextRef = useRef<any>(null);
   const soundRef = useRef<Audio.Sound | null>(null);
   const currentPlayUriRef = useRef<string | null>(null);
+  const currentSessionIdRef = useRef(0);
+  const fullTextRef = useRef('');
+  const lastCharIndexRef = useRef(0);
+  const charIndexOffsetRef = useRef(0);
+  const activeParamsRef = useRef<{ dynamicPsyProfile?: any, onDone?: () => void, preloadedData?: any }>({});
+  const [isPaused, setIsPaused] = useSafeState(false);
 
   // ── Mutex & Debounce Refs for VAD Sensitivity Changes ──
   const vadDebounceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -190,9 +203,15 @@ export function useVoice(lang: string = 'en', psyProfile?: { O: number, C: numbe
             return await cloudTTSService.synthesizeJSI(cleanText, lang, settings as any);
           } else {
             try {
-              const uint8Array = await AnimaVoice.synthesizeNativeToPCM(cleanText, lang);
+              // Wrap native synthesis in a timeout race to prevent infinite hangs
+              const uint8Array = await promiseWithTimeout(
+                AnimaVoice.synthesizeNativeToPCM(cleanText, lang),
+                2500,
+                'Native TTS pre-synthesis timeout'
+              );
               return new Int16Array(uint8Array.buffer, uint8Array.byteOffset, uint8Array.length / 2);
             } catch (nativeErr) {
+               console.warn('[VOICE] Preload native PCM synthesis failed or timed out:', nativeErr);
                // Fallthrough to null and classic playback
             }
           }
@@ -214,11 +233,30 @@ export function useVoice(lang: string = 'en', psyProfile?: { O: number, C: numbe
     return null;
   }, [lang, ttsEnabled, isMuted]);
 
-  const speak = useCallback((text: string, dynamicPsyProfile?: typeof psyProfile, onDone?: () => void, preloadedData?: string | Float32Array | Int16Array | ArrayBuffer | { uri: string, sound: any } | null) => {
+  const speak = useCallback((
+    text: string,
+    dynamicPsyProfile?: typeof psyProfile,
+    onDone?: () => void,
+    preloadedData?: string | Float32Array | Int16Array | ArrayBuffer | { uri: string, sound: any } | null,
+    isResume = false
+  ) => {
+    const sessionId = ++currentSessionIdRef.current;
     let onDoneCalled = false;
     let fallbackTimeoutId: NodeJS.Timeout | null = null;
+ 
+    if (!isResume) {
+      fullTextRef.current = text;
+      lastCharIndexRef.current = 0;
+      charIndexOffsetRef.current = 0;
+      activeParamsRef.current = { dynamicPsyProfile, onDone, preloadedData };
+    }
+    setIsPaused(false);
 
     const safeOnDone = () => {
+      if (sessionId !== currentSessionIdRef.current) {
+        console.log(`[VOICE] safeOnDone bypassed for session ${sessionId} (current: ${currentSessionIdRef.current})`);
+        return;
+      }
       if (onDoneCalled) return;
       onDoneCalled = true;
       if (fallbackTimeoutId) {
@@ -226,6 +264,7 @@ export function useVoice(lang: string = 'en', psyProfile?: { O: number, C: numbe
         fallbackTimeoutId = null;
       }
       setIsSpeaking(false);
+      setIsPaused(false);
       if (onDone) onDone();
     };
 
@@ -279,6 +318,28 @@ export function useVoice(lang: string = 'en', psyProfile?: { O: number, C: numbe
     }
 
     const performSpeak = async () => {
+      // ✅ Always switch audio mode to playback BEFORE feeding any audio,
+      // whether through the JSI fast path or the expo-speech fallback.
+      // Without this, if the mic was active, audio is silently routed to
+      // the recording session and nothing is heard through the speakers.
+      if (micService.lastAudioMode !== 'playback') {
+        try {
+          await Audio.setAudioModeAsync({
+            allowsRecordingIOS: false,
+            playsInSilentModeIOS: true,
+            staysActiveInBackground: true,
+            shouldDuckAndroid: true,
+            interruptionModeAndroid: InterruptionModeAndroid.DuckOthers,
+            interruptionModeIOS: InterruptionModeIOS.DuckOthers,
+            playThroughEarpieceAndroid: false,
+          });
+          micService.lastAudioMode = 'playback';
+          console.log('[VOICE] Audio mode set to playback speaker (pre-JSI).');
+        } catch (modeErr) {
+          console.warn('[VOICE] setAudioModeAsync error before speak:', modeErr);
+        }
+      }
+
       // 🚀 ZERO LATENCY FAST PATH (JSI + Oboe C++)
       if (typeof (global as any).animaFeedAudioChunk === 'function') {
         try {
@@ -293,15 +354,24 @@ export function useVoice(lang: string = 'en', psyProfile?: { O: number, C: numbe
               // 🚀 NATIVE TTS JSI FAST PATH (GAPLESS)
               try {
                 console.log('[VOICE] ⚡ Synthesizing Native TTS to PCM...');
-                const uint8Array = await AnimaVoice.synthesizeNativeToPCM(cleanText, lang);
+                const uint8Array = await promiseWithTimeout(
+                  AnimaVoice.synthesizeNativeToPCM(cleanText, lang),
+                  3000,
+                  'Native TTS synthesis timeout'
+                );
                 audioBuffer = new Int16Array(uint8Array.buffer, uint8Array.byteOffset, uint8Array.length / 2);
               } catch (nativeErr) {
-                console.warn('[VOICE] Native PCM synthesis failed, falling back to expo-speech:', nativeErr);
+                console.warn('[VOICE] Native PCM synthesis failed or timed out, falling back to expo-speech:', nativeErr);
               }
             }
           }
 
-          if (audioBuffer) {
+          const hasData = audioBuffer && (
+            (audioBuffer instanceof ArrayBuffer && audioBuffer.byteLength > 0) ||
+            ((audioBuffer instanceof Float32Array || audioBuffer instanceof Int16Array) && audioBuffer.length > 0)
+          );
+
+          if (hasData) {
             console.log('[VOICE] ⚡ Pushing audio buffer via zero-latency JSI bridge.');
             let durationMs = 0;
             
@@ -333,6 +403,8 @@ export function useVoice(lang: string = 'en', psyProfile?: { O: number, C: numbe
               safeOnDone();
             }, durationMs);
             return;
+          } else {
+            console.warn('[VOICE] Resolved audio buffer was empty or null. Falling back to next TTS path.');
           }
         } catch (e) {
           console.error('[VOICE] JSI Pipeline Error:', e);
@@ -478,6 +550,9 @@ export function useVoice(lang: string = 'en', psyProfile?: { O: number, C: numbe
         rate: speechOptionsLocal.rate,
         pitch: speechOptionsLocal.pitch,
         volume: 1.0,
+        onBoundary: (e: any) => {
+          lastCharIndexRef.current = e.charIndex;
+        },
         onDone: () => {
           safeOnDone();
         },
@@ -525,6 +600,13 @@ export function useVoice(lang: string = 'en', psyProfile?: { O: number, C: numbe
   }, [lang, ttsEnabled, psyProfile, selectedVoiceId, isMuted, selectedOfflineVoiceId, selectedOfflineSpeakerId]);
 
   const stopSpeaking = useCallback(async () => {
+    currentSessionIdRef.current++; // Invalidate any active speech session callbacks immediately
+    fullTextRef.current = '';
+    lastCharIndexRef.current = 0;
+    charIndexOffsetRef.current = 0;
+    activeParamsRef.current = {};
+    setIsPaused(false);
+
     // Interrupt JSI Audio Queue instantly
     if (typeof (global as any).animaInterruptAudio === 'function') {
       (global as any).animaInterruptAudio();
@@ -532,6 +614,14 @@ export function useVoice(lang: string = 'en', psyProfile?: { O: number, C: numbe
 
     try {
       await Speech.stop();
+      if (Platform.OS === 'android') {
+        // Android TTS engines sometimes ignore Speech.stop() during active long utterances.
+        // Speaking a single silent space immediately overrides/interrupts the active speech.
+        try {
+          Speech.speak(' ');
+          await Speech.stop();
+        } catch (innerErr) {}
+      }
     } catch (e) {
       console.warn('[VOICE] Speech.stop error:', e);
     }
@@ -554,6 +644,66 @@ export function useVoice(lang: string = 'en', psyProfile?: { O: number, C: numbe
     }
     setIsSpeaking(false);
   }, []);
+
+  const pauseSpeaking = useCallback(async () => {
+    setIsPaused(true);
+    setIsSpeaking(false);
+    currentSessionIdRef.current++; // Invalidate active async callbacks
+
+    // Accumulate the character offset from the last boundary
+    charIndexOffsetRef.current += lastCharIndexRef.current;
+
+    // Interrupt native audio JSI
+    if (typeof (global as any).animaInterruptAudio === 'function') {
+      (global as any).animaInterruptAudio();
+    }
+
+    try {
+      await Speech.stop();
+      if (Platform.OS === 'android') {
+        try {
+          Speech.speak(' ');
+          await Speech.stop();
+        } catch (innerErr) {}
+      }
+    } catch (e) {
+      console.warn('[VOICE] Speech.stop error during pause:', e);
+    }
+
+    if (soundRef.current) {
+      try {
+        await soundRef.current.pauseAsync();
+      } catch (e) {
+        console.log('[VOICE] sound pauseAsync error:', e);
+      }
+    }
+  }, []);
+
+  const resumeSpeaking = useCallback(async () => {
+    if (!isPaused) return;
+
+    setIsPaused(false);
+    setIsSpeaking(true);
+
+    if (soundRef.current) {
+      try {
+        await soundRef.current.playAsync();
+        return;
+      } catch (e) {
+        console.log('[VOICE] sound playAsync error during resume:', e);
+      }
+    }
+
+    const remainingText = fullTextRef.current.substring(charIndexOffsetRef.current);
+    if (remainingText.trim()) {
+      const params = activeParamsRef.current;
+      speak(remainingText, params.dynamicPsyProfile, params.onDone, params.preloadedData, true);
+    } else {
+      setIsSpeaking(false);
+      setIsPaused(false);
+      if (activeParamsRef.current.onDone) activeParamsRef.current.onDone();
+    }
+  }, [isPaused, speak]);
 
   const toggleTts = useCallback(() => {
     setTtsEnabled(prev => !prev);
@@ -897,10 +1047,13 @@ export function useVoice(lang: string = 'en', psyProfile?: { O: number, C: numbe
     warmupModels,
     voiceError,
     isSpeaking,
+    isPaused,
     ttsEnabled,
     speak,
     preloadSpeech,
     stopSpeaking,
+    pauseSpeaking,
+    resumeSpeaking,
     toggleTts,
     isInitializing,
     isWhisperReady,
@@ -929,10 +1082,13 @@ export function useVoice(lang: string = 'en', psyProfile?: { O: number, C: numbe
     warmupModels,
     voiceError,
     isSpeaking,
+    isPaused,
     ttsEnabled,
     speak,
     preloadSpeech,
     stopSpeaking,
+    pauseSpeaking,
+    resumeSpeaking,
     toggleTts,
     isInitializing,
     isWhisperReady,

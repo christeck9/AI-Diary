@@ -261,10 +261,12 @@ export default function NeuralLinkScreen() {
   const [uiIsCapturing, setUiIsCapturing] = useState(false);
   const [isWarmupActive, setIsWarmupActive] = useState(false);
   const debounceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const playTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     return () => {
       if (debounceTimeoutRef.current) clearTimeout(debounceTimeoutRef.current);
+      if (playTimeoutRef.current) clearTimeout(playTimeoutRef.current);
     };
   }, []);
 
@@ -355,7 +357,11 @@ export default function NeuralLinkScreen() {
     selectedVoiceId,
     setSelectedVoiceId,
     speak,
+    stopSpeaking,
+    pauseSpeaking,
+    resumeSpeaking,
     isSpeaking: isVoiceSpeaking,
+    isPaused: isVoicePaused,
     queueSpeech,
     clearSpeechQueue,
     startSpeechSession,
@@ -1286,28 +1292,39 @@ export default function NeuralLinkScreen() {
         onImagePress={handleImagePress}
         ttsEnabled={dictation.ttsEnabled}
         isSpeaking={(isLatest && isVoiceSpeaking) || (activeSpeechId === item.id && isVoiceSpeaking)}
+        isPaused={activeSpeechId === item.id && isVoicePaused}
         onPlayPress={(msg) => {
           Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
           setActiveSpeechId(msg.id);
+          if (playTimeoutRef.current) clearTimeout(playTimeoutRef.current);
           dictation.stopSpeaking().then(() => {
              // Add a small delay as requested to prevent collisions
-             setTimeout(() => {
+             playTimeoutRef.current = setTimeout(() => {
                dictation.speak(msg.text);
+               playTimeoutRef.current = null;
              }, 300);
           });
         }}
-        onStopPress={() => {
+        onPausePress={() => {
           Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-          setActiveSpeechId(null);
-          dictation.stopSpeaking();
+          dictation.pauseSpeaking();
         }}
-        onToggleMute={() => {
+        onResumePress={() => {
           Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-          dictation.toggleTts();
+          dictation.resumeSpeaking();
+        }}
+        onStopPress={() => {
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+          setActiveSpeechId(null);
+          if (playTimeoutRef.current) {
+            clearTimeout(playTimeoutRef.current);
+            playTimeoutRef.current = null;
+          }
+          dictation.stopSpeaking();
         }}
       />
     );
-  }, [colors, lang, handleReportMessage, handleImagePress, isTypingRef, addSystemMessage, handleSend, handleDeleteMessage, dictation, isVoiceSpeaking, activeSpeechId]);
+  }, [colors, lang, handleReportMessage, handleImagePress, isTypingRef, addSystemMessage, handleSend, handleDeleteMessage, dictation, isVoiceSpeaking, isVoicePaused, activeSpeechId]);
 
   const handleClearChat = useCallback(() => {
     Alert.alert(

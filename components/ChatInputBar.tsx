@@ -88,8 +88,8 @@ export function ChatInputBar({
           <View style={{ backgroundColor: colors.surfaceSecondary, padding: 10, borderTopWidth: 1, borderTopColor: colors.border, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
             <ActivityIndicator size="small" color={colors.primary} />
             <Text style={{ color: colors.textSecondary, fontSize: 12 }}>
-              {lang === 'es' 
-                ? `Procesando ${processingAttachedFile.name}...` 
+              {lang === 'es'
+                ? `Procesando ${processingAttachedFile.name}...`
                 : `Processing ${processingAttachedFile.name}...`}
             </Text>
           </View>
@@ -171,8 +171,10 @@ export function ChatInputBar({
           justifyContent: 'space-between',
           alignItems: 'center',
           backgroundColor: colors.surface,
-          paddingHorizontal: 15,
-          paddingVertical: 6,
+          paddingLeft: 2,
+          paddingRight: 10,
+          paddingTop: 4,
+          paddingBottom: 1,
           borderTopWidth: 1,
           borderTopColor: colors.border
         }}>
@@ -185,50 +187,38 @@ export function ChatInputBar({
 
             const btnColor = isRecording ? '#ff3b30'
               : isProcessing ? (colors.secondary || '#D4A017')
-              : isSpeakingNow ? (colors.primary)
-              : isMutedWT ? colors.textSecondary
-              : isActive ? colors.primary
-              : colors.textSecondary;
+                : isSpeakingNow ? (colors.primary)
+                  : isMutedWT ? colors.textSecondary
+                    : isActive ? colors.primary
+                      : colors.primary;
 
             const btnBg = isRecording ? 'rgba(255,59,48,0.15)'
               : isActive ? `${colors.primary}25`
-              : colors.surfaceSecondary;
+                : 'transparent';
 
             const btnBorder = isRecording ? '#ff3b30'
               : isActive ? colors.primary
-              : colors.border;
+                : 'transparent';
 
             const iconName = isRecording ? 'waveform'
               : isSpeakingNow ? 'waveform'
-              : isMutedWT ? 'waveform.slash'
-              : 'voice.active';
+                : isMutedWT ? 'waveform.slash'
+                  : 'equalizer';
 
-            const labelES = isRecording ? '● REC'
-              : isProcessing ? '⚙ PROC.'
-              : isSpeakingNow ? '🔊 HABLA'
-              : isMutedWT ? '🔇 MUTED'
-              : isActive ? '🎙 LISTO'
-              : 'ACTIVE TALK';
-
-            const labelEN = isRecording ? '● REC'
-              : isProcessing ? '⚙ PROC.'
-              : isSpeakingNow ? '🔊 SPEAK'
-              : isMutedWT ? '🔇 MUTED'
-              : isActive ? '🎙 READY'
-              : 'ACTIVE TALK';
-
-             return (
+            return (
               <TouchableOpacity
                 style={{
                   flexDirection: 'row',
                   alignItems: 'center',
                   backgroundColor: btnBg,
-                  paddingHorizontal: 12,
-                  paddingVertical: 6,
+                  paddingHorizontal: 2,
+                  paddingVertical: 10,
                   borderRadius: 20,
                   borderWidth: 1,
                   borderColor: btnBorder,
-                  minWidth: 72,
+                  justifyContent: 'center',
+                  minWidth: 44,
+                  minHeight: 44,
                 }}
                 onPress={async () => {
                   if (status === 'ready') {
@@ -245,19 +235,9 @@ export function ChatInputBar({
               >
                 <IconSymbol
                   name={iconName}
-                  size={16}
+                  size={26}
                   color={btnColor}
                 />
-                <Text style={{
-                  marginLeft: 6,
-                  fontSize: 11,
-                  fontWeight: 'bold',
-                  color: btnColor,
-                  textTransform: 'uppercase',
-                  letterSpacing: 0.3,
-                }}>
-                  {lang === 'es' ? labelES : labelEN}
-                </Text>
               </TouchableOpacity>
             );
           })()}
@@ -278,44 +258,58 @@ export function ChatInputBar({
               {CONSCIOUSNESS_CONFIG[lang as 'es' | 'en'][consciousnessLevel as 1 | 2 | 3 | 4].desc}
             </Text>
 
-            <TouchableOpacity
-              style={{
-                flexDirection: 'row',
-                alignItems: 'center',
-                backgroundColor: colors.surfaceSecondary,
-                paddingHorizontal: 10,
-                paddingVertical: 6,
-                borderRadius: 20,
-                borderWidth: 1,
-                borderColor: colors.border
-              }}
-              onPress={() => {
-                const nextLevel = consciousnessLevel >= 4 ? 1 : consciousnessLevel + 1;
-                setConsciousnessLevel(nextLevel);
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              }}
-              accessibilityRole="button"
-              accessibilityLabel={lang === 'es' ? `Nivel de consciencia: ${CONSCIOUSNESS_CONFIG[lang as 'es' | 'en'][consciousnessLevel as 1 | 2 | 3 | 4].label}` : `Consciousness level: ${CONSCIOUSNESS_CONFIG[lang as 'es' | 'en'][consciousnessLevel as 1 | 2 | 3 | 4].label}`}
-            >
-              <IconSymbol
-                name="brain.head.profile"
-                size={18}
-                color={
-                  consciousnessLevel === 1 ? colors.textSecondary :
-                    consciousnessLevel === 2 ? '#4A90D9' : '#D4A017'
-                }
-              />
+            <View style={{ alignItems: 'center', justifyContent: 'center' }}>
+              <TouchableOpacity
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  backgroundColor: colors.surfaceSecondary,
+                  paddingHorizontal: 10,
+                  paddingVertical: 4,
+                  borderRadius: 20,
+                  borderWidth: 1,
+                  borderColor: colors.border
+                }}
+                onPress={() => {
+                  const nextLevel = consciousnessLevel >= 4 ? 1 : consciousnessLevel + 1;
+                  setConsciousnessLevel(nextLevel);
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                }}
+                accessibilityRole="button"
+                accessibilityLabel={lang === 'es' ? `Nivel de consciencia: ${CONSCIOUSNESS_CONFIG[lang as 'es' | 'en'][consciousnessLevel as 1 | 2 | 3 | 4].label}` : `Consciousness level: ${CONSCIOUSNESS_CONFIG[lang as 'es' | 'en'][consciousnessLevel as 1 | 2 | 3 | 4].label}`}
+              >
+                <IconSymbol
+                  name="brain.head.profile"
+                  size={18}
+                  color={
+                    consciousnessLevel === 1 ? colors.textSecondary :
+                      consciousnessLevel === 2 ? '#4A90D9' :
+                        consciousnessLevel === 3 ? '#D4A017' : '#A855F7'
+                  }
+                />
+                <Text style={{
+                  marginLeft: 6,
+                  fontSize: 11,
+                  fontWeight: 'bold',
+                  color: consciousnessLevel === 1 ? colors.textSecondary :
+                    consciousnessLevel === 2 ? '#4A90D9' :
+                      consciousnessLevel === 3 ? '#D4A017' : '#A855F7',
+                  textTransform: 'uppercase'
+                }}>
+                  {CONSCIOUSNESS_CONFIG[lang as 'es' | 'en'][consciousnessLevel as 1 | 2 | 3 | 4].label}
+                </Text>
+              </TouchableOpacity>
               <Text style={{
-                marginLeft: 6,
-                fontSize: 11,
+                fontSize: 8,
                 fontWeight: 'bold',
-                color: consciousnessLevel === 1 ? colors.textSecondary :
-                  consciousnessLevel === 2 ? '#4A90D9' : '#D4A017',
-                textTransform: 'uppercase'
+                color: colors.primary,
+                marginTop: 2,
+                marginBottom: 2,
+                letterSpacing: 0.5
               }}>
-                {CONSCIOUSNESS_CONFIG[lang as 'es' | 'en'][consciousnessLevel as 1 | 2 | 3 | 4].label}
+                {lang === 'es' ? 'COGNICIÓN' : 'COGNITION'}
               </Text>
-            </TouchableOpacity>
+            </View>
           </View>
         </View>
 

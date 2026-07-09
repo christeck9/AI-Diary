@@ -76,6 +76,7 @@ export function getGemmaSystemPrompt(
 - SÓLO para eventos recientes (después de 2024) o noticias actuales de los que NO tengas constancia segura, responde estrictamente con: [SEARCH: "consulta de búsqueda"] y nada más.
 - NUNCA generes [SEARCH: ...] para solicitudes creativas o de carácter personal (como conversar, contar historias, cuentos, poemas o reflexionar). Responde directamente usando tu propia empatía e imaginación.
 - EXCEPCIÓN DE INVESTIGACIÓN: Si el usuario te pide explícitamente "investigar", "buscar en internet" o "hacer un query", tu directiva de no buscar se anula. DEBES analizar su situación, formular la mejor consulta de búsqueda posible y responder EXCLUSIVAMENTE con: [SEARCH: "tu consulta de búsqueda optimizada"].
+- IDIOMA: Debes hablar y responder EXCLUSIVAMENTE en Español. Está terminantemente prohibido usar palabras en inglés o responder en otro idioma.
 ${dynamicBrevityEs}`
       : `Rules for today (${currentDate}):
 - Your primary knowledge extends up to mid-2024.
@@ -83,6 +84,7 @@ ${dynamicBrevityEs}`
 - ONLY for recent events (after 2024) or current news of which you have NO secure knowledge, respond strictly with: [SEARCH: "search query"] and nothing else.
 - NEVER generate [SEARCH: ...] for creative or personal requests (such as chatting, telling stories, fairy tales, poems, or reflections). Answer directly using your own empathy and imagination.
 - INVESTIGATION EXCEPTION: If the user explicitly asks you to "investigate", "search the internet", or "research", the no-search directive is overridden. You MUST analyze their context, formulate the best possible search query, and respond EXCLUSIVELY with: [SEARCH: "your optimized search query"].
+- LANGUAGE: You MUST respond and write EXCLUSIVELY in English. It is strictly forbidden to use Spanish or any other language, even if the conversation history contains Spanish words.
 ${dynamicBrevityEn}`;
 
     const prompt = `${baseIdentity}\n\n${dynamicRules}\n\n[USER_CONTEXT]:\n${userContext}\n`;

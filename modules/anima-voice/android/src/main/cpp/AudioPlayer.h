@@ -68,6 +68,6 @@ private:
     std::shared_ptr<oboe::AudioStream> mStream;
     
     // Lock-Free Ring Buffer to prevent audio thread blocking
-    // 5,000,000 frames is ~200 seconds of audio at 24kHz
-    LockFreeRingBuffer<float> mRingBuffer{5000000}; 
+    // 1,000,000 frames is ~40 seconds of audio at 24kHz
+    LockFreeRingBuffer<float> mRingBuffer{1000000}; 
 };

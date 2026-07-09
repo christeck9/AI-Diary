@@ -70,6 +70,10 @@ const MAPPING = {
   'calendar': 'calendar-today',
   'plus': 'add',
   'pause.fill': 'pause',
+  'play.fill': 'play-arrow',
+  'stop.fill': 'stop',
+  'speaker.wave.2.fill': 'volume-up',
+  'speaker.slash.fill': 'volume-off',
   'arrow.left': 'arrow-back',
   'arrow.right': 'arrow-forward',
 } as const;

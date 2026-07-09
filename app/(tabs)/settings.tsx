@@ -1,5 +1,5 @@
 // 🚨 MANDATORY: CHECK DESIGN_PROTOCOL_v1.8.0.md BEFORE MODIFYING UI OR LOGIC.
-const MatrixRain = React.lazy(() => import('@/components/MatrixRain').then(m => ({ default: m.MatrixRain })));
+const MatrixRain = React.lazy(() => import('../../components/MatrixRain').then(m => ({ default: m.MatrixRain })));
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import * as FileSystem from 'expo-file-system';
 import * as SecureStore from 'expo-secure-store';
@@ -12,6 +12,7 @@ import { ManifestoCard } from '../../components/SanctuaryUI';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useAppTheme } from '../../contexts/ThemeContext';
 import { useProfile } from '../../contexts/ProfileContext';
+import { useVoiceContext } from '../../contexts/VoiceContext';
 import { useRouter } from 'expo-router';
 
 import * as Haptics from 'expo-haptics';
@@ -21,7 +22,6 @@ import { runOnJS } from 'react-native-reanimated';
 import { SanctuaryHeader } from '../../components/SanctuaryHeader';
 import { useFocusEffect } from '@react-navigation/native';
 
-const ProfileModal = React.lazy(() => import('../../components/modals/ProfileModal').then(m => ({ default: m.ProfileModal })));
 const IntroModal = React.lazy(() => import('../../components/modals/IntroModal').then(m => ({ default: m.IntroModal })));
 const VaultExplorerModal = React.lazy(() => import('../../components/modals/VaultExplorerModal').then(m => ({ default: m.VaultExplorerModal })));
 import { settingsService } from '../../lib/SettingsService';
@@ -56,11 +56,12 @@ type ScannedModel = {
 export default function SettingsScreen() {
   const router = useRouter();
   const { colors, activeTheme, setTheme } = useAppTheme();
-  
+
 
   const { lang, setLang, t } = useLanguage();
   const db = useSQLiteContext();
   const { userProfile, setUserProfile, psyProfile } = useProfile();
+  const { voice } = useVoiceContext();
 
 
   const [showResetModal, setShowResetModal] = useState(false);
@@ -95,18 +96,13 @@ export default function SettingsScreen() {
     }
   }, [showLangPicker]);
   // Local modals state
-  const [isProfileVisible, setIsProfileVisible] = useState(false);
-  const [isProfileMounted, setIsProfileMounted] = useState(false);
   const [isIntroVisible, setIsIntroVisible] = useState(false);
   const [isIntroMounted, setIsIntroMounted] = useState(false);
   const [isVaultVisible, setIsVaultVisible] = useState(false);
   const [isVaultMounted, setIsVaultMounted] = useState(false);
 
-  const handleOpenModal = (name: 'profile' | 'intro' | 'vault') => {
-    if (name === 'profile') {
-      setIsProfileMounted(true);
-      setTimeout(() => setIsProfileVisible(true), 50);
-    } else if (name === 'intro') {
+  const handleOpenModal = (name: 'intro' | 'vault') => {
+    if (name === 'intro') {
       setIsIntroMounted(true);
       setTimeout(() => setIsIntroVisible(true), 50);
     } else if (name === 'vault') {
@@ -115,11 +111,8 @@ export default function SettingsScreen() {
     }
   };
 
-  const handleCloseModal = (name: 'profile' | 'intro' | 'vault') => {
-    if (name === 'profile') {
-      setIsProfileVisible(false);
-      setTimeout(() => setIsProfileMounted(false), 500);
-    } else if (name === 'intro') {
+  const handleCloseModal = (name: 'intro' | 'vault') => {
+    if (name === 'intro') {
       setIsIntroVisible(false);
       setTimeout(() => setIsIntroMounted(false), 500);
     } else if (name === 'vault') {
@@ -130,7 +123,7 @@ export default function SettingsScreen() {
   const [freeDiskMB, setFreeDiskMB] = useState(0);
   const [totalDiskMB, setTotalDiskMB] = useState(0);
 
-  
+
   // Extraemos funciones de LLM para el Force Reload
   const { status, activeModel, AVAILABLE_MODELS } = useLlmState();
   const { loadModel, resetToHome, selectModel, getModelStatus, downloadModel } = useLlmActions();
@@ -153,7 +146,7 @@ export default function SettingsScreen() {
         }
       } catch (e) {
         console.warn('[SecureStore] KeyStore error reading Brave API key — clearing corrupted entry:', e);
-        try { await SecureStore.deleteItemAsync('brave_search_api_key'); } catch (_) {}
+        try { await SecureStore.deleteItemAsync('brave_search_api_key'); } catch (_) { }
       }
 
       let secureOpenAIKey: string | null = null;
@@ -164,7 +157,7 @@ export default function SettingsScreen() {
         }
       } catch (e) {
         console.warn('[SecureStore] KeyStore error reading OpenAI API key — clearing corrupted entry:', e);
-        try { await SecureStore.deleteItemAsync('openai_tts_api_key'); } catch (_) {}
+        try { await SecureStore.deleteItemAsync('openai_tts_api_key'); } catch (_) { }
       }
 
       let secureGoogleKey: string | null = null;
@@ -175,7 +168,7 @@ export default function SettingsScreen() {
         }
       } catch (e) {
         console.warn('[SecureStore] KeyStore error reading Google API key — clearing corrupted entry:', e);
-        try { await SecureStore.deleteItemAsync('google_tts_api_key'); } catch (_) {}
+        try { await SecureStore.deleteItemAsync('google_tts_api_key'); } catch (_) { }
       }
 
       // --- Layer 2: settingsService (always runs, even if SecureStore failed above) ---
@@ -278,7 +271,7 @@ export default function SettingsScreen() {
         await db.runAsync('DELETE FROM zen_tree');
         await db.runAsync('DELETE FROM session_folding');
         await db.runAsync('DELETE FROM todos');
-        
+
         // 2. Limpieza de Archivos y Modelos (Deep Clean)
         const docs = await FileSystem.readDirectoryAsync(FileSystem.documentDirectory!);
         for (const file of docs) {
@@ -288,17 +281,17 @@ export default function SettingsScreen() {
         }
 
         Alert.alert(
-          lang === 'es' ? "Diario Reseteado" : "Diary Reset", 
-          lang === 'es' 
+          lang === 'es' ? "Diario Reseteado" : "Diary Reset",
+          lang === 'es'
             ? "Todos los datos locales han sido eliminados. La aplicación se cerrará ahora para completar el reinicio."
             : "All local data has been deleted. The application will close now to complete the reset.",
           [{ text: "OK", onPress: () => BackHandler.exitApp() }]
         );
       }
-    } catch (e) { 
+    } catch (e) {
       console.error("Wipe failed", e);
       Alert.alert(
-        lang === 'es' ? "Error" : "Error", 
+        lang === 'es' ? "Error" : "Error",
         lang === 'es' ? "No se pudo completar el borrado total." : "Could not complete total wipe."
       );
     }
@@ -307,7 +300,7 @@ export default function SettingsScreen() {
   const handleMasterReset = () => {
     Alert.alert(
       lang === 'es' ? 'PELIGRO: BORRADO TOTAL' : 'WARNING: TOTAL WIPE',
-      lang === 'es' 
+      lang === 'es'
         ? '¿Estás seguro de que deseas borrar todas tus conversaciones, perfiles, diarios y datos de la aplicación? Esta acción es definitiva e irreversible.'
         : 'Are you sure you want to delete all conversations, profiles, journals, and application data? This action is final and irreversible.',
       [
@@ -364,14 +357,14 @@ export default function SettingsScreen() {
       const total = await FileSystem.getTotalDiskCapacityAsync();
       setFreeDiskMB(Math.round(free / (1024 * 1024)));
       setTotalDiskMB(Math.round(total / (1024 * 1024)));
-    } catch(e) { console.log('Error getting disk space', e); }
+    } catch (e) { console.log('Error getting disk space', e); }
 
     const baseDir = FileSystem.documentDirectory?.replace(/\/+$/, '') + '/llm_models';
     const dirInfo = await FileSystem.getInfoAsync(baseDir);
     if (!dirInfo.exists) return;
 
     const foundModels: ScannedModel[] = [];
-    
+
     for (const model of AVAILABLE_MODELS) {
       let totalSize = 0;
       let isPartial = false;
@@ -385,7 +378,7 @@ export default function SettingsScreen() {
         foundFiles.push(model.fileName);
         const size = (mainInfo as any).size / (1024 * 1024);
         totalSize += size;
-        if (size < model.sizeMB * 0.99) isPartial = true;
+        if (size < model.sizeMB * 0.90) isPartial = true;
       }
 
       if (model.mmprojFileName) {
@@ -397,7 +390,7 @@ export default function SettingsScreen() {
           const size = (mmprojInfo as any).size / (1024 * 1024);
           totalSize += size;
           // Some configurations might not have mmprojSizeMB defined, fall back to a reasonable ratio check or ignore size check if missing
-          if (model.mmprojSizeMB && size < model.mmprojSizeMB * 0.99) isPartial = true;
+          if (model.mmprojSizeMB && size < model.mmprojSizeMB * 0.90) isPartial = true;
         }
       }
 
@@ -406,7 +399,7 @@ export default function SettingsScreen() {
         foundFiles.push(`download_resume_${model.fileName}.json`);
         isPartial = true;
       }
-      
+
       if (model.mmprojFileName) {
         const mmprojResumePath = `${baseDir}/download_resume_${model.mmprojFileName}.json`;
         if ((await FileSystem.getInfoAsync(mmprojResumePath)).exists) {
@@ -434,16 +427,18 @@ export default function SettingsScreen() {
       lang === 'es' ? `¿Estás seguro de que deseas eliminar ${scannedModel.label} y liberar ${scannedModel.sizeMB} MB?` : `Are you sure you want to delete ${scannedModel.label} and free up ${scannedModel.sizeMB} MB?`,
       [
         { text: lang === 'es' ? 'Cancelar' : 'Cancel', style: 'cancel' },
-        { text: lang === 'es' ? 'Eliminar' : 'Delete', style: 'destructive', onPress: async () => {
-          const baseDir = FileSystem.documentDirectory?.replace(/\/+$/, '') + '/llm_models';
-          for (const fileName of scannedModel.fileNames) {
-            const path = `${baseDir}/${fileName}`;
-            try {
-              await FileSystem.deleteAsync(path, { idempotent: true });
-            } catch(e) { console.error('Error deleting', path, e); }
+        {
+          text: lang === 'es' ? 'Eliminar' : 'Delete', style: 'destructive', onPress: async () => {
+            const baseDir = FileSystem.documentDirectory?.replace(/\/+$/, '') + '/llm_models';
+            for (const fileName of scannedModel.fileNames) {
+              const path = `${baseDir}/${fileName}`;
+              try {
+                await FileSystem.deleteAsync(path, { idempotent: true });
+              } catch (e) { console.error('Error deleting', path, e); }
+            }
+            scanModelStorage();
           }
-          scanModelStorage();
-        }}
+        }
       ]
     );
   };
@@ -457,7 +452,7 @@ export default function SettingsScreen() {
           </React.Suspense>
         )}
 
-        <SanctuaryHeader 
+        <SanctuaryHeader
           activeModelLabel={status === 'ready' && activeModel ? activeModel[lang === 'es' ? 'labelEs' : 'labelEn'] : undefined}
           showLangPicker={showLangPicker}
           onLangPress={() => setShowLangPicker(!showLangPicker)}
@@ -467,60 +462,37 @@ export default function SettingsScreen() {
 
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
           <ScrollView contentContainerStyle={styles.scrollContent}>
+            <Text style={[styles.sectionTitle, { color: colors.primary, textAlign: 'center', fontSize: 20 }]}>SETTINGS</Text>
 
             {/* ⚙️ AJUSTES PRINCIPALES */}
             <View style={[styles.section, { borderBottomWidth: 1, borderBottomColor: colors.border, paddingBottom: 20, marginBottom: 15 }]}>
-              <Text style={[styles.sectionTitle, { color: colors.primary, fontWeight: 'bold', fontSize: 13, letterSpacing: 1.5, marginBottom: 12 }]}>
-                {lang === 'es' ? 'AJUSTES PRINCIPALES' : 'CORE SETTINGS'}
-              </Text>
-              
               <View style={{ gap: 10 }}>
-                {/* 1. Perfil del Usuario */}
-                <TouchableOpacity 
-                  style={[styles.quickButton, { backgroundColor: colors.surfaceSecondary, borderColor: colors.border }]}
-                  onPress={() => handleOpenModal('profile')}
-                >
-                  <View style={styles.quickButtonContent}>
-                    <Text style={styles.quickButtonEmoji}>👤</Text>
-                    <Text style={[styles.quickButtonText, { color: colors.textPrimary }]}>
-                      {lang === 'es' ? 'Perfil del Usuario' : 'User Profile'}
-                    </Text>
-                  </View>
-                  <IconSymbol name="chevron.right" size={16} color={colors.textSecondary} />
-                </TouchableOpacity>
-
-                {/* 2. Introducción y Ayuda */}
-                <TouchableOpacity 
-                  style={[styles.quickButton, { backgroundColor: colors.surfaceSecondary, borderColor: colors.border }]}
+                {/* 1. Introducción y Ayuda */}
+                <TouchableOpacity
+                  style={[styles.quickButton, { backgroundColor: colors.surfaceSecondary, borderColor: colors.primary }]}
                   onPress={() => handleOpenModal('intro')}
                 >
-                  <View style={styles.quickButtonContent}>
-                    <Text style={styles.quickButtonEmoji}>👓</Text>
-                    <Text style={[styles.quickButtonText, { color: colors.textPrimary }]}>
-                      {lang === 'es' ? 'Introducción y Ayuda (Voz)' : 'Introduction & Help (Voice)'}
-                    </Text>
-                  </View>
-                  <IconSymbol name="chevron.right" size={16} color={colors.textSecondary} />
+                  <Text style={[styles.quickButtonText, { color: colors.primary }]}>
+                    {lang === 'es' ? 'INTRODUCCIÓN Y AYUDA' : 'INTRODUCTION & HELP'}
+                  </Text>
                 </TouchableOpacity>
 
                 {/* 3. Bóveda Encriptada */}
-                <TouchableOpacity 
-                  style={[styles.quickButton, { backgroundColor: colors.surfaceSecondary, borderColor: colors.border }]}
+                <TouchableOpacity
+                  style={[styles.quickButton, { backgroundColor: colors.surfaceSecondary, borderColor: colors.primary }]}
                   onPress={() => handleOpenModal('vault')}
                 >
-                  <View style={styles.quickButtonContent}>
-                    <Text style={styles.quickButtonEmoji}>🔒</Text>
-                    <Text style={[styles.quickButtonText, { color: colors.textPrimary }]}>
-                      {lang === 'es' ? 'Bóveda de Datos Encriptada' : 'Encrypted Data Vault'}
-                    </Text>
-                  </View>
-                  <IconSymbol name="chevron.right" size={16} color={colors.textSecondary} />
+                  <Text style={[styles.quickButtonText, { color: colors.primary }]}>
+                    {lang === 'es' ? 'ENCRIPTACIÓN DE DATOS' : 'DATA ENCRIPTION'}
+                  </Text>
                 </TouchableOpacity>
               </View>
             </View>
-            
+
             <View style={styles.section}>
-              <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>{lang === 'es' ? 'Temas' : 'Themes'}</Text>
+              <Text style={[styles.sectionTitle, { color: colors.textSecondary, textAlign: 'center' }]}>
+                {lang === 'es' ? 'Temas' : 'Themes'}
+              </Text>
               <View style={{ flexDirection: 'row', gap: 5 }}>
                 {renderThemeButton('light', 'CLEAR')}
                 {renderThemeButton('sanctuary', 'BALANCE')}
@@ -530,9 +502,8 @@ export default function SettingsScreen() {
 
             </View>
 
-            {/* 🏆 Mis Insignias */}
             <View style={styles.section}>
-              <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>
+              <Text style={[styles.sectionTitle, { color: colors.textSecondary, textAlign: 'center' }]}>
                 {lang === 'es' ? 'MIS INSIGNIAS' : 'MY BADGES'}
               </Text>
               {badges.length > 0 ? (
@@ -556,20 +527,17 @@ export default function SettingsScreen() {
                   ))}
                 </ScrollView>
               ) : (
-                <Text style={{ color: colors.textSecondary, fontSize: 12, fontStyle: 'italic', paddingHorizontal: 5 }}>
+                <Text style={{ color: colors.textSecondary, textAlign: 'center', fontSize: 12, fontStyle: 'italic', paddingHorizontal: 5 }}>
                   {lang === 'es' ? 'Aún no has ganado insignias. Sigue charlando para descubrirlas.' : 'No badges earned yet. Keep chatting to discover them.'}
                 </Text>
               )}
             </View>
 
-            {/* 🌐 SOVEREIGN INTERNET / ANONYMOUS SEARCH SECTION */}
+            {/* SOVEREIGN INTERNET / ANONYMOUS SEARCH SECTION */}
             <View style={styles.section}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 15, gap: 8 }}>
-                <IconSymbol name="lock.shield.fill" size={20} color={colors.primary} />
-                <Text style={[styles.sectionTitle, { color: colors.textSecondary, marginBottom: 0 }]}>
-                  {lang === 'es' ? 'INTERNET SOBERANO (BÚSQUEDA ANÓNIMA)' : 'SOVEREIGN INTERNET (ANONYMOUS SEARCH)'}
-                </Text>
-              </View>
+              <Text style={[styles.sectionTitle, { color: colors.textSecondary, textAlign: 'center', marginBottom: 0 }]}>
+                {lang === 'es' ? 'INTERNET SOBERANO (BÚSQUEDA ANÓNIMA)' : 'SOVEREIGN INTERNET (ANONYMOUS SEARCH)'}
+              </Text>
 
               <View style={{
                 padding: 18,
@@ -581,8 +549,8 @@ export default function SettingsScreen() {
               }}>
                 <Text style={{ color: colors.textPrimary, fontSize: 13, lineHeight: 18 }}>
                   {lang === 'es'
-                    ? 'Para consultar datos en tiempo real de forma 100% segura, privada y prácticamente gratuita (hasta 1,000 búsquedas libres al mes), obtén tu propia clave API de Brave Search y pégala aquí debajo.'
-                    : 'To search the web 100% securely, privately, and virtually for free (up to 1,000 free searches per month), get your own Brave Search API Key and paste it below.'}
+                    ? 'Consigue tu API de Brave Search y pégala aquí debajo y obten consultas de internet 100% privada, anónima y prácticamente gratuita (1,000 búsquedas gratis al mes).'
+                    : 'Get Brave API Key and paste it below to search the web 100% securely, privately, and virtually for free (1,000 free searches per month).'}
                 </Text>
 
                 <TouchableOpacity
@@ -737,8 +705,8 @@ export default function SettingsScreen() {
                           Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
                           Alert.alert(
                             lang === 'es' ? 'Eliminar Clave' : 'Remove Key',
-                            lang === 'es' 
-                              ? '¿Estás seguro de que deseas eliminar la clave API de Brave Search de tu dispositivo?' 
+                            lang === 'es'
+                              ? '¿Estás seguro de que deseas eliminar la clave API de Brave Search de tu dispositivo?'
                               : 'Are you sure you want to remove the Brave Search API key from your device?',
                             [
                               { text: lang === 'es' ? 'Cancelar' : 'Cancel', style: 'cancel' },
@@ -773,6 +741,26 @@ export default function SettingsScreen() {
               <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 15, gap: 8 }}>
                 <IconSymbol name="person.wave.2.fill" size={20} color={colors.primary} />
                 <Text style={[styles.sectionTitle, { color: colors.textSecondary, marginBottom: 0 }]}>{lang === 'es' ? 'MOTOR DE SÍNTESIS DE VOZ' : 'VOICE SYNTHESIS ENGINE'}</Text>
+              </View>
+
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: colors.surfaceSecondary, padding: 15, borderRadius: 12, borderWidth: 1, borderColor: colors.border, marginBottom: 15 }}>
+                <View style={{ flex: 1, paddingRight: 10 }}>
+                  <Text style={{ color: colors.textPrimary, fontWeight: 'bold', fontSize: 16, marginBottom: 5 }}>
+                    {lang === 'es' ? 'Silenciar Voz de la IA' : 'Mute AI Voice'}
+                  </Text>
+                  <Text style={{ color: colors.textSecondary, fontSize: 12 }}>
+                    {lang === 'es' ? 'Apaga el TTS por completo. La IA solo responderá con texto.' : 'Turns off TTS completely. The AI will only respond with text.'}
+                  </Text>
+                </View>
+                <Switch
+                  trackColor={{ false: colors.border, true: '#d32f2f' }}
+                  thumbColor={voice.isMuted ? '#FFF' : '#f4f3f4'}
+                  onValueChange={async () => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    voice.toggleMute();
+                  }}
+                  value={voice.isMuted}
+                />
               </View>
 
               <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: colors.surfaceSecondary, padding: 15, borderRadius: 12, borderWidth: 1, borderColor: colors.border, marginBottom: 15 }}>
@@ -966,8 +954,8 @@ export default function SettingsScreen() {
                                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
                                 Alert.alert(
                                   lang === 'es' ? 'Eliminar Clave' : 'Remove Key',
-                                  lang === 'es' 
-                                    ? '¿Estás seguro de que deseas eliminar la clave API de OpenAI?' 
+                                  lang === 'es'
+                                    ? '¿Estás seguro de que deseas eliminar la clave API de OpenAI?'
                                     : 'Are you sure you want to remove the OpenAI API key?',
                                   [
                                     { text: lang === 'es' ? 'Cancelar' : 'Cancel', style: 'cancel' },
@@ -1156,8 +1144,8 @@ export default function SettingsScreen() {
                                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
                                 Alert.alert(
                                   lang === 'es' ? 'Eliminar Clave' : 'Remove Key',
-                                  lang === 'es' 
-                                    ? '¿Estás seguro de que deseas eliminar la clave API de Google Cloud?' 
+                                  lang === 'es'
+                                    ? '¿Estás seguro de que deseas eliminar la clave API de Google Cloud?'
                                     : 'Are you sure you want to remove the Google Cloud API key?',
                                   [
                                     { text: lang === 'es' ? 'Cancelar' : 'Cancel', style: 'cancel' },
@@ -1238,25 +1226,8 @@ export default function SettingsScreen() {
                   )}
                 </View>
               )}
-              
-              {/* Eco-Mode Section */}
-              <View style={{ backgroundColor: colors.surfaceSecondary, padding: 15, borderRadius: 12, borderWidth: 1, borderColor: colors.border, marginBottom: 15, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                <View style={{ flex: 1, paddingRight: 10 }}>
-                  <Text style={{ color: colors.textPrimary, fontWeight: 'bold', fontSize: 16, marginBottom: 5 }}>{lang === 'es' ? 'Modo Ecológico' : 'Eco-Mode'}</Text>
-                  <Text style={{ color: colors.textSecondary, fontSize: 12 }}>
-                    {lang === 'es' ? 'Actívalo manualmente para reducir el calor del procesador.' : 'You can activate it manually to reduce processor heat.'}
-                  </Text>
-                </View>
-                <Switch
-                  trackColor={{ false: colors.border, true: colors.primary }}
-                  thumbColor={manualEcoMode ? '#FFF' : '#f4f3f4'}
-                  onValueChange={async (val) => {
-                    setManualEcoMode(val);
-                    await saveSettings({ manualEcoMode: val });
-                  }}
-                  value={manualEcoMode}
-                />
-              </View>
+
+
             </View>
 
             <View style={styles.section}>
@@ -1265,16 +1236,29 @@ export default function SettingsScreen() {
                 <Text style={[styles.sectionTitle, { color: colors.textSecondary, marginBottom: 0 }]}>{lang === 'es' ? 'GESTIÓN DE ALMACENAMIENTO DE MODELOS' : 'MODEL STORAGE MANAGEMENT'}</Text>
               </View>
 
-              <TouchableOpacity 
-                style={[styles.vaultButtonPanic, { backgroundColor: colors.surfaceSecondary, borderColor: '#d96c6c', borderWidth: 1, paddingVertical: 15 }]} 
-                onPress={() => {
+              <TouchableOpacity
+                style={[styles.vaultButtonPanic, { backgroundColor: colors.surfaceSecondary, borderColor: '#d96c6c', borderWidth: 1, paddingVertical: 15 }]}
+                onPress={async () => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
                   const n = !showStorageMenu;
                   setShowStorageMenu(n);
-                  if (n) scanModelStorage();
+                  if (n) {
+                    await scanModelStorage();
+                    setIsCheckingModels(true);
+                    const statuses: Record<string, { status: 'missing' | 'outdated' | 'current', localSizeMB: number, remoteSizeMB: number, integrity: boolean }> = {};
+                    for (const model of AVAILABLE_MODELS) {
+                      statuses[model.id] = await getModelStatus(model);
+                    }
+                    setModelStatuses(statuses);
+                    setIsCheckingModels(false);
+                  }
                 }}
+                disabled={isCheckingModels}
               >
                 <Text style={[styles.vaultButtonText, { color: '#d96c6c' }]}>
-                  {lang === 'es' ? 'GESTIONAR MODELOS LOCALES' : 'MANAGE LOCAL AI MODELS'}
+                  {isCheckingModels
+                    ? (lang === 'es' ? 'VERIFICANDO...' : 'CHECKING...')
+                    : (lang === 'es' ? 'GESTIONAR MODELOS LOCALES' : 'MANAGE LOCAL AI MODELS')}
                 </Text>
               </TouchableOpacity>
 
@@ -1301,246 +1285,234 @@ export default function SettingsScreen() {
                   )}
 
                   {scannedModels.length === 0 ? (
-                    <Text style={{ color: colors.textSecondary, fontSize: 12, textAlign: 'center' }}>
+                    <Text style={{ color: colors.textSecondary, fontSize: 12, textAlign: 'center', marginTop: 10 }}>
                       {lang === 'es' ? 'No se encontraron modelos locales descargados.' : 'No local downloaded models found.'}
                     </Text>
                   ) : (
-                    scannedModels.map((sm, index) => (
-                      <View key={sm.id} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingBottom: index === scannedModels.length - 1 ? 0 : 10, marginBottom: index === scannedModels.length - 1 ? 0 : 10, borderBottomWidth: index === scannedModels.length - 1 ? 0 : 1, borderBottomColor: colors.border }}>
-                        <View style={{ flex: 1, paddingRight: 10 }}>
-                          <Text style={{ color: colors.textPrimary, fontWeight: 'bold', fontSize: 14 }}>
-                            {sm.label}
-                            {sm.isPartial && <Text style={{ color: '#d96c6c', fontSize: 10 }}> {lang === 'es' ? '(Incompleto)' : '(Partial)'}</Text>}
-                          </Text>
-                          <Text style={{ color: colors.textSecondary, fontSize: 12, marginTop: 2 }}>
-                            {sm.sizeMB} MB
-                          </Text>
+                    scannedModels.map((sm, index) => {
+                      const fullModel = AVAILABLE_MODELS.find(m => m.id === sm.id);
+                      const status = modelStatuses[sm.id];
+                      
+                      return (
+                        <View key={sm.id} style={{ 
+                          paddingBottom: index === scannedModels.length - 1 ? 0 : 15, 
+                          marginBottom: index === scannedModels.length - 1 ? 0 : 15, 
+                          borderBottomWidth: index === scannedModels.length - 1 ? 0 : 1, 
+                          borderBottomColor: colors.border 
+                        }}>
+                          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <View style={{ flex: 1, paddingRight: 10 }}>
+                              <Text style={{ color: colors.textPrimary, fontWeight: 'bold', fontSize: 14 }}>
+                                {sm.label}
+                                {sm.isPartial && <Text style={{ color: '#d96c6c', fontSize: 10 }}> {lang === 'es' ? '(Incompleto)' : '(Partial)'}</Text>}
+                              </Text>
+                              
+                              <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4, gap: 6, flexWrap: 'wrap' }}>
+                                <Text style={{ color: colors.textSecondary, fontSize: 12 }}>
+                                  {sm.sizeMB} MB
+                                </Text>
+                                {status && status.status === 'outdated' && (
+                                  <>
+                                    <Text style={{ color: colors.textSecondary, fontSize: 12 }}>•</Text>
+                                    <Text style={{ color: '#ff9800', fontSize: 11, fontWeight: '600' }}>
+                                      {lang === 'es' ? 'Desactualizado' : 'Outdated'}
+                                    </Text>
+                                  </>
+                                )}
+                                {status && status.status === 'current' && (
+                                  <>
+                                    <Text style={{ color: colors.textSecondary, fontSize: 12 }}>•</Text>
+                                    <Text style={{ color: '#2e7d32', fontSize: 11, fontWeight: '600' }}>
+                                      {lang === 'es' ? 'Actualizado' : 'Current'}
+                                    </Text>
+                                    {status.integrity && <Text style={{ fontSize: 11 }}>✅</Text>}
+                                  </>
+                                )}
+                              </View>
+                            </View>
+                            
+                            <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
+                              <TouchableOpacity
+                                style={{ backgroundColor: '#d96c6c', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 6 }}
+                                onPress={() => handleDeleteModel(sm)}
+                              >
+                                <Text style={{ color: '#FFF', fontSize: 12, fontWeight: 'bold' }}>
+                                  {lang === 'es' ? 'Eliminar' : 'Delete'}
+                                </Text>
+                              </TouchableOpacity>
+                            </View>
+                          </View>
+                          
+                          {status && status.status === 'outdated' && fullModel && (
+                            <View style={{ marginTop: 15 }}>
+                              <View style={{ flexDirection: 'row', gap: 10, marginBottom: 8 }}>
+                                <Text style={{ color: colors.textSecondary, fontSize: 11 }}>
+                                  {lang === 'es' ? 'Local' : 'Local'}: {status.localSizeMB} MB
+                                </Text>
+                                <Text style={{ color: colors.textSecondary, fontSize: 11 }}>
+                                  {lang === 'es' ? 'Remoto' : 'Remote'}: {status.remoteSizeMB} MB
+                                </Text>
+                              </View>
+                              <TouchableOpacity
+                                style={{
+                                  backgroundColor: colors.primary,
+                                  paddingVertical: 10,
+                                  borderRadius: 8,
+                                  alignItems: 'center'
+                                }}
+                                onPress={async () => {
+                                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                                  Alert.alert(
+                                    lang === 'es' ? 'Actualizar Modelo' : 'Update Model',
+                                    lang === 'es'
+                                      ? `¿Deseas actualizar ${fullModel.labelEs}? Se reemplazará el modelo local (${status.localSizeMB} MB) con la versión más reciente (${status.remoteSizeMB} MB).`
+                                      : `Do you want to update ${fullModel.labelEn}? The local model (${status.localSizeMB} MB) will be replaced with the latest version (${status.remoteSizeMB} MB).`,
+                                    [
+                                      { text: lang === 'es' ? 'Cancelar' : 'Cancel', style: 'cancel' },
+                                      {
+                                        text: lang === 'es' ? 'Actualizar' : 'Update',
+                                        style: 'destructive',
+                                        onPress: async () => {
+                                          try {
+                                            const baseDir = FileSystem.documentDirectory?.replace(/\/+$/, '') + '/llm_models';
+                                            // Delete old model files
+                                            if (fullModel.fileName) {
+                                              const modelPath = `${baseDir}/${fullModel.fileName}`;
+                                              const modelInfo = await FileSystem.getInfoAsync(modelPath);
+                                              if (modelInfo.exists) {
+                                                await FileSystem.deleteAsync(modelPath, { idempotent: true });
+                                              }
+                                            }
+                                            if (fullModel.mmprojFileName) {
+                                              const mmprojPath = `${baseDir}/${fullModel.mmprojFileName}`;
+                                              const mmprojInfo = await FileSystem.getInfoAsync(mmprojPath);
+                                              if (mmprojInfo.exists) {
+                                                await FileSystem.deleteAsync(mmprojPath, { idempotent: true });
+                                              }
+                                            }
+                                            // Download new model
+                                            await downloadModel(fullModel);
+                                            Alert.alert(
+                                              lang === 'es' ? 'Éxito' : 'Success',
+                                              lang === 'es' ? 'Modelo actualizado correctamente.' : 'Model updated successfully.'
+                                            );
+                                          } catch (e: any) {
+                                            const errorStr = String(e?.message || e);
+                                            let friendlyMessage = '';
+  
+                                            if (
+                                              errorStr.toLowerCase().includes('abort') ||
+                                              errorStr.toLowerCase().includes('connection') ||
+                                              errorStr.toLowerCase().includes('network') ||
+                                              errorStr.toLowerCase().includes('timeout')
+                                            ) {
+                                              friendlyMessage = lang === 'es'
+                                                ? 'La descarga se pausó temporalmente (por inactividad o cambio de red). Puedes reanudarla tocando el botón de descarga nuevamente.'
+                                                : 'The download was temporarily paused (due to inactivity or network change). You can resume it by tapping the download button again.';
+                                            } else if (errorStr.toLowerCase().includes('space') || errorStr.toLowerCase().includes('disk')) {
+                                              friendlyMessage = lang === 'es'
+                                                ? 'Espacio de almacenamiento insuficiente. Por favor, libera algo de espacio en tu dispositivo e inténtalo de nuevo.'
+                                                : 'Insufficient storage space. Please free up some space on your device and try again.';
+                                            } else {
+                                              friendlyMessage = errorStr;
+                                            }
+  
+                                            Alert.alert(
+                                              lang === 'es' ? 'Aviso de Descarga' : 'Download Notice',
+                                              friendlyMessage
+                                            );
+                                          }
+                                        }
+                                      }
+                                    ]
+                                  );
+                                }}
+                              >
+                                <Text style={{ color: 'black', fontWeight: 'bold', fontSize: 13 }}>
+                                  {lang === 'es' ? 'Actualizar Modelo' : 'Update Model'}
+                                </Text>
+                              </TouchableOpacity>
+                            </View>
+                          )}
                         </View>
-                        <TouchableOpacity 
-                          style={{ backgroundColor: '#d96c6c', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 6 }}
-                          onPress={() => handleDeleteModel(sm)}
-                        >
-                          <Text style={{ color: '#FFF', fontSize: 12, fontWeight: 'bold' }}>
-                            {lang === 'es' ? 'Eliminar' : 'Delete'}
-                          </Text>
-                        </TouchableOpacity>
-                      </View>
-                    ))
+                      );
+                    })
                   )}
                 </View>
               )}
             </View>
 
-            {/* 📱 MODEL PERSISTENCE SECTION */}
-            <View style={styles.section}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 15, gap: 8 }}>
-                <IconSymbol name="externaldrive" size={20} color={colors.primary} />
-                <Text style={[styles.sectionTitle, { color: colors.textSecondary, marginBottom: 0 }]}>
-                  {lang === 'es' ? 'PERSISTENCIA DE MODELOS DE IA' : 'AI MODEL PERSISTENCE'}
-                </Text>
-              </View>
-
-              <TouchableOpacity
-                style={{
-                  backgroundColor: colors.surfaceSecondary,
-                  paddingVertical: 15,
-                  borderRadius: 12,
-                  borderWidth: 1,
-                  borderColor: colors.primary,
-                  alignItems: 'center',
-                  marginBottom: 10
-                }}
-                onPress={async () => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                  setIsCheckingModels(true);
-                  const statuses: Record<string, { status: 'missing' | 'outdated' | 'current', localSizeMB: number, remoteSizeMB: number, integrity: boolean }> = {};
-                  for (const model of AVAILABLE_MODELS) {
-                    statuses[model.id] = await getModelStatus(model);
-                  }
-                  setModelStatuses(statuses);
-                  setIsCheckingModels(false);
-                }}
-                disabled={isCheckingModels}
-              >
-                <Text style={{ color: colors.primary, fontWeight: 'bold', fontSize: 13 }}>
-                  {isCheckingModels 
-                    ? (lang === 'es' ? 'VERIFICANDO...' : 'CHECKING...') 
-                    : (lang === 'es' ? 'VERIFICAR MODELOS ALMACENADOS' : 'CHECK STORED AI MODELS')}
-                </Text>
-              </TouchableOpacity>
-
-              {Object.keys(modelStatuses).length > 0 && (
-                <View style={{ marginTop: 10, gap: 10 }}>
-                  {AVAILABLE_MODELS.map((model) => {
-                    const status = modelStatuses[model.id];
-                    if (!status) return null;
-                    
-                    const statusColor = status.status === 'current' ? '#2e7d32' : status.status === 'outdated' ? '#ff9800' : colors.textSecondary;
-                    const statusText = status.status === 'current' 
-                      ? (lang === 'es' ? 'Actualizado' : 'Current')
-                      : status.status === 'outdated' 
-                        ? (lang === 'es' ? 'Desactualizado' : 'Outdated')
-                        : (lang === 'es' ? 'No descargado' : 'Not downloaded');
-                    
-                    return (
-                      <View key={model.id} style={{
-                        backgroundColor: colors.surfaceSecondary,
-                        padding: 12,
-                        borderRadius: 10,
-                        borderWidth: 1,
-                        borderColor: colors.border,
-                        gap: 8
-                      }}>
-                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <Text style={{ color: colors.textPrimary, fontWeight: 'bold', fontSize: 14 }}>
-                            {lang === 'es' ? model.labelEs : model.labelEn}
-                          </Text>
-                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                            <Text style={{ color: statusColor, fontSize: 12, fontWeight: '600' }}>
-                              {statusText}
-                            </Text>
-                            {status.integrity && (
-                              <Text style={{ fontSize: 14 }}>✅</Text>
-                            )}
-                          </View>
-                        </View>
-                        
-                        {status.status === 'outdated' && (
-                          <View style={{ flexDirection: 'row', gap: 10 }}>
-                            <Text style={{ color: colors.textSecondary, fontSize: 11 }}>
-                              {lang === 'es' ? 'Local' : 'Local'}: {status.localSizeMB} MB
-                            </Text>
-                            <Text style={{ color: colors.textSecondary, fontSize: 11 }}>
-                              {lang === 'es' ? 'Remoto' : 'Remote'}: {status.remoteSizeMB} MB
-                            </Text>
-                          </View>
-                        )}
-
-                        {status.status === 'outdated' && (
-                          <TouchableOpacity
-                            style={{
-                              backgroundColor: colors.primary,
-                              paddingVertical: 8,
-                              borderRadius: 8,
-                              alignItems: 'center'
-                            }}
-                            onPress={async () => {
-                              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                              Alert.alert(
-                                lang === 'es' ? 'Actualizar Modelo' : 'Update Model',
-                                lang === 'es' 
-                                  ? `¿Deseas actualizar ${model.labelEs}? Se reemplazará el modelo local (${status.localSizeMB} MB) con la versión más reciente (${status.remoteSizeMB} MB).`
-                                  : `Do you want to update ${model.labelEn}? The local model (${status.localSizeMB} MB) will be replaced with the latest version (${status.remoteSizeMB} MB).`,
-                                [
-                                  { text: lang === 'es' ? 'Cancelar' : 'Cancel', style: 'cancel' },
-                                  {
-                                    text: lang === 'es' ? 'Actualizar' : 'Update',
-                                    style: 'destructive',
-                                    onPress: async () => {
-                                      try {
-                                        const baseDir = FileSystem.documentDirectory?.replace(/\/+$/, '') + '/llm_models';
-                                        // Delete old model files
-                                        if (model.fileName) {
-                                          const modelPath = `${baseDir}/${model.fileName}`;
-                                          const modelInfo = await FileSystem.getInfoAsync(modelPath);
-                                          if (modelInfo.exists) {
-                                            await FileSystem.deleteAsync(modelPath, { idempotent: true });
-                                          }
-                                        }
-                                        if (model.mmprojFileName) {
-                                          const mmprojPath = `${baseDir}/${model.mmprojFileName}`;
-                                          const mmprojInfo = await FileSystem.getInfoAsync(mmprojPath);
-                                          if (mmprojInfo.exists) {
-                                            await FileSystem.deleteAsync(mmprojPath, { idempotent: true });
-                                          }
-                                        }
-                                        // Download new model
-                                        await downloadModel(model);
-                                        Alert.alert(
-                                          lang === 'es' ? 'Éxito' : 'Success',
-                                          lang === 'es' ? 'Modelo actualizado correctamente.' : 'Model updated successfully.'
-                                        );
-                                      } catch (e: any) {
-                                        const errorStr = String(e?.message || e);
-                                        let friendlyMessage = '';
-
-                                        if (
-                                          errorStr.toLowerCase().includes('abort') ||
-                                          errorStr.toLowerCase().includes('connection') ||
-                                          errorStr.toLowerCase().includes('network') ||
-                                          errorStr.toLowerCase().includes('timeout')
-                                        ) {
-                                          friendlyMessage = lang === 'es'
-                                            ? 'La descarga se pausó temporalmente (por inactividad o cambio de red). Puedes reanudarla tocando el botón de descarga nuevamente.'
-                                            : 'The download was temporarily paused (due to inactivity or network change). You can resume it by tapping the download button again.';
-                                        } else if (errorStr.toLowerCase().includes('space') || errorStr.toLowerCase().includes('disk')) {
-                                          friendlyMessage = lang === 'es'
-                                            ? 'Espacio de almacenamiento insuficiente. Por favor, libera algo de espacio en tu dispositivo e inténtalo de nuevo.'
-                                            : 'Insufficient storage space. Please free up some space on your device and try again.';
-                                        } else {
-                                          friendlyMessage = errorStr;
-                                        }
-
-                                        Alert.alert(
-                                          lang === 'es' ? 'Aviso de Descarga' : 'Download Notice',
-                                          friendlyMessage
-                                        );
-                                      }
-                                    }
-                                  }
-                                ]
-                              );
-                            }}
-                          >
-                            <Text style={{ color: 'black', fontWeight: 'bold', fontSize: 12 }}>
-                              {lang === 'es' ? 'Actualizar Modelo' : 'Update Model'}
-                            </Text>
-                          </TouchableOpacity>
-                        )}
-                      </View>
-                    );
-                  })}
-                </View>
-              )}
-            </View>
-
-            {/* GPU ACCELERATION CARD */}
+            {/* GPU & CPU TUNNING CARD */}
             <View style={styles.section}>
               <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 15, gap: 8 }}>
                 <IconSymbol name="cpu" size={20} color={colors.primary} />
                 <Text style={[styles.sectionTitle, { color: colors.textSecondary, marginBottom: 0 }]}>
-                  {lang === 'es' ? 'ACELERACION GPU' : 'GPU ACCELERATION'}
+                  {lang === 'es' ? 'AJUSTES DE GPU Y CPU' : 'GPU & CPU TUNNING'}
                 </Text>
               </View>
 
+              {/* Android GPU Acceleration */}
               <View style={{
-                padding: 18,
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'space-between',
                 backgroundColor: colors.surfaceSecondary,
-                borderRadius: 14,
+                padding: 15,
+                borderRadius: 12,
                 borderWidth: 1,
                 borderColor: colors.border,
+                marginBottom: 15
               }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <View style={{ flex: 1, paddingRight: 10 }}>
-                    <Text style={{ color: colors.textPrimary, fontWeight: 'bold', fontSize: 16, marginBottom: 5 }}>
-                      {lang === 'es' ? 'Aceleración GPU (Turbo)' : 'GPU Acceleration (Turbo)'}
-                    </Text>
-                    <Text style={{ color: colors.textSecondary, fontSize: 12 }}>
-                      {lang === 'es' 
-                        ? 'Habilita OpenCL en Android (acelerado nativamente en iPhones con Metal, y teléfonos Samsung o Pixel). Puede causar inestabilidad en otros dispositivos, pero puedes probarlo.' 
-                        : 'Enable OpenCL on Android (natively accelerated on iPhones with Metal, and Samsung or Pixel phones). It may cause instability on other devices, but you can try.'}
-                    </Text>
-                  </View>
-                  <Switch
-                    trackColor={{ false: colors.border, true: '#d96c6c' }}
-                    thumbColor={gpuTurbo ? '#FFF' : '#f4f3f4'}
-                    onValueChange={async (val) => {
-                      setGpuTurbo(val);
-                      await saveSettings({ gpuTurbo: val, experimentalTurbo: val });
-                    }}
-                    value={gpuTurbo}
-                  />
+                <View style={{ flex: 1, paddingRight: 10 }}>
+                  <Text style={{ color: colors.textPrimary, fontWeight: 'bold', fontSize: 16, marginBottom: 5 }}>
+                    {lang === 'es' ? 'Aceleración GPU de Android (Turbo)' : 'Android GPU Acceleration (Turbo)'}
+                  </Text>
+                  <Text style={{ color: colors.textSecondary, fontSize: 12 }}>
+                    {lang === 'es'
+                      ? 'Habilita la aceleración si no tienes Samsung, Pixel o Apple (que ya tienen aceleración). Si experimentas inestabilidad, solo apaga.'
+                      : 'Enable aceleration if your phone is not a Samsung, Pixel or Apple (they are already accelerated here). If you experience instability turn it off.'}
+                  </Text>
                 </View>
+                <Switch
+                  trackColor={{ false: colors.border, true: '#d96c6c' }}
+                  thumbColor={gpuTurbo ? '#FFF' : '#f4f3f4'}
+                  onValueChange={async (val) => {
+                    setGpuTurbo(val);
+                    await saveSettings({ gpuTurbo: val, experimentalTurbo: val });
+                  }}
+                  value={gpuTurbo}
+                />
+              </View>
+
+              {/* Eco-Mode */}
+              <View style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                backgroundColor: colors.surfaceSecondary,
+                padding: 15,
+                borderRadius: 12,
+                borderWidth: 1,
+                borderColor: colors.border,
+                marginBottom: 15
+              }}>
+                <View style={{ flex: 1, paddingRight: 10 }}>
+                  <Text style={{ color: colors.textPrimary, fontWeight: 'bold', fontSize: 16, marginBottom: 5 }}>
+                    {lang === 'es' ? 'Modo Ecológico' : 'Eco-Mode'}
+                  </Text>
+                  <Text style={{ color: colors.textSecondary, fontSize: 12 }}>
+                    {lang === 'es' ? 'Actívalo manualmente para reducir el calor del procesador.' : 'You can activate it manually to reduce processor heat.'}
+                  </Text>
+                </View>
+                <Switch
+                  trackColor={{ false: colors.border, true: colors.primary }}
+                  thumbColor={manualEcoMode ? '#FFF' : '#f4f3f4'}
+                  onValueChange={async (val) => {
+                    setManualEcoMode(val);
+                    await saveSettings({ manualEcoMode: val });
+                  }}
+                  value={manualEcoMode}
+                />
               </View>
             </View>
 
@@ -1548,7 +1520,7 @@ export default function SettingsScreen() {
               <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>
                 {lang === 'es' ? 'OPCIONES DE REINICIO' : 'RESET OPTIONS'}
               </Text>
-              
+
               <TouchableOpacity
                 style={styles.vaultButtonPanic}
                 onPress={async () => {
@@ -1607,68 +1579,53 @@ export default function SettingsScreen() {
         </KeyboardAvoidingView>
 
         {/* Reset Confirmation Modal removed in favor of native double Alert.alert confirmations */}
-      {/* --- LANGUAGE PICKER OVERLAY --- */}
-      <Modal visible={showLangPicker} transparent={true} animationType="fade" statusBarTranslucent={true}>
-        {Platform.OS === 'android' && <View style={{ height: (langPickerTicket % 2 === 1) ? 0.5 : 0 }} />}
-        <View 
-          style={{ 
-            flex: 1, 
-            width: Dimensions.get('screen').width, 
-            height: Dimensions.get('screen').height, 
-            alignItems: 'flex-end', 
-            zIndex: 9999, 
-            elevation: 999,
-            paddingTop: Platform.OS === 'android' && (langPickerTicket % 2 === 1) ? 0.5 : 0
-          }}
-        >
-          <TouchableOpacity
-            style={StyleSheet.absoluteFill}
-            activeOpacity={1}
-            onPress={() => setShowLangPicker(false)}
-          />
-          {/* Language Dropdown */}
-          <View style={{
-            position: 'absolute',
-            top: Platform.OS === 'android' ? (StatusBar.currentHeight || 0) + 70 : 85,
-            right: 60,
-            backgroundColor: colors.surfaceSecondary,
-            borderColor: colors.border,
-            borderWidth: 1,
-            borderRadius: 5,
-            minWidth: 80,
-            elevation: 10,
-            shadowColor: '#000',
-            shadowOffset: { width: 0, height: 4 },
-            shadowOpacity: 0.3,
-            shadowRadius: 6,
-          }}>
-            <TouchableOpacity style={{ padding: 10, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.1)' }} onPress={() => { setLang('en'); setShowLangPicker(false); }}>
-              <Text style={{ color: lang === 'en' ? colors.primary : colors.textPrimary }}>ENG</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={{ padding: 10 }} onPress={() => { setLang('es'); setShowLangPicker(false); }}>
-              <Text style={{ color: lang === 'es' ? colors.primary : colors.textPrimary }}>ESP</Text>
-            </TouchableOpacity>
+        {/* --- LANGUAGE PICKER OVERLAY --- */}
+        <Modal visible={showLangPicker} transparent={true} animationType="fade" statusBarTranslucent={true}>
+          {Platform.OS === 'android' && <View style={{ height: (langPickerTicket % 2 === 1) ? 0.5 : 0 }} />}
+          <View
+            style={{
+              flex: 1,
+              width: Dimensions.get('screen').width,
+              height: Dimensions.get('screen').height,
+              alignItems: 'flex-end',
+              zIndex: 9999,
+              elevation: 999,
+              paddingTop: Platform.OS === 'android' && (langPickerTicket % 2 === 1) ? 0.5 : 0
+            }}
+          >
+            <TouchableOpacity
+              style={StyleSheet.absoluteFill}
+              activeOpacity={1}
+              onPress={() => setShowLangPicker(false)}
+            />
+            {/* Language Dropdown */}
+            <View style={{
+              position: 'absolute',
+              top: Platform.OS === 'android' ? (StatusBar.currentHeight || 0) + 70 : 85,
+              right: 60,
+              backgroundColor: colors.surfaceSecondary,
+              borderColor: colors.border,
+              borderWidth: 1,
+              borderRadius: 5,
+              minWidth: 80,
+              elevation: 10,
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 4 },
+              shadowOpacity: 0.3,
+              shadowRadius: 6,
+            }}>
+              <TouchableOpacity style={{ padding: 10, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.1)' }} onPress={() => { setLang('en'); setShowLangPicker(false); }}>
+                <Text style={{ color: lang === 'en' ? colors.primary : colors.textPrimary }}>ENG</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={{ padding: 10 }} onPress={() => { setLang('es'); setShowLangPicker(false); }}>
+                <Text style={{ color: lang === 'es' ? colors.primary : colors.textPrimary }}>ESP</Text>
+              </TouchableOpacity>
+            </View>
           </View>
-        </View>
-      </Modal>
+        </Modal>
       </SafeAreaView>
 
       {/* Local Modals in Settings Screen */}
-      {isProfileMounted && (
-        <React.Suspense fallback={null}>
-          <ProfileModal
-            visible={isProfileVisible}
-            onClose={() => handleCloseModal('profile')}
-            lang={lang}
-            colors={colors}
-            userProfile={userProfile}
-            setUserProfile={setUserProfile}
-            psyProfile={{ ...psyProfile, moodBalance: psyProfile.moodBalance ?? 0 }}
-            db={db}
-          />
-        </React.Suspense>
-      )}
-
       {isIntroMounted && (
         <React.Suspense fallback={null}>
           <IntroModal
@@ -1706,13 +1663,11 @@ const styles = StyleSheet.create({
 
   // Quick Settings Buttons
   quickButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
     paddingVertical: 14,
-    paddingHorizontal: 16,
     borderRadius: 12,
     borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   quickButtonContent: {
     flexDirection: 'row',
@@ -1723,10 +1678,10 @@ const styles = StyleSheet.create({
     fontSize: 18,
   },
   quickButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: 13,
+    fontWeight: 'bold',
   },
-  
+
   // Wipe Modal Styles
   modalOverlay: {
     flex: 1,

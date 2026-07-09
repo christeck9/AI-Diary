@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Modal, View, Text, StyleSheet, TouchableOpacity, Platform, Dimensions } from 'react-native';
+import React from 'react';
+import { Modal, View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native';
 import { IconSymbol } from './ui/icon-symbol';
 
 interface VisionDownloadModalProps {
@@ -23,38 +23,17 @@ export function VisionDownloadModal({
 }: VisionDownloadModalProps) {
   const isEs = lang === 'es';
 
-  const [layoutTicket, setLayoutTicket] = useState(0);
-  const isAndroidEnvironment = Platform.OS === 'android';
-  const { width: absoluteScreenWidth, height: absoluteScreenHeight } = Dimensions.get('screen');
-
-  useEffect(() => {
-    if (visible) {
-      const timer = setTimeout(() => {
-        setLayoutTicket(prev => prev + 1);
-      }, 50);
-      return () => clearTimeout(timer);
-    }
-  }, [visible]);
-
+  // 🛡️ FABRIC FIX: transparent={false} evita colapso WRAP_CONTENT.
+  // Sin layoutTicket hack (Directiva 11). Backdrop con rgba(0,0,0,0.75).
   return (
     <Modal
-      transparent
+      transparent={false}
       animationType="fade"
       visible={visible}
-      statusBarTranslucent={true}
+      statusBarTranslucent={false}
       onRequestClose={onClose}
     >
-      {isAndroidEnvironment && <View style={{ height: (layoutTicket % 2 === 1) ? 0.5 : 0 }} />}
-      <View 
-        style={[
-          styles.overlay, 
-          { 
-            width: absoluteScreenWidth, 
-            height: absoluteScreenHeight,
-            paddingTop: isAndroidEnvironment && (layoutTicket % 2 === 1) ? 20.5 : 20
-          }
-        ]}
-      >
+      <View style={styles.overlay}>
         <View style={[styles.container, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           <View style={[styles.iconContainer, { backgroundColor: colors.surfaceSecondary }]}>
             <IconSymbol name="photo.fill" size={32} color={colors.primary} />

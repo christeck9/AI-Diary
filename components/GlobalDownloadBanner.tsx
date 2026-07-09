@@ -8,7 +8,7 @@ import {
   Animated,
   Easing,
 } from 'react-native';
-import { useLlmState, useLlmProgress, useLlmActions } from '../contexts/LlmContext';
+import { useLlmDownload, useLlmActions } from '../contexts/LlmContext';
 import { useAppTheme } from '../contexts/ThemeContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -22,8 +22,14 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
  * Automatically collapses after a few seconds to a mini-bar.
  */
 export function GlobalDownloadBanner() {
-  const { isDownloading, downloadingModel, downloadingType } = useLlmState();
-  const { downloadPercent, downloadedMB, downloadSpeed } = useLlmProgress();
+  const { 
+    isDownloading, 
+    downloadingModel, 
+    downloadingType,
+    downloadPercent, 
+    downloadedMB, 
+    downloadSpeed 
+  } = useLlmDownload();
   const { pauseDownload } = useLlmActions();
   const { colors } = useAppTheme();
   const { lang } = useLanguage();

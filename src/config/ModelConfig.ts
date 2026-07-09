@@ -21,7 +21,7 @@ export const MODEL_LIST: ModelDefinition[] = [
     id: 'llama3.2-1b-q4',
     labelEs: 'Anima Light',
     labelEn: 'Anima Light',
-    sizeMB: 840,
+    sizeMB: 770,
     descEs: 'Núcleo Ligero — Especial para teléfonos básicos. (Sin visión / No soporta imágenes)',
     descEn: 'Light Core — Optimized for older phones. (No vision / No image support)',
     fileName: 'Llama-3.2-1B-Instruct-Q4_K_M.gguf',
@@ -104,10 +104,10 @@ export const MODEL_CONFIG = {
     ctx_shift: 256,
 
     // Sampling parameters
-    temperature: 0.85,
-    top_p: 1.0, // disabled to let min_p work cleanly
-    min_p: 0.08,
-    repeat_penalty: 1.15,
+    temperature: 0.3, // Lowered to prevent hallucinations and language drift on 1B model
+    top_p: 0.9,
+    min_p: 0.05,
+    repeat_penalty: 1.05, // Lowered to prevent word starvation / "zen" single-word responses
   },
 
   // Tiling strategy for Vision

@@ -19,22 +19,21 @@ interface OnboardingModalProps {
   setOnboardingStep: (step: number) => void;
   userProfile: UserProfile;
   setUserProfile: (profile: UserProfile) => void;
-  psyStep: number;
-  setPsyStep: (step: number) => void;
-  psyAnswers: number[];
-  setPsyAnswers: (answers: number[] | ((prev: number[]) => number[])) => void;
-  setPsyProfile: (profile: PsyProfile) => void;
   setIsOnboardingComplete: (val: boolean) => void;
-  setPsyCompleted: (val: boolean) => void;
+  setSelectedModel?: (model: ModelInfo) => void;
+  AVAILABLE_MODELS?: ModelInfo[];
+  handleConfirmVisionDownload?: (modelOverride?: any) => void;
+  checkSpecificModelExists?: (model: ModelInfo) => Promise<boolean>;
+  checkVisionModelExists?: (model: ModelInfo) => Promise<boolean>;
   db: any;
-  handleDownload?: () => void;
+  handleDownload?: (modelOverride?: any) => void;
   canResume?: boolean;
   status?: any;
   modelExists?: boolean;
   downloadPercent?: number;
   downloadedMB?: number;
-  downloadingModel?: ModelDefinition | null;
-  downloadingType?: 'model' | 'vision' | null;
+  downloadingModel?: ModelInfo | null;
+  downloadingType?: 'text' | 'vision' | null;
   activeModel?: ModelInfo | null;
   downloadSpeed?: number;
   waitPhrase?: string;
@@ -51,13 +50,12 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
   setOnboardingStep,
   userProfile,
   setUserProfile,
-  psyStep,
-  setPsyStep,
-  psyAnswers,
-  setPsyAnswers,
-  setPsyProfile,
   setIsOnboardingComplete,
-  setPsyCompleted,
+  setSelectedModel,
+  AVAILABLE_MODELS,
+  handleConfirmVisionDownload,
+  checkSpecificModelExists,
+  checkVisionModelExists,
   db,
   handleDownload,
   canResume,
@@ -74,13 +72,54 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
 }) => {
   const [freeDiskMB, setFreeDiskMB] = React.useState<number | null>(null);
   const [freeRamMB, setFreeRamMB] = React.useState<number | null>(null);
+  
+  const [model0Exists, setModel0Exists] = React.useState(false);
+  const [model1Exists, setModel1Exists] = React.useState(false);
+  const [visionExists, setVisionExists] = React.useState(false);
 
   React.useEffect(() => {
-    if (onboardingStep === 1) {
+    let isMounted = true;
+    const checkExistences = async () => {
+      if (!AVAILABLE_MODELS) return;
+      if (AVAILABLE_MODELS[0] && checkSpecificModelExists) {
+        const exists0 = await checkSpecificModelExists(AVAILABLE_MODELS[0]);
+        if (isMounted) setModel0Exists(exists0);
+      }
+      if (AVAILABLE_MODELS[1] && checkSpecificModelExists) {
+        const exists1 = await checkSpecificModelExists(AVAILABLE_MODELS[1]);
+        if (isMounted) setModel1Exists(exists1);
+      }
+      if (AVAILABLE_MODELS[1] && checkVisionModelExists) {
+        const existsVision = await checkVisionModelExists(AVAILABLE_MODELS[1]);
+        if (isMounted) setVisionExists(existsVision);
+      }
+    };
+    checkExistences();
+    return () => { isMounted = false; };
+  }, [onboardingStep, status, AVAILABLE_MODELS, checkSpecificModelExists, checkVisionModelExists]);
+
+  React.useEffect(() => {
+    if (onboardingStep >= 1) {
       getFreeDiskStorageMB().then(setFreeDiskMB);
       getFreeRAM().then(setFreeRamMB);
     }
   }, [onboardingStep]);
+
+  const saveAndCompleteOnboarding = async () => {
+    try {
+      if (db) {
+        // Save user profile
+        await db.runAsync('DELETE FROM user_profile');
+        await db.runAsync('INSERT INTO user_profile (name, nickname, work, likes) VALUES (?, ?, ?, ?)', ['', userProfile.nickname, userProfile.work, '']);
+
+        // Mark onboarding as completed
+        await db.runAsync('INSERT OR REPLACE INTO onboarding_status (id, completed, completed_at) VALUES (1, 1, ?)', [Date.now()]);
+      }
+    } catch (e) {
+      console.warn('[ONBOARDING] Error saving onboarding status:', e);
+    }
+    setIsOnboardingComplete(true);
+  };
 
   if (!visible) return null;
 
@@ -115,9 +154,11 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
             </TouchableOpacity>
           </View>
 
-          <Text style={{ color: colors.secondary, fontWeight: 'bold', marginBottom: 5, textAlign: 'center', fontSize: 16 }}>
+          <Text style={{ color: colors.secondary, fontWeight: 'bold', marginBottom: 20, textAlign: 'center', fontSize: 20 }}>
             {lang === 'es' ? '¡Bienvenido a AI Diary!' : 'Welcome to AI Diary!'}
           </Text>
+
+          <View style={{ width: '100%', marginTop: 15, marginBottom: 5 }} />
 
           <Text style={{ color: colors.textSecondary, marginBottom: 5, width: '100%' }}>{lang === 'es' ? '¿Cómo debemos llamarte?' : 'What should we call you?'}</Text>
           <TextInput style={[styles.input, { borderColor: colors.border, marginBottom: 15, width: '100%', minHeight: 45, borderRadius: 8, borderWidth: 1, color: colors.textPrimary }]} value={userProfile.nickname || ''} onChangeText={t => setUserProfile({ ...userProfile, nickname: t })} />
@@ -133,11 +174,11 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
             marginBottom: 20,
             textAlign: 'center',
             fontSize: 12,
-            fontFamily: Platform.select({ ios: 'Courier', android: 'monospace' })
+            fontFamily: Platform.select({ ios: 'Arial', android: 'Arial' })
           }}>
             {lang === 'es'
-              ? '[ AI Diary puede operar 100% offline después de descargar los modelos de IA principales. Es ecológico ya que vive en tu teléfono y es completamente privado, incluso encriptado ]'
-              : '[ AI Diary can operate 100% offline after downloading core AI models. It is ecological as it lives in your phone and it is completely private even encrypted ]'}
+              ? 'AI DIARY PUEDE OPERAR 100% OFFLINE DESPUÉS DE DESCARGAR LOS MODELOS DE IA PRINCIPALES. ES ECOLÓGICO YA QUE VIVE EN TU TELÉFONO Y ES COMPLETAMENTE PRIVADO Y LO PUEDES ENCRIPTAR'
+              : 'AI DIARY CAN OPERATE 100% OFFLINE AFTER DOWNLOADING CORE AI MODELS. IT IS ECOLOGICAL AS IT LIVES IN YOUR PHONE AND IT IS COMPLETELY PRIVATE AND YOU CAN ENCRYPTED'}
           </Text>
 
           <TouchableOpacity
@@ -152,7 +193,17 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
                 opacity: (userProfile.nickname && userProfile.work) ? 1 : 0.5
               }
             ]}
-            onPress={() => setOnboardingStep(1)}
+            onPress={async () => {
+              try {
+                if (db) {
+                  await db.runAsync('DELETE FROM user_profile');
+                  await db.runAsync('INSERT INTO user_profile (name, nickname, work, likes) VALUES (?, ?, ?, ?)', ['', userProfile.nickname, userProfile.work, '']);
+                }
+              } catch (e) {
+                console.warn('[ONBOARDING] Error saving profile:', e);
+              }
+              setOnboardingStep(1);
+            }}
           >
             <Text style={{ color: (userProfile.nickname && userProfile.work) ? '#FFF' : colors.textSecondary, fontWeight: 'bold' }}>
               {lang === 'es' ? 'Siguiente' : "Next"}
@@ -161,16 +212,22 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
         </ScrollView>
       )}
 
-      {onboardingStep === 1 && (() => {
+      {onboardingStep >= 1 && onboardingStep <= 3 && (() => {
         let ramDetectionText = '';
         let isLowRam = false;
         let ramStatus: 'red' | 'yellow' | 'green' = 'red';
+        let canRunLight = false;
+        let canRunDeepMindText = false;
+        let canRunDeepMindVision = false;
 
         if (freeRamMB !== null) {
           const evalRes = evaluateDeviceRAMCapabilities(freeRamMB, lang);
           ramDetectionText = evalRes.message;
           isLowRam = evalRes.isLowRam;
           ramStatus = evalRes.status;
+          canRunLight = evalRes.canRunLight || false;
+          canRunDeepMindText = evalRes.canRunDeepMindText || false;
+          canRunDeepMindVision = evalRes.canRunDeepMindVision || false;
         } else {
           ramDetectionText = lang === 'es' ? 'Evaluando Memoria RAM disponible...' : 'Evaluating available RAM...';
         }
@@ -182,14 +239,39 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
         if (freeDiskMB !== null) {
           if (isLowDisk) {
             diskDetectionText = lang === 'es'
-              ? `Espacio libre: ${diskGB} GB. Es recomendable liberar al menos 6 GB (recomendado).`
-              : `Free space: ${diskGB} GB. It is recommended to free up at least 6 GB (recommended).`;
+              ? `Espacio libre: ${diskGB} GB. Es recomendable liberar al menos 6 GB.`
+              : `Disk Space ${diskGB} GB. It is recommended to free up at least 6 GB.`;
           } else {
             diskDetectionText = lang === 'es'
-              ? `Espacio libre: ${diskGB} GB. Tienes suficiente espacio de almacenamiento (se recomienda 6 GB).`
-              : `Free space: ${diskGB} GB. You have enough storage space (6 GB recommended).`;
+              ? `Espacio en disco: ${diskGB} GB. Tienes más que suficiente de los 6 GB recomendados.`
+              : `Disk Space ${diskGB} GB you have more than enough from the 6GB recomended.`;
           }
         }
+
+        const renderDownloadOverlay = (modelId: string, modelMB: number, isVision: boolean = false) => {
+          if (status !== 'downloading' && status !== 'loading') return null;
+          if (downloadingModel && downloadingModel.id !== modelId) return null;
+          if (isVision && downloadingType !== 'vision') return null;
+          if (!isVision && downloadingType === 'vision') return null;
+
+          return (
+            <View style={{ alignItems: 'center', marginTop: 8, width: '100%' }}>
+              <CompactDownloadOverlay
+                downloadPercent={downloadPercent || 0}
+                downloadedMB={downloadedMB || 0}
+                totalMB={downloadingModel
+                  ? (downloadingType === 'vision' ? (downloadingModel.mmprojSizeMB || 0) : downloadingModel.sizeMB)
+                  : modelMB
+                }
+                downloadSpeed={downloadSpeed || 0}
+                waitPhrase={waitPhrase || ''}
+                colors={colors}
+              />
+            </View>
+          );
+        };
+
+        const isStep1Downloading = status === 'downloading' && downloadingModel?.id === AVAILABLE_MODELS?.[0]?.id;
 
         return (
           <ScrollView
@@ -197,47 +279,6 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
             contentContainerStyle={{ alignItems: 'center', paddingBottom: 20 }}
             showsVerticalScrollIndicator={false}
           >
-            {/* Requirements Box */}
-            <View style={{
-              width: '100%',
-              padding: 12,
-              backgroundColor: colors.surface,
-              borderRadius: 8,
-              borderWidth: 1,
-              borderColor: colors.border,
-              marginBottom: 12
-            }}>
-              <Text style={{
-                color: colors.textSecondary,
-                fontSize: 11,
-                fontFamily: Platform.select({ ios: 'Courier', android: 'monospace' }),
-                marginBottom: 4
-              }}>
-                {lang === 'es'
-                  ? 'Anima Light requiere 4GB en RAM (solo texto y voz)'
-                  : 'Anima Light requires 4GB in RAM (only text and voice)'}
-              </Text>
-              <Text style={{
-                color: colors.textSecondary,
-                fontSize: 11,
-                fontFamily: Platform.select({ ios: 'Courier', android: 'monospace' }),
-                marginBottom: 4
-              }}>
-                {lang === 'es'
-                  ? 'Anima Balance requiere 4GB en RAM (multimedia)'
-                  : 'Anima Balance requires 4GB in RAM (multimedia)'}
-              </Text>
-              <Text style={{
-                color: colors.textSecondary,
-                fontSize: 11,
-                fontFamily: Platform.select({ ios: 'Courier', android: 'monospace' })
-              }}>
-                {lang === 'es'
-                  ? 'Anima Deepmind requiere 6GB en RAM (multimedia)'
-                  : 'Anima Deepmind requires 6GB in RAM (multimedia)'}
-              </Text>
-            </View>
-
             {/* Dynamic RAM Status */}
             <View style={{
               width: '100%',
@@ -284,172 +325,243 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
               </View>
             )}
 
-            {/* Free Tier Note */}
+            {/* Offline/Privacy Legend */}
             <Text style={{
               color: colors.textSecondary,
-              fontSize: 8.5,
+              fontSize: 12,
               textAlign: 'center',
-              marginBottom: 15,
-              lineHeight: 12,
-              fontStyle: 'italic'
+              marginBottom: 16,
+              lineHeight: 16,
+              paddingHorizontal: 10
             }}>
               {lang === 'es'
-                ? 'Nota: El nivel gratuito es solo Anima Light y un nivel de Pruebas Psicológicas, pero eso es básicamente el 100% de cómo puedes usar esta aplicación como Diario, memoria de todos los registros y salida de los mismos. ¡Disfruta! Para los probadores, estan abiertas todos los modelos. ¡Gracias!'
-                : 'Note: Free tier is only Anima Light and one tier of Psychological Tests but that basically is 100% of how you can use this app as a Diary, memory of all records and output of them. Enjoy! For testers, all models are open. Thanks!'}
+                ? 'Para operar sin conexión a internet y proteger tu privacidad, esta aplicación descarga los modelos de IA directo a tu dispositivo.'
+                : 'To operate without an internet connection and protect your privacy, this application downloads the AI models directly to your device.'}
             </Text>
 
-            {/* DOWNLOAD UI */}
-            {selectedModel && !isLowRam && !isLowDisk && (
+            {/* STEP 1: Core AI */}
+            {onboardingStep === 1 && (
               <View style={{ width: '100%', marginTop: 5, alignItems: 'center' }}>
+                {!canRunLight ? (
+                  <Text style={{ color: colors.textSecondary, textAlign: 'center', marginBottom: 15 }}>
+                    {lang === 'es'
+                      ? "No podemos descargar la IA más ligera que tenemos, pero aún así puedes usar la pestaña Tools y Self-Know. Cuando tengas un teléfono con más memoria, puedes volver a intentar."
+                      : "We cannot download the lightest AI we have, but you can still use the Tools and Self-Know tab. When you have a phone with more memory, you can try again."}
+                  </Text>
+                ) : (
+                  <>
+                    <Text style={{ color: colors.textPrimary, fontWeight: 'bold', marginBottom: 10 }}>
+                      {AVAILABLE_MODELS?.[0]?.[lang === 'es' ? 'labelEs' : 'labelEn']} ({AVAILABLE_MODELS?.[0]?.sizeMB} MB)
+                    </Text>
+
+                    {(status === 'idle' || status === 'downloading' || status === 'ready') && (
+                      <Animated.View style={[{ opacity: !model0Exists ? 1 : 0.6, marginBottom: 10 }]}>
+                        <TouchableOpacity
+                          style={[
+                            styles.actionBtn,
+                            {
+                              borderColor: model0Exists ? colors.border : (status === 'downloading' ? '#424242' : colors.primary),
+                              backgroundColor: model0Exists ? 'transparent' : (status === 'downloading' ? '#424242' : colors.primary),
+                              borderWidth: model0Exists ? 1 : 2,
+                              paddingHorizontal: 30,
+                              borderRadius: 24,
+                            }
+                          ]}
+                          onPress={() => {
+                            if (AVAILABLE_MODELS?.[0] && setSelectedModel && handleDownload) {
+                              setSelectedModel(AVAILABLE_MODELS[0]);
+                              handleDownload(AVAILABLE_MODELS[0]);
+                            }
+                          }}
+                          disabled={model0Exists || status === 'downloading'}
+                        >
+                          <Text style={{ color: model0Exists ? colors.textSecondary : (status === 'downloading' ? '#888888' : '#FFF'), fontWeight: 'bold', fontSize: 13 }}>
+                            {model0Exists ? (lang === 'es' ? 'Descargado' : 'Downloaded') : (status === 'downloading' || canResume ? (lang === 'es' ? 'Continuar Descarga' : 'Continue Download') : (lang === 'es' ? 'Descargar Modelo' : 'Download Model'))}
+                          </Text>
+                        </TouchableOpacity>
+                      </Animated.View>
+                    )}
+                    
+                    {renderDownloadOverlay(AVAILABLE_MODELS?.[0]?.id || '', AVAILABLE_MODELS?.[0]?.sizeMB || 0)}
+                  </>
+                )}
+
+                <View style={{ flexDirection: 'row', gap: 10, width: '100%', marginTop: 20 }}>
+                  <TouchableOpacity
+                    style={[styles.actionBtn, { flex: 1, backgroundColor: 'transparent', borderColor: colors.border, borderWidth: 1, borderRadius: 24 }]}
+                    onPress={() => setOnboardingStep(0)}
+                  >
+                    <Text style={{ color: colors.textSecondary, fontWeight: 'bold', textAlign: 'center' }}>{lang === 'es' ? 'Atrás' : 'Back'}</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    disabled={isStep1Downloading || (canRunLight && !model0Exists)}
+                    style={[
+                      styles.actionBtn,
+                      {
+                        flex: 2,
+                        backgroundColor: (!isStep1Downloading && (!canRunLight || model0Exists)) ? colors.primary : colors.surface,
+                        borderColor: (!isStep1Downloading && (!canRunLight || model0Exists)) ? colors.primary : colors.border,
+                        alignItems: 'center',
+                        borderRadius: 24,
+                        opacity: (!isStep1Downloading && (!canRunLight || model0Exists)) ? 1 : 0.5
+                      }
+                    ]}
+                    onPress={() => {
+                      if (canRunDeepMindText) setOnboardingStep(2);
+                      else saveAndCompleteOnboarding();
+                    }}
+                  >
+                    <Text style={{ color: (!isStep1Downloading && (!canRunLight || model0Exists)) ? '#FFF' : colors.textSecondary, fontWeight: 'bold' }}>
+                      {canRunDeepMindText 
+                        ? (lang === 'es' ? 'SIGUIENTE' : 'NEXT') 
+                        : (lang === 'es' ? 'EMPEZAR' : 'START')}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+
+            {/* STEP 2: DeepMind Text Optional */}
+            {onboardingStep === 2 && (
+              <View style={{ width: '100%', marginTop: 5, alignItems: 'center' }}>
+                <Text style={{ color: colors.textSecondary, textAlign: 'center', marginBottom: 15, paddingHorizontal: 10 }}>
+                  {lang === 'es'
+                    ? "También tienes la posibilidad de descargar Anima DeepMind. Lo puedes hacer ahorita o después. Dado que mide ~2.5GB se va a tardar unas tres veces más que la anterior, ¿lo quieres hacer ahorita?"
+                    : "You also have the possibility to download Anima DeepMind. You can do it now or later. Since it measures ~2.5GB it will take about three times longer than the previous one, do you want to do it right now?"}
+                </Text>
+                
                 <Text style={{ color: colors.textPrimary, fontWeight: 'bold', marginBottom: 10 }}>
-                  {selectedModel[lang === 'es' ? 'labelEs' : 'labelEn']} ({selectedModel.sizeMB} MB)
+                  {AVAILABLE_MODELS?.[1]?.[lang === 'es' ? 'labelEs' : 'labelEn']} ({AVAILABLE_MODELS?.[1]?.sizeMB} MB)
                 </Text>
 
-                {(status === 'idle' || status === 'downloading') && (
-                  <Animated.View style={[{ opacity: !modelExists ? 1 : 0.6, marginBottom: 10 }]}>
+                {(status === 'idle' || status === 'downloading' || status === 'ready') && (
+                  <Animated.View style={[{ opacity: !model1Exists ? 1 : 0.6, marginBottom: 10 }]}>
                     <TouchableOpacity
                       style={[
                         styles.actionBtn,
                         {
-                          borderColor: modelExists ? colors.border : (status === 'downloading' ? '#424242' : colors.primary),
-                          backgroundColor: modelExists ? 'transparent' : (status === 'downloading' ? '#424242' : colors.primary),
-                          borderWidth: modelExists ? 1 : 2,
+                          borderColor: model1Exists ? colors.border : (status === 'downloading' ? '#424242' : colors.primary),
+                          backgroundColor: model1Exists ? 'transparent' : (status === 'downloading' ? '#424242' : colors.primary),
+                          borderWidth: model1Exists ? 1 : 2,
                           paddingHorizontal: 30,
                           borderRadius: 24,
                         }
                       ]}
-                      onPress={handleDownload}
-                      disabled={modelExists || status === 'downloading'}
+                      onPress={() => {
+                        if (AVAILABLE_MODELS?.[1] && setSelectedModel && handleDownload) {
+                          setSelectedModel(AVAILABLE_MODELS[1]);
+                          handleDownload(AVAILABLE_MODELS[1]);
+                        }
+                      }}
+                      disabled={model1Exists || status === 'downloading'}
                     >
-                      <Text style={{ color: modelExists ? colors.textSecondary : (status === 'downloading' ? '#888888' : '#FFF'), fontWeight: 'bold', fontSize: 13 }}>
-                        {modelExists ? (lang === 'es' ? 'Descargado' : 'Downloaded') : (status === 'downloading' || canResume ? (lang === 'es' ? 'Continuar Descarga' : 'Continue Download') : (lang === 'es' ? 'Descargar Modelo' : 'Download Model'))}
+                      <Text style={{ color: model1Exists ? colors.textSecondary : (status === 'downloading' ? '#888888' : '#FFF'), fontWeight: 'bold', fontSize: 13 }}>
+                        {model1Exists ? (lang === 'es' ? 'Descargado' : 'Downloaded') : (status === 'downloading' || canResume ? (lang === 'es' ? 'Continuar Descarga' : 'Continue Download') : 'DOWNLOAD NOW')}
                       </Text>
                     </TouchableOpacity>
                   </Animated.View>
                 )}
+                
+                {renderDownloadOverlay(AVAILABLE_MODELS?.[1]?.id || '', AVAILABLE_MODELS?.[1]?.sizeMB || 0)}
 
-                {(status === 'downloading' || status === 'loading') && (
-                  <View style={{ alignItems: 'center', marginTop: 8, width: '100%' }}>
-                    <CompactDownloadOverlay
-                      downloadPercent={downloadPercent || 0}
-                      downloadedMB={downloadedMB || 0}
-                      totalMB={
-                        downloadingModel
-                          ? (downloadingType === 'vision' ? (downloadingModel.mmprojSizeMB || 0) : downloadingModel.sizeMB)
-                          : (activeModel ? (downloadingType === 'vision' ? (activeModel.mmprojSizeMB || 0) : activeModel.sizeMB) : selectedModel.sizeMB)
-                      }
-                      downloadSpeed={downloadSpeed || 0}
-                      waitPhrase={waitPhrase || ''}
-                      colors={colors}
-                    />
-                  </View>
-                )}
+                <View style={{ flexDirection: 'row', gap: 10, width: '100%', marginTop: 20 }}>
+                  <TouchableOpacity
+                    style={[styles.actionBtn, { flex: 1, backgroundColor: 'transparent', borderColor: colors.border, borderWidth: 1, borderRadius: 24 }]}
+                    onPress={() => {
+                      if (canRunDeepMindVision) setOnboardingStep(3);
+                      else saveAndCompleteOnboarding();
+                    }}
+                  >
+                    <Text style={{ color: colors.textSecondary, fontWeight: 'bold', textAlign: 'center' }}>LATER</Text>
+                  </TouchableOpacity>
+
+                  {model1Exists && (
+                    <TouchableOpacity
+                      style={[styles.actionBtn, { flex: 2, backgroundColor: colors.primary, borderColor: colors.primary, alignItems: 'center', borderRadius: 24 }]}
+                      onPress={() => {
+                        if (canRunDeepMindVision) setOnboardingStep(3);
+                        else saveAndCompleteOnboarding();
+                      }}
+                    >
+                      <Text style={{ color: '#FFF', fontWeight: 'bold' }}>CONTINUE</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
               </View>
             )}
 
-            <View style={{ flexDirection: 'row', gap: 10, width: '100%', marginTop: 20 }}>
-              <TouchableOpacity
-                style={[styles.actionBtn, { flex: 1, backgroundColor: 'transparent', borderColor: colors.border, borderWidth: 1, borderRadius: 24 }]}
-                onPress={() => setOnboardingStep(0)}
-              >
-                <Text style={{ color: colors.textSecondary, fontWeight: 'bold', textAlign: 'center' }}>{lang === 'es' ? 'Atrás' : 'Back'}</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                disabled={!modelExists || isLowRam || isLowDisk || status === 'downloading'}
-                style={[
-                  styles.actionBtn,
-                  {
-                    flex: 2,
-                    backgroundColor: (modelExists && !isLowRam && !isLowDisk && status !== 'downloading') ? colors.primary : colors.surface,
-                    borderColor: (modelExists && !isLowRam && !isLowDisk && status !== 'downloading') ? colors.primary : colors.border,
-                    alignItems: 'center',
-                    borderRadius: 24,
-                    opacity: (modelExists && !isLowRam && !isLowDisk && status !== 'downloading') ? 1 : 0.5
-                  }
-                ]}
-                onPress={() => setOnboardingStep(2)}
-              >
-                <Text style={{ color: (modelExists && !isLowRam && !isLowDisk && status !== 'downloading') ? '#FFF' : colors.textSecondary, fontWeight: 'bold' }}>
-                  {lang === 'es' ? 'Empezar Evaluación' : 'Start Evaluation'}
+            {/* STEP 3: DeepMind Vision Optional */}
+            {onboardingStep === 3 && (
+              <View style={{ width: '100%', marginTop: 5, alignItems: 'center' }}>
+                <Text style={{ color: colors.textSecondary, textAlign: 'center', marginBottom: 15, paddingHorizontal: 10 }}>
+                  {lang === 'es'
+                    ? "Tu teléfono también soporta el módulo de Visión de DeepMind para analizar imágenes y PDFs gráficos. Es opcional y puedes bajarlo después si lo deseas. ¿Quieres descargarlo ahora?"
+                    : "Your phone also supports the DeepMind Vision module to analyze images and graphic PDFs. It is optional and you can download it later if you wish. Do you want to download it now?"}
                 </Text>
-              </TouchableOpacity>
-            </View>
+                
+                <Text style={{ color: colors.textPrimary, fontWeight: 'bold', marginBottom: 10 }}>
+                  DeepMind Vision ({AVAILABLE_MODELS?.[1]?.mmprojSizeMB || 0} MB)
+                </Text>
+
+                {(status === 'idle' || status === 'downloading' || status === 'ready') && (
+                  <Animated.View style={[{ opacity: !visionExists ? 1 : 0.6, marginBottom: 10 }]}>
+                    <TouchableOpacity
+                      style={[
+                        styles.actionBtn,
+                        {
+                          borderColor: visionExists ? colors.border : (status === 'downloading' ? '#424242' : colors.primary),
+                          backgroundColor: visionExists ? 'transparent' : (status === 'downloading' ? '#424242' : colors.primary),
+                          borderWidth: 2,
+                          paddingHorizontal: 30,
+                          borderRadius: 24,
+                        }
+                      ]}
+                      onPress={() => {
+                         if (handleConfirmVisionDownload) {
+                            handleConfirmVisionDownload(AVAILABLE_MODELS?.[1]);
+                         }
+                      }}
+                      disabled={visionExists || status === 'downloading'}
+                    >
+                      <Text style={{ color: visionExists ? colors.textSecondary : (status === 'downloading' ? '#888888' : '#FFF'), fontWeight: 'bold', fontSize: 13 }}>
+                        {visionExists ? (lang === 'es' ? 'Descargado' : 'Downloaded') : (status === 'downloading' ? (lang === 'es' ? 'Descargando...' : 'Downloading...') : 'DOWNLOAD NOW')}
+                      </Text>
+                    </TouchableOpacity>
+                  </Animated.View>
+                )}
+                
+                {renderDownloadOverlay(AVAILABLE_MODELS?.[1]?.id || '', AVAILABLE_MODELS?.[1]?.mmprojSizeMB || 0, true)}
+
+                <View style={{ flexDirection: 'row', gap: 10, width: '100%', marginTop: 20 }}>
+                  <TouchableOpacity
+                    style={[styles.actionBtn, { flex: 1, backgroundColor: 'transparent', borderColor: colors.border, borderWidth: 1, borderRadius: 24 }]}
+                    onPress={() => saveAndCompleteOnboarding()}
+                  >
+                    <Text style={{ color: colors.textSecondary, fontWeight: 'bold', textAlign: 'center' }}>LATER</Text>
+                  </TouchableOpacity>
+                  
+                  <TouchableOpacity
+                    style={[
+                      styles.actionBtn, 
+                      { 
+                        flex: 2, 
+                        backgroundColor: colors.primary, 
+                        borderColor: colors.primary, 
+                        alignItems: 'center', 
+                        borderRadius: 24 
+                      }
+                    ]}
+                    onPress={() => saveAndCompleteOnboarding()}
+                  >
+                    <Text style={{ color: '#FFF', fontWeight: 'bold' }}>CONTINUE</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
           </ScrollView>
         );
       })()}
-
-      {onboardingStep === 2 && (
-        <ScrollView
-          style={{ width: '100%', marginTop: 10 }}
-          contentContainerStyle={{ paddingBottom: 20 }}
-          showsVerticalScrollIndicator={false}
-        >
-          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-            <TouchableOpacity
-              onPress={() => {
-                if (psyStep > 0) {
-                  setPsyStep(psyStep - 1);
-                  setPsyAnswers(prev => prev.slice(0, -1));
-                } else {
-                  setOnboardingStep(1);
-                }
-              }}
-              style={{ padding: 5 }}
-            >
-              <IconSymbol name="chevron.left" size={24} color={colors.secondary} />
-            </TouchableOpacity>
-            <Text style={{ color: colors.secondary, fontWeight: 'bold' }}>[ AI CALIBRATOR ]</Text>
-            <View style={{ width: 24 }} />
-          </View>
-          <Text style={{ color: colors.textSecondary, textAlign: 'center', marginBottom: 15, fontSize: 12 }}>{psyStep + 1} / 5</Text>
-
-          <Text style={{ color: colors.textPrimary, fontSize: 15, fontWeight: 'bold', marginBottom: 20, textAlign: 'center' }}>
-            {lang === 'es' ? PSY_QUESTIONS[psyStep]?.q_es : PSY_QUESTIONS[psyStep]?.q_en}
-          </Text>
-
-          {PSY_QUESTIONS[psyStep]?.opts.map((opt, idx) => (
-            <TouchableOpacity
-              key={idx}
-              style={{ padding: 14, borderWidth: 1, borderColor: colors.border, borderRadius: 12, marginBottom: 10, backgroundColor: colors.surfaceSecondary }}
-              onPress={async () => {
-                const newAnswers = [...psyAnswers, idx];
-                setPsyAnswers(newAnswers);
-                if (psyStep + 1 < 5) {
-                  setPsyStep(psyStep + 1);
-                } else {
-                  try {
-                    if (db) {
-                      await db.runAsync('DELETE FROM user_profile');
-                      await db.runAsync('INSERT INTO user_profile (name, nickname, work, likes) VALUES (?, ?, ?, ?)', ['', userProfile.nickname, userProfile.work, '']);
-
-                      await db.runAsync('DELETE FROM psy_profile');
-                      const dims: Record<string, number[]> = { O: [], C: [], E: [], A: [], N: [], D: [], L: [] };
-                      for (let i = 0; i < 5; i++) {
-                        const q = PSY_QUESTIONS[i];
-                        const ansIdx = newAnswers[i] ?? 0;
-                        const option = q.opts[ansIdx];
-                        if (option) dims[option.dim].push(option.val);
-                      }
-                      const avg = (arr: number[]) => arr.length > 0 ? arr.reduce((a, b) => a + b, 0) / arr.length : 0.5;
-                      const scores = { O: avg(dims.O), C: avg(dims.C), E: avg(dims.E), A: avg(dims.A), N: avg(dims.N), D: avg(dims.D), L: avg(dims.L) };
-
-                      await db.runAsync('INSERT INTO psy_profile (O, C, E, A, N, D, L) VALUES (?, ?, ?, ?, ?, ?, ?)', [scores.O, scores.C, scores.E, scores.A, scores.N, scores.D, scores.L]);
-                      setPsyProfile(scores);
-                      await db.runAsync('INSERT OR REPLACE INTO onboarding_status (id, completed, completed_at) VALUES (1, 1, ?)', [Date.now()]);
-                    }
-                  } catch (e) { console.log(e); }
-                  setIsOnboardingComplete(true);
-                  setPsyCompleted(true);
-                  setPsyStep(0);
-                }
-              }}
-            >
-              <Text style={{ color: colors.textPrimary, fontSize: 13, textAlign: 'center' }}>{lang === 'es' ? opt.es : opt.en}</Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-      )}
     </View>
   );
 };

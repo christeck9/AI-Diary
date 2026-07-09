@@ -64,14 +64,12 @@ function RootThemeContainer() {
     (activeTheme === 'light' ? 'rgba(0, 0, 0, 0.1)' : 'rgba(176, 38, 255, 0.15)');
 
   const content = (
-    <GlobalModalsProvider>
-      <ThemeProvider value={NavigationTheme}>
-        <Stack>
-          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        </Stack>
-        <StatusBar style={activeTheme === 'light' ? 'dark' : 'light'} />
-      </ThemeProvider>
-    </GlobalModalsProvider>
+    <ThemeProvider value={NavigationTheme}>
+      <Stack>
+        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+      </Stack>
+      <StatusBar style={activeTheme === 'light' ? 'dark' : 'light'} />
+    </ThemeProvider>
   );
 
   if (isWeb) {
@@ -93,7 +91,7 @@ import { VoiceProvider } from '../contexts/VoiceContext';
 import { LlmProvider } from '../contexts/LlmContext';
 import { GlobalDownloadBanner } from '../components/GlobalDownloadBanner';
 import { ProfileProvider } from '../contexts/ProfileContext';
-import { GlobalModalsProvider } from '../contexts/GlobalModalsContext';
+
 
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 

@@ -57,7 +57,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="self-know"
         options={{
-          title: lang === 'es' ? 'Autoconocimiento' : 'Self-Know',
+          title: lang === 'es' ? 'Psicograma' : 'Know thyself',
           tabBarIcon: ({ color }) => <PsiIcon size={28} color={color} />,
         }}
       />
