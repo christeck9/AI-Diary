@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Modal, View, Text, TouchableOpacity, TextInput, StyleSheet, ScrollView, Alert, SafeAreaView, Platform, Dimensions } from 'react-native';
+import React from 'react';
+import { Modal, View, Text, TouchableOpacity, TextInput, StyleSheet, ScrollView, Alert, SafeAreaView, Platform } from 'react-native';
 import { IconSymbol } from '../ui/icon-symbol';
 import { PsyProfile } from './PsyTestModal';
 import { UserProfile } from '../../contexts/ProfileContext';
@@ -66,37 +66,22 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
     </View>
   );
 
-  const [layoutTicket, setLayoutTicket] = useState(0);
-  const isAndroidEnvironment = Platform.OS === 'android';
-  const { width: absoluteScreenWidth, height: absoluteScreenHeight } = Dimensions.get('screen');
-
-  useEffect(() => {
-    if (visible) {
-      const timer = setTimeout(() => {
-        setLayoutTicket(prev => prev + 1);
-      }, 50);
-      return () => clearTimeout(timer);
-    }
-  }, [visible]);
-
   return (
     <Modal 
       visible={visible} 
       animationType="slide" 
-      transparent={true} 
-      statusBarTranslucent={true}
+      transparent={false} 
+      statusBarTranslucent={false}
       onRequestClose={onClose}
     >
-      {isAndroidEnvironment && <View style={{ height: (layoutTicket % 2 === 1) ? 0.5 : 0 }} />}
       <View 
         style={{ 
           flex: 1, 
-          width: absoluteScreenWidth, 
-          height: absoluteScreenHeight, 
+          width: '100%', 
+          height: '100%', 
           backgroundColor: colors.background, 
           margin: 0, 
-          padding: 0,
-          paddingTop: isAndroidEnvironment && (layoutTicket % 2 === 1) ? 0.5 : 0
+          padding: 0
         }}
       >
         <SafeAreaView style={{ flex: 1 }}>

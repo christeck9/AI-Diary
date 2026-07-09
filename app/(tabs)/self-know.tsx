@@ -8,6 +8,9 @@ import { useSQLiteContext } from 'expo-sqlite';
 import { IconSymbol } from '../../components/ui/icon-symbol';
 import { PsiIcon } from '../../components/ui/PsiIcon';
 const SnowflakeChart = React.lazy(() => import('../../components/ui/SnowflakeChart').then(m => ({ default: m.SnowflakeChart })));
+const PsyTestModal = React.lazy(() => import('../../components/modals/PsyTestModal').then(m => ({ default: m.PsyTestModal })));
+const VaultExplorerModal = React.lazy(() => import('../../components/modals/VaultExplorerModal').then(m => ({ default: m.VaultExplorerModal })));
+import { MBTI_QUESTIONS, PSY_QUESTIONS } from '../../components/modals/PsyTestModal';
 import { SanctuaryHeader } from '../../components/SanctuaryHeader';
 // expo-print and expo-sharing are dynamically imported
 import Svg, { Line } from 'react-native-svg';
@@ -18,7 +21,7 @@ import { hasVaultPin } from '../../lib/vault';
 export default function SelfKnowScreen() {
   const { colors, activeTheme } = useAppTheme();
   const { lang } = useLanguage();
-  const { psyProfile, userProfile } = useProfile();
+  const { psyProfile, setPsyProfile, setPsyCompleted, userProfile } = useProfile();
   const { openModal } = useGlobalModals();
   const db = useSQLiteContext();
   const { status, activeModel } = useLlmState();
@@ -27,6 +30,16 @@ export default function SelfKnowScreen() {
   const [kebabMenuTop, setKebabMenuTop] = useState(Platform.OS === 'android' ? (StatusBar.currentHeight || 0) + 70 : 85);
   const kebabTimerRef = useRef<NodeJS.Timeout | null>(null);
   const [isVaultCreated, setIsVaultCreated] = useState(false);
+
+  // Local modals state
+  const [isPsyTestVisible, setIsPsyTestVisible] = useState(false);
+  const [isPsyTestMounted, setIsPsyTestMounted] = useState(false);
+  const [activeTestType, setActiveTestType] = useState<'ocean' | 'aptitude' | 'vocational' | 'anxiety' | 'mood' | 'mbti'>('ocean');
+  const [localPsyStep, setLocalPsyStep] = useState(0);
+  const [localPsyAnswers, setLocalPsyAnswers] = useState<number[]>([]);
+
+  const [isVaultVisible, setIsVaultVisible] = useState(false);
+  const [isVaultMounted, setIsVaultMounted] = useState(false);
 
   const stopKebabTimer = () => {
     if (kebabTimerRef.current) {
@@ -50,6 +63,84 @@ export default function SelfKnowScreen() {
       console.error('[Vault] Error checking vault PIN status:', e);
     }
   }, []);
+
+  const handleOpenTest = (type: typeof activeTestType) => {
+    setActiveTestType(type);
+    setLocalPsyStep(0);
+    setLocalPsyAnswers([]);
+    setIsPsyTestMounted(true);
+    setTimeout(() => {
+      setIsPsyTestVisible(true);
+    }, 50);
+  };
+
+  const handleCloseTest = () => {
+    setIsPsyTestVisible(false);
+    setTimeout(() => {
+      setIsPsyTestMounted(false);
+    }, 500);
+  };
+
+  const handleScoreTest = async (type: string, answers: number[]) => {
+    if (type === 'ocean') {
+      const dims: Record<string, number[]> = { O: [], C: [], E: [], A: [], N: [], D: [], L: [] };
+      answers.forEach((ansIdx, i) => {
+        const q = PSY_QUESTIONS[i];
+        const opt = q?.opts[ansIdx];
+        if (opt && opt.dim) {
+          dims[opt.dim].push(opt.val);
+        }
+      });
+      const avg = (arr: number[]) => arr.length > 0 ? arr.reduce((a, b) => a + b, 0) / arr.length : 0.5;
+      const scores = {
+        O: avg(dims.O),
+        C: avg(dims.C),
+        E: avg(dims.E),
+        A: avg(dims.A),
+        N: avg(dims.N),
+        D: avg(dims.D),
+        L: avg(dims.L),
+        moodBalance: psyProfile.moodBalance,
+        mbtiType: psyProfile.mbtiType,
+      };
+      setPsyProfile(scores);
+      setPsyCompleted(true);
+      if (db) {
+        await db.runAsync('INSERT OR REPLACE INTO psy_profile (id, O, C, E, A, N, D, L, mood_balance, mbti_type) VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+          [scores.O, scores.C, scores.E, scores.A, scores.N, scores.D, scores.L, scores.moodBalance, scores.mbtiType]);
+      }
+    } else if (type === 'mbti') {
+      const dims: Record<string, number> = { E: 0, I: 0, S: 0, N: 0, T: 0, F: 0, J: 0, P: 0 };
+      answers.forEach((ansIdx, i) => {
+        const opt = MBTI_QUESTIONS[i]?.opts[ansIdx];
+        if (opt && opt.dim) dims[opt.dim]++;
+      });
+      const res = (dims.E >= dims.I ? 'E' : 'I') +
+        (dims.S >= dims.N ? 'S' : 'N') +
+        (dims.T >= dims.F ? 'T' : 'F') +
+        (dims.J >= dims.P ? 'J' : 'P');
+      setPsyProfile((prev: any) => {
+        const newProfile = { ...prev, mbtiType: res };
+        if (db) {
+          db.runAsync('INSERT OR REPLACE INTO psy_profile (id, O, C, E, A, N, D, L, mood_balance, mbti_type) VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            [newProfile.O, newProfile.C, newProfile.E, newProfile.A, newProfile.N, newProfile.D, newProfile.L, newProfile.moodBalance, newProfile.mbtiType]).catch((err: any) => console.log('[DB_ERROR]', err));
+        }
+        return newProfile;
+      });
+    } else if (type === 'mood') {
+      const sum = answers.reduce((a, b) => a + b, 0);
+      const normalized = sum / (answers.length * 3); // 25 questions * max 3 = 75
+      setPsyProfile((prev: any) => {
+        const newProfile = { ...prev, moodBalance: normalized };
+        if (db) {
+          db.runAsync('INSERT OR REPLACE INTO psy_profile (id, O, C, E, A, N, D, L, mood_balance, mbti_type) VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            [newProfile.O, newProfile.C, newProfile.E, newProfile.A, newProfile.N, newProfile.D, newProfile.L, newProfile.moodBalance, newProfile.mbtiType]).catch((err: any) => console.log('[DB_ERROR]', err));
+        }
+        return newProfile;
+      });
+    }
+    console.log(`[TEST_COMPLETE] ${type} scored with ${answers.length} answers.`);
+  };
 
   useEffect(() => {
     checkVaultStatus();
@@ -472,7 +563,6 @@ export default function SelfKnowScreen() {
     <View style={[styles.container, { backgroundColor: activeTheme === 'matrix' ? '#000000' : colors.background }]}>
       <SafeAreaView style={{ flex: 1 }}>
         <SanctuaryHeader 
-          showVoiceIcon={false}
           activeModelLabel={status === 'ready' && activeModel ? activeModel[lang === 'es' ? 'labelEs' : 'labelEn'] : undefined}
           showKebabMenu={showKebabMenu}
           onKebabPress={(calculatedTop) => {
@@ -502,7 +592,7 @@ export default function SelfKnowScreen() {
         <View style={styles.section}>
           <TouchableOpacity 
             style={[styles.testButton, { backgroundColor: colors.surfaceSecondary, borderColor: colors.border, borderLeftColor: colors.secondary }]}
-            onPress={() => openModal('psy_test', { type: 'ocean' })}
+            onPress={() => handleOpenTest('ocean')}
           >
             <Text style={[styles.buttonTitle, { color: colors.textPrimary }]}>{lang === 'es' ? '1. Test Inicial (OCEAN+) [25 Q]' : '1. Initial Test (OCEAN+) [25 Q]'}</Text>
             <Text style={[styles.buttonDesc, { color: colors.textSecondary }]}>{lang === 'es' ? 'Perfil de personalidad básico.' : 'Basic personality profile.'}</Text>
@@ -510,7 +600,7 @@ export default function SelfKnowScreen() {
 
           <TouchableOpacity 
             style={[styles.testButton, { backgroundColor: colors.surfaceSecondary, borderColor: colors.border, borderLeftColor: '#4ade80' }]}
-            onPress={() => openModal('psy_test', { type: 'aptitude' })}
+            onPress={() => handleOpenTest('aptitude')}
           >
             <Text style={[styles.buttonTitle, { color: colors.textPrimary }]}>{lang === 'es' ? '2. Test de Aptitudes [25 Q]' : '2. Aptitude Test [25 Q]'}</Text>
             <Text style={[styles.buttonDesc, { color: colors.textSecondary }]}>{lang === 'es' ? 'Descubre tus habilidades naturales.' : 'Discover your natural skills.'}</Text>
@@ -518,7 +608,7 @@ export default function SelfKnowScreen() {
 
           <TouchableOpacity 
             style={[styles.testButton, { backgroundColor: colors.surfaceSecondary, borderColor: colors.border, borderLeftColor: '#fbbf24' }]}
-            onPress={() => openModal('psy_test', { type: 'vocational' })}
+            onPress={() => handleOpenTest('vocational')}
           >
             <Text style={[styles.buttonTitle, { color: colors.textPrimary }]}>{lang === 'es' ? '3. Test Vocacional [25 Q]' : '3. Vocational Test [25 Q]'}</Text>
             <Text style={[styles.buttonDesc, { color: colors.textSecondary }]}>{lang === 'es' ? 'Orientación de propósito y carrera.' : 'Purpose and career orientation.'}</Text>
@@ -526,7 +616,7 @@ export default function SelfKnowScreen() {
 
           <TouchableOpacity 
             style={[styles.testButton, { backgroundColor: colors.surfaceSecondary, borderColor: colors.border, borderLeftColor: '#f87171' }]}
-            onPress={() => openModal('psy_test', { type: 'anxiety' })}
+            onPress={() => handleOpenTest('anxiety')}
           >
             <Text style={[styles.buttonTitle, { color: colors.textPrimary }]}>{lang === 'es' ? '4. Test de Balance Emocional [25 Q]' : '4. Emotional Balance Test [25 Q]'}</Text>
             <Text style={[styles.buttonDesc, { color: colors.textSecondary }]}>{lang === 'es' ? 'Evaluación de balance y estabilidad emocional.' : 'Evaluation of emotional balance and stability.'}</Text>
@@ -534,7 +624,7 @@ export default function SelfKnowScreen() {
 
           <TouchableOpacity 
             style={[styles.testButton, { backgroundColor: colors.surfaceSecondary, borderColor: colors.border, borderLeftColor: '#60a5fa' }]}
-            onPress={() => openModal('psy_test', { type: 'mood' })}
+            onPress={() => handleOpenTest('mood')}
           >
             <Text style={[styles.buttonTitle, { color: colors.textPrimary }]}>{lang === 'es' ? '5. Test de Bienestar Emocional [25 Q]' : '5. Emotional Well-being Test [25 Q]'}</Text>
             <Text style={[styles.buttonDesc, { color: colors.textSecondary }]}>{lang === 'es' ? 'Monitoreo y reflexión de bienestar cotidiano.' : 'Daily well-being monitoring and reflection.'}</Text>
@@ -542,7 +632,7 @@ export default function SelfKnowScreen() {
 
           <TouchableOpacity 
             style={[styles.testButton, { backgroundColor: colors.surfaceSecondary, borderColor: colors.border, borderLeftColor: '#a855f7' }]}
-            onPress={() => openModal('psy_test', { type: 'mbti' })}
+            onPress={() => handleOpenTest('mbti')}
           >
             <Text style={[styles.buttonTitle, { color: colors.textPrimary }]}>{lang === 'es' ? '6. Test de Personalidad 16r [25 Q]' : '6. 16r Personality Test [25 Q]'}</Text>
             <Text style={[styles.buttonDesc, { color: colors.textSecondary }]}>{lang === 'es' ? 'Arquetipo de personalidad (Jung).' : 'Personality archetype (Jung).'}</Text>
@@ -679,7 +769,12 @@ export default function SelfKnowScreen() {
         <View style={{ width: '100%', marginTop: 20 }}>
           <TouchableOpacity 
             style={[styles.exportButton, { backgroundColor: isVaultCreated ? '#7da885' : '#d96c6c', marginBottom: 20 }]} 
-            onPress={() => openModal('vault')}
+            onPress={() => {
+              setIsVaultMounted(true);
+              setTimeout(() => {
+                setIsVaultVisible(true);
+              }, 50);
+            }}
           >
             <Text style={styles.exportButtonText}>
               {isVaultCreated 
@@ -742,6 +837,38 @@ export default function SelfKnowScreen() {
         { emoji: '🗑️', labelEs: 'Borrar Historial', labelEn: 'Clear History', onPress: () => { setShowKebabMenu(false); setTimeout(() => onKebabAction('clear'), Platform.OS === 'android' ? 100 : 0); } },
       ]}
     />
+
+    {isPsyTestMounted && (
+      <React.Suspense fallback={null}>
+        <PsyTestModal
+          visible={isPsyTestVisible}
+          onClose={handleCloseTest}
+          lang={lang}
+          colors={colors}
+          psyProfile={psyProfile}
+          psyStep={localPsyStep}
+          setPsyStep={setLocalPsyStep}
+          psyAnswers={localPsyAnswers}
+          setPsyAnswers={setLocalPsyAnswers}
+          activeTest={activeTestType}
+          scoreTest={handleScoreTest}
+        />
+      </React.Suspense>
+    )}
+
+    {isVaultMounted && (
+      <React.Suspense fallback={null}>
+        <VaultExplorerModal
+          visible={isVaultVisible}
+          onClose={() => {
+            setIsVaultVisible(false);
+            setTimeout(() => setIsVaultMounted(false), 500);
+          }}
+          colors={colors}
+          lang={lang}
+        />
+      </React.Suspense>
+    )}
   </View>
   );
 }
