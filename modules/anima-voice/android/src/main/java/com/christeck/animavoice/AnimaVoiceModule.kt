@@ -86,7 +86,7 @@ class AnimaVoiceModule : Module(), TextToSpeech.OnInitListener {
         // Get the JS Queue Thread in a compiling-safe manner
         val jsQueueThread = try {
           val config = reactContext.javaClass.getMethod("getReactQueueConfiguration").invoke(reactContext)
-          config?.javaClass?.getMethod("getJSQueueThread").invoke(config)
+          config?.javaClass?.getMethod("getJSQueueThread")?.invoke(config)
         } catch (e: Exception) {
           null
         }
