@@ -401,12 +401,7 @@ export default function NeuralLinkScreen() {
   );
   const isMuted = voiceState === 'MUTED';
 
-  // Restablecer el activeSpeechId cuando la voz se detiene
-  useEffect(() => {
-    if (!isVoiceSpeaking) {
-      setActiveSpeechId(null);
-    }
-  }, [isVoiceSpeaking]);
+  // activeSpeechId is now managed explicitly via callbacks in onPlayPress and onStopPress to avoid transition race conditions.
 
   // Synchronize interactive mode request from Tools Tab
   useEffect(() => {
@@ -1300,7 +1295,9 @@ export default function NeuralLinkScreen() {
           dictation.stopSpeaking().then(() => {
              // Add a small delay as requested to prevent collisions
              playTimeoutRef.current = setTimeout(() => {
-               dictation.speak(msg.text);
+               dictation.speak(msg.text, psyProfile, () => {
+                 setActiveSpeechId(currentId => currentId === msg.id ? null : currentId);
+               });
                playTimeoutRef.current = null;
              }, 300);
           });
