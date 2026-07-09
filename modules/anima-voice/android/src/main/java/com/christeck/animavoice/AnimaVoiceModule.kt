@@ -11,6 +11,9 @@ import java.util.Locale
 import java.util.concurrent.ConcurrentHashMap
 import java.util.UUID
 
+import com.facebook.react.bridge.ReactContext
+import com.facebook.react.bridge.ReactApplicationContext
+
 class AnimaVoiceModule : Module(), TextToSpeech.OnInitListener {
   private var tts: TextToSpeech? = null
   private var isTtsInitialized = false
@@ -78,9 +81,29 @@ class AnimaVoiceModule : Module(), TextToSpeech.OnInitListener {
       //   Strategy 2 (Old Arch / Bridge): getCatalystInstance reflection chain
       try {
         System.loadLibrary("anima_voice")
-        val reactContext = appContext.reactContext ?: return@OnCreate
+        val reactContext = appContext.reactContext as? ReactContext ?: return@OnCreate
 
-        reactContext.runOnJSQueueThread {
+        // Get the JS Queue Thread in a compiling-safe manner
+        val jsQueueThread = try {
+          val config = reactContext.javaClass.getMethod("getReactQueueConfiguration").invoke(reactContext)
+          config?.javaClass?.getMethod("getJSQueueThread").invoke(config)
+        } catch (e: Exception) {
+          null
+        }
+
+        val runOnJS = { runnable: Runnable ->
+          if (jsQueueThread != null) {
+            try {
+              jsQueueThread.javaClass.getMethod("runOnQueue", Runnable::class.java).invoke(jsQueueThread, runnable)
+            } catch (e: Exception) {
+              reactContext.runOnJSQueueThread(runnable)
+            }
+          } else {
+            reactContext.runOnJSQueueThread(runnable)
+          }
+        }
+
+        runOnJS(Runnable {
           var runtimePtr: Long = 0L
 
           // Strategy 1: New Architecture (Bridgeless / Fabric)
@@ -109,7 +132,7 @@ class AnimaVoiceModule : Module(), TextToSpeech.OnInitListener {
           } else {
             android.util.Log.w("AnimaVoice", "⚠️ JSI runtime pointer is 0. Native Oboe audio unavailable, expo-speech fallback will be used.")
           }
-        }
+        })
       } catch (e: Exception) {
         android.util.Log.e("AnimaVoice", "Failed to load native library or schedule JSI install", e)
       }
