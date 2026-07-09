@@ -143,6 +143,12 @@ class AnimaVoiceModule : Module(), TextToSpeech.OnInitListener {
     }
 
     AsyncFunction("synthesizeNativeToPCM") { text: String, lang: String, promise: Promise ->
+      var attempts = 0
+      while (!isTtsInitialized && attempts < 20) {
+        Thread.sleep(100)
+        attempts++
+      }
+
       if (!isTtsInitialized || tts == null) {
         promise.reject("TTS_NOT_READY", "TextToSpeech engine not initialized", null)
         return@AsyncFunction

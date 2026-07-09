@@ -364,7 +364,7 @@ export function useVoice(lang: string = 'en', psyProfile?: { O: number, C: numbe
                 console.log('[VOICE] ⚡ Synthesizing Native TTS to PCM...');
                 const uint8Array = await promiseWithTimeout(
                   AnimaVoice.synthesizeNativeToPCM(cleanText, lang),
-                  3000,
+                  7000,
                   'Native TTS synthesis timeout'
                 );
                 audioBuffer = new Int16Array(uint8Array.buffer, uint8Array.byteOffset, uint8Array.length / 2);
