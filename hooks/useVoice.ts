@@ -81,6 +81,14 @@ export function useVoice(lang: string = 'en', psyProfile?: { O: number, C: numbe
   const charIndexOffsetRef = useRef(0);
   const activeParamsRef = useRef<{ dynamicPsyProfile?: any, onDone?: () => void, preloadedData?: any }>({});
   const [isPaused, setIsPaused] = useSafeState(false);
+  const isEmulatorRef = useRef(false);
+ 
+  useEffect(() => {
+    getHardwareConfig().then(cfg => {
+      isEmulatorRef.current = cfg.isEmulator;
+      console.log('[VOICE] isEmulator detected:', cfg.isEmulator);
+    }).catch((e) => console.warn('[VOICE] failed to detect emulator:', e));
+  }, []);
 
   // ── Mutex & Debounce Refs for VAD Sensitivity Changes ──
   const vadDebounceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -198,7 +206,7 @@ export function useVoice(lang: string = 'en', psyProfile?: { O: number, C: numbe
     try {
       const settings = await getSettings();
       if (!isMuted) {
-        if (typeof (global as any).animaFeedAudioChunk === 'function') {
+        if (!isEmulatorRef.current && typeof (global as any).animaFeedAudioChunk === 'function') {
           if (settings.useCloudTTS) {
             return await cloudTTSService.synthesizeJSI(cleanText, lang, settings as any);
           } else {
@@ -341,7 +349,7 @@ export function useVoice(lang: string = 'en', psyProfile?: { O: number, C: numbe
       }
 
       // 🚀 ZERO LATENCY FAST PATH (JSI + Oboe C++)
-      if (typeof (global as any).animaFeedAudioChunk === 'function') {
+      if (!isEmulatorRef.current && typeof (global as any).animaFeedAudioChunk === 'function') {
         try {
           let audioBuffer: Float32Array | Int16Array | ArrayBuffer | null = null;
           if (preloadedData && (preloadedData instanceof Float32Array || preloadedData instanceof Int16Array || preloadedData instanceof ArrayBuffer)) {
