@@ -3,33 +3,23 @@ import { SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View, Ale
 import { useAppTheme } from '../../contexts/ThemeContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useProfile } from '../../contexts/ProfileContext';
-import { useGlobalModals } from '../../contexts/GlobalModalsContext';
 import { useSQLiteContext } from 'expo-sqlite';
 import { IconSymbol } from '../../components/ui/icon-symbol';
 import { PsiIcon } from '../../components/ui/PsiIcon';
 const SnowflakeChart = React.lazy(() => import('../../components/ui/SnowflakeChart').then(m => ({ default: m.SnowflakeChart })));
 const PsyTestModal = React.lazy(() => import('../../components/modals/PsyTestModal').then(m => ({ default: m.PsyTestModal })));
-const VaultExplorerModal = React.lazy(() => import('../../components/modals/VaultExplorerModal').then(m => ({ default: m.VaultExplorerModal })));
 import { MBTI_QUESTIONS, PSY_QUESTIONS } from '../../components/modals/PsyTestModal';
 import { SanctuaryHeader } from '../../components/SanctuaryHeader';
 // expo-print and expo-sharing are dynamically imported
 import Svg, { Line } from 'react-native-svg';
 import { useLlmState } from '../../contexts/LlmContext';
-import { KebabMenuOverlay } from '../../components/KebabMenuOverlay';
-import { hasVaultPin } from '../../lib/vault';
 
 export default function SelfKnowScreen() {
   const { colors, activeTheme } = useAppTheme();
   const { lang } = useLanguage();
   const { psyProfile, setPsyProfile, setPsyCompleted, userProfile } = useProfile();
-  const { openModal } = useGlobalModals();
   const db = useSQLiteContext();
   const { status, activeModel } = useLlmState();
-
-  const [showKebabMenu, setShowKebabMenu] = useState(false);
-  const [kebabMenuTop, setKebabMenuTop] = useState(Platform.OS === 'android' ? (StatusBar.currentHeight || 0) + 70 : 85);
-  const kebabTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const [isVaultCreated, setIsVaultCreated] = useState(false);
 
   // Local modals state
   const [isPsyTestVisible, setIsPsyTestVisible] = useState(false);
@@ -37,32 +27,6 @@ export default function SelfKnowScreen() {
   const [activeTestType, setActiveTestType] = useState<'ocean' | 'aptitude' | 'vocational' | 'anxiety' | 'mood' | 'mbti'>('ocean');
   const [localPsyStep, setLocalPsyStep] = useState(0);
   const [localPsyAnswers, setLocalPsyAnswers] = useState<number[]>([]);
-
-  const [isVaultVisible, setIsVaultVisible] = useState(false);
-  const [isVaultMounted, setIsVaultMounted] = useState(false);
-
-  const stopKebabTimer = () => {
-    if (kebabTimerRef.current) {
-      clearTimeout(kebabTimerRef.current);
-      kebabTimerRef.current = null;
-    }
-  };
-
-  const startKebabTimer = () => {
-    stopKebabTimer();
-    kebabTimerRef.current = setTimeout(() => {
-      setShowKebabMenu(false);
-    }, 5000);
-  };
-
-  const checkVaultStatus = useCallback(async () => {
-    try {
-      const exists = await hasVaultPin();
-      setIsVaultCreated(exists);
-    } catch (e) {
-      console.error('[Vault] Error checking vault PIN status:', e);
-    }
-  }, []);
 
   const handleOpenTest = (type: typeof activeTestType) => {
     setActiveTestType(type);
@@ -142,41 +106,7 @@ export default function SelfKnowScreen() {
     console.log(`[TEST_COMPLETE] ${type} scored with ${answers.length} answers.`);
   };
 
-  useEffect(() => {
-    checkVaultStatus();
-    const interval = setInterval(() => {
-      checkVaultStatus();
-    }, 1500);
-
-    return () => {
-      clearInterval(interval);
-      stopKebabTimer();
-    };
-  }, [checkVaultStatus]);
-
-  const onKebabAction = useCallback(async (action: string) => {
-    if (action === 'clear') {
-      Alert.alert(
-        lang === 'es' ? '¿Borrar Historial?' : 'Clear History?',
-        lang === 'es' ? 'Se eliminarán todos los mensajes. Esta acción es irreversible.' : 'All messages will be deleted. This action is permanent.',
-        [
-          { text: lang === 'es' ? 'Cancelar' : 'Cancel', style: 'cancel' },
-          {
-            text: lang === 'es' ? 'Borrar Todo' : 'Clear All',
-            style: 'destructive',
-            onPress: async () => {
-              if (db) {
-                await db.runAsync('DELETE FROM messages');
-                Alert.alert("Success", "Chat history cleared.");
-              }
-            }
-          }
-        ]
-      );
-    } else {
-      openModal(action as any);
-    }
-  }, [lang, db, openModal]);
+  // Kebab handlers and vault checkers removed
 
   // --- Mind Map Nodes Generation ---
   const surroundingNodes: { label: string; color: string; type: string }[] = [];
@@ -564,17 +494,6 @@ export default function SelfKnowScreen() {
       <SafeAreaView style={{ flex: 1 }}>
         <SanctuaryHeader 
           activeModelLabel={status === 'ready' && activeModel ? activeModel[lang === 'es' ? 'labelEs' : 'labelEn'] : undefined}
-          showKebabMenu={showKebabMenu}
-          onKebabPress={(calculatedTop) => {
-            if (calculatedTop !== undefined) {
-              setKebabMenuTop(calculatedTop);
-            }
-            const next = !showKebabMenu;
-            setShowKebabMenu(next);
-            if (next) startKebabTimer();
-            else stopKebabTimer();
-          }}
-          onKebabAction={onKebabAction}
         />
         
         <ScrollView 
@@ -767,21 +686,6 @@ export default function SelfKnowScreen() {
 
         {/* Botones de Exportar */}
         <View style={{ width: '100%', marginTop: 20 }}>
-          <TouchableOpacity 
-            style={[styles.exportButton, { backgroundColor: isVaultCreated ? '#7da885' : '#d96c6c', marginBottom: 20 }]} 
-            onPress={() => {
-              setIsVaultMounted(true);
-              setTimeout(() => {
-                setIsVaultVisible(true);
-              }, 50);
-            }}
-          >
-            <Text style={styles.exportButtonText}>
-              {isVaultCreated 
-                ? (lang === 'es' ? 'ENCRIPTACIÓN DE DATOS ACTIVADA' : 'APP DATA ENCRYPTION IS CREATED')
-                : (lang === 'es' ? 'CREAR ENCRIPTACIÓN DE DATOS' : 'CREATE DATA ENCRYPTION')}
-            </Text>
-          </TouchableOpacity>
 
           <Text style={[styles.exportSubtitle, { color: colors.textSecondary }]}>
             {lang === 'es' 
@@ -820,24 +724,6 @@ export default function SelfKnowScreen() {
       </ScrollView>
     </SafeAreaView>
 
-    <KebabMenuOverlay
-      visible={showKebabMenu}
-      anchorTop={kebabMenuTop}
-      onClose={() => {
-        setShowKebabMenu(false);
-        stopKebabTimer();
-      }}
-      colors={colors}
-      lang={lang}
-      menuItems={[
-        { emoji: '👤', labelEs: 'Perfil del Usuario', labelEn: 'User Profile', onPress: () => { setShowKebabMenu(false); setTimeout(() => onKebabAction('profile'), Platform.OS === 'android' ? 100 : 0); } },
-        { emoji: '👓', labelEs: 'Introducción', labelEn: 'Introduction', onPress: () => { setShowKebabMenu(false); setTimeout(() => onKebabAction('intro'), Platform.OS === 'android' ? 100 : 0); } },
-        { emoji: '🔊', labelEs: 'Configuración Voz Android', labelEn: 'Android Voice Settings', onPress: () => { setShowKebabMenu(false); setTimeout(() => onKebabAction('voice_settings'), Platform.OS === 'android' ? 100 : 0); } },
-        { emoji: '🔒', labelEs: 'Encriptación de Datos', labelEn: 'Data Encryption', onPress: () => { setShowKebabMenu(false); setTimeout(() => onKebabAction('vault'), Platform.OS === 'android' ? 100 : 0); } },
-        { emoji: '🗑️', labelEs: 'Borrar Historial', labelEn: 'Clear History', onPress: () => { setShowKebabMenu(false); setTimeout(() => onKebabAction('clear'), Platform.OS === 'android' ? 100 : 0); } },
-      ]}
-    />
-
     {isPsyTestMounted && (
       <React.Suspense fallback={null}>
         <PsyTestModal
@@ -852,20 +738,6 @@ export default function SelfKnowScreen() {
           setPsyAnswers={setLocalPsyAnswers}
           activeTest={activeTestType}
           scoreTest={handleScoreTest}
-        />
-      </React.Suspense>
-    )}
-
-    {isVaultMounted && (
-      <React.Suspense fallback={null}>
-        <VaultExplorerModal
-          visible={isVaultVisible}
-          onClose={() => {
-            setIsVaultVisible(false);
-            setTimeout(() => setIsVaultMounted(false), 500);
-          }}
-          colors={colors}
-          lang={lang}
         />
       </React.Suspense>
     )}

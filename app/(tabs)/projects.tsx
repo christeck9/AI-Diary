@@ -7,12 +7,10 @@ import { useFocusEffect } from 'expo-router';
 import { IconSymbol } from '../../components/ui/icon-symbol';
 import { useAppTheme } from '../../contexts/ThemeContext';
 import { useLanguage } from '../../contexts/LanguageContext';
-import { useLlmState, useLlmProgress, useLlmActions } from '../../contexts/LlmContext';
+import { useLlmState, useLlmDownload, useLlmActions } from '../../contexts/LlmContext';
 import { useVoice } from '../../hooks/useVoice';
 import { useFileAttachment } from '../../hooks/useFileAttachment';
 import { SanctuaryHeader } from '../../components/SanctuaryHeader';
-import { KebabMenuOverlay } from '../../components/KebabMenuOverlay';
-import { useGlobalModals } from '../../contexts/GlobalModalsContext';
 import { settingsService } from '../../lib/SettingsService';
 // WisdomService dynamically imported
 const VisionDownloadModal = React.lazy(() => import('../../components/VisionDownloadModal').then(m => ({ default: m.VisionDownloadModal })));
@@ -87,10 +85,9 @@ export default function ProjectsScreen() {
   const db = useSQLiteContext();
   const { colors, activeTheme } = useAppTheme();
   const { lang } = useLanguage();
-  const { openModal } = useGlobalModals();
 
-  const { status: llmStatus, activeModel, isDownloading, downloadingModel, downloadingType } = useLlmState();
-  const { downloadPercent, downloadedMB, downloadSpeed } = useLlmProgress();
+  const { status: llmStatus, activeModel } = useLlmState();
+  const { isDownloading, downloadingModel, downloadingType, downloadPercent, downloadedMB, downloadSpeed } = useLlmDownload();
   const { generateStreamingResponse, abortGeneration, resetToHome, downloadVisionModel, checkVisionModelExists, cancelDownload } = useLlmActions();
 
   // Voice/Whisper
@@ -208,11 +205,7 @@ export default function ProjectsScreen() {
   const [worktable, setWorktable] = useState<{ pin: any; cards: { id: number, question: string, answer: string, timestamp: number }[]; steps: any[] }>({ pin: null, cards: [], steps: [] });
   const [flippingCardId, setFlippingCardId] = useState<number | null>(null);
 
-  // Header & Kebab Menu
-  const [showKebabMenu, setShowKebabMenu] = useState(false);
-  const [kebabMenuTop, setKebabMenuTop] = useState(Platform.OS === 'android' ? (StatusBar.currentHeight || 0) + 70 : 85);
-
-  const kebabTimerRef = useRef<NodeJS.Timeout | null>(null);
+  // Header & Kebab Menu removed
 
   // Compression loading state
   const [isCompressing, setIsCompressing] = useState(false);
@@ -752,18 +745,7 @@ ${factsText}`;
     await resetToHome();
   }, [resetToHome]);
 
-  const onKebabAction = useCallback((action: string) => {
-    if (action === 'clear') {
-      Alert.alert(
-        lang === 'es' ? 'Acción no disponible' : 'Action not available',
-        lang === 'es'
-          ? 'El historial de chat solo se puede borrar desde la pestaña principal.'
-          : 'Chat history can only be cleared from the main tab.'
-      );
-    } else {
-      openModal(action as any);
-    }
-  }, [lang, openModal]);
+  // Kebab / Header actions removed
 
   const activeThemeLabel = themesList.find(t => t.value === projectTheme);
   const activeThemeLabelText = activeThemeLabel ? (lang === 'es' ? activeThemeLabel.labelEs : activeThemeLabel.labelEn) : projectTheme;
@@ -777,22 +759,8 @@ ${factsText}`;
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <SanctuaryHeader
-        showVoiceIcon={false}
         activeModelLabel={llmStatus === 'ready' && activeModel ? activeModel[lang === 'es' ? 'labelEs' : 'labelEn'] : undefined}
-        showKebabMenu={showKebabMenu}
-        onKebabPress={(calculatedTop) => {
-          if (calculatedTop !== undefined) setKebabMenuTop(calculatedTop);
-          const next = !showKebabMenu;
-          setShowKebabMenu(next);
-          if (next) {
-            kebabTimerRef.current = setTimeout(() => setShowKebabMenu(false), 5000);
-          } else if (kebabTimerRef.current) {
-            clearTimeout(kebabTimerRef.current);
-          }
-        }}
-        onKebabAction={onKebabAction}
         onHomePress={handleHeaderHomePress}
-
       />
 
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 50 }} keyboardShouldPersistTaps="handled">
@@ -1002,8 +970,9 @@ ${factsText}`;
                       showsHorizontalScrollIndicator={false}
                       contentContainerStyle={{ gap: 10, paddingBottom: 6 }}
                       onDragEnd={({ data }) => reorderCards(data)}
-                      keyExtractor={(item) => item.id.toString()}
-                      renderItem={({ item: card, drag, isActive }) => {
+                      keyExtractor={(item: any) => item.id.toString()}
+                      renderItem={({ item, drag, isActive }) => {
+                        const card = item as any;
                         const isFlipped = flippingCardId === card.id;
                         return (
                           <ScaleDecorator>
@@ -1337,26 +1306,7 @@ ${factsText}`;
         </TouchableOpacity>
       </Modal>
 
-      {/* GLOBAL APP KEBAB MENU OVERLAY */}
-      <KebabMenuOverlay
-        visible={showKebabMenu}
-        anchorTop={kebabMenuTop}
-        onClose={() => setShowKebabMenu(false)}
-        colors={colors}
-        lang={lang}
-        isDownloading={isDownloading}
-        downloadingModel={downloadingModel}
-        downloadPercent={downloadPercent}
-        downloadedMB={downloadedMB}
-        downloadSpeed={downloadSpeed}
-        menuItems={[
-          { emoji: '👤', labelEs: 'Perfil del Usuario', labelEn: 'User Profile', onPress: () => { setShowKebabMenu(false); setTimeout(() => onKebabAction('profile'), Platform.OS === 'android' ? 100 : 0); } },
-          { emoji: '👓', labelEs: 'Introducción', labelEn: 'Introduction', onPress: () => { setShowKebabMenu(false); setTimeout(() => onKebabAction('intro'), Platform.OS === 'android' ? 100 : 0); } },
-          { emoji: '🔊', labelEs: 'Configuración Voz Android', labelEn: 'Android Voice Settings', onPress: () => { setShowKebabMenu(false); setTimeout(() => onKebabAction('voice_settings'), Platform.OS === 'android' ? 100 : 0); } },
-          { emoji: '🔒', labelEs: 'Encriptación de Datos', labelEn: 'Data Encryption', onPress: () => { setShowKebabMenu(false); setTimeout(() => onKebabAction('vault'), Platform.OS === 'android' ? 100 : 0); } },
-          { emoji: '🗑️', labelEs: 'Borrar Historial', labelEn: 'Clear History', onPress: () => { setShowKebabMenu(false); setTimeout(() => onKebabAction('clear'), Platform.OS === 'android' ? 100 : 0); } },
-        ]}
-      />
+      {/* GLOBAL APP KEBAB MENU OVERLAY REMOVED */}
     </View>
   );
 }

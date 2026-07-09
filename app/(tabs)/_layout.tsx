@@ -7,7 +7,7 @@ import { IconSymbol } from '@/components/ui/icon-symbol';
 import { useAppTheme } from '../../contexts/ThemeContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { PsiIcon } from '../../components/ui/PsiIcon';
-import { GlobalModalsRenderer } from '../../contexts/GlobalModalsContext';
+
 
 export default function TabLayout() {
   const { colors, activeTheme } = useAppTheme();
@@ -68,8 +68,7 @@ export default function TabLayout() {
           tabBarIcon: ({ color }) => <IconSymbol size={28} name="gearshape.fill" color={color} />,
         }}
       />
-    </Tabs>
-      <GlobalModalsRenderer />
+      </Tabs>
     </>
   );
 }

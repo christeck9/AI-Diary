@@ -5,7 +5,6 @@ import Reanimated, { useSharedValue, useAnimatedStyle, withRepeat, withSequence,
 import { useAppTheme } from '../../contexts/ThemeContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { SanctuaryHeader } from '../../components/SanctuaryHeader';
-import { KebabMenuOverlay } from '../../components/KebabMenuOverlay';
 import { useSQLiteContext } from 'expo-sqlite';
 
 const MatrixRain = React.lazy(() => import('@/components/MatrixRain').then(m => ({ default: m.MatrixRain })));
@@ -23,7 +22,6 @@ import * as SecureStore from 'expo-secure-store';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useTodos } from '../../hooks/useTodos';
 import { MarqueeText } from '../../components/ui/MarqueeText';
-import { useGlobalModals } from '../../contexts/GlobalModalsContext';
 const InteractiveCalendar = React.lazy(() => import('../../components/ui/InteractiveCalendar').then(m => ({ default: m.InteractiveCalendar })));
 
 import * as DocumentPicker from 'expo-document-picker';
@@ -39,7 +37,6 @@ export default function ToolsScreen() {
   const { status, activeModel } = useLlmState();
   const { generateStreamingResponse, llamaContextRef, generateEmbeddings } = useLlmActions();
   const db = useSQLiteContext();
-  const { openModal } = useGlobalModals();
 
   // --- LIBRARY & DOWNLOAD CENTER STATE ---
   const [libActiveTab, setLibActiveTab] = useState<'search' | 'library'>('search');
@@ -230,23 +227,7 @@ export default function ToolsScreen() {
 
 
 
-  const [showKebabMenu, setShowKebabMenu] = useState(false);
-  const [kebabMenuTop, setKebabMenuTop] = useState(Platform.OS === 'android' ? (StatusBar.currentHeight || 0) + 70 : 85);
-  const kebabTimerRef = useRef<NodeJS.Timeout | null>(null);
-
-  const stopKebabTimer = () => {
-    if (kebabTimerRef.current) {
-      clearTimeout(kebabTimerRef.current);
-      kebabTimerRef.current = null;
-    }
-  };
-
-  const startKebabTimer = () => {
-    stopKebabTimer();
-    kebabTimerRef.current = setTimeout(() => {
-      setShowKebabMenu(false);
-    }, 5000);
-  };
+  // Kebab state and timer removed
 
   const [query, setQuery] = useState('');
   const [results, setResults] = useState('');
@@ -663,31 +644,7 @@ export default function ToolsScreen() {
 
         <View style={{ zIndex: 100 }}>
           <SanctuaryHeader
-            showVoiceIcon={false}
             activeModelLabel={status === 'ready' && activeModel ? activeModel[lang === 'es' ? 'labelEs' : 'labelEn'] : undefined}
-            showKebabMenu={showKebabMenu}
-            onKebabPress={(calculatedTop) => {
-              if (calculatedTop !== undefined) {
-                setKebabMenuTop(calculatedTop);
-              }
-              const next = !showKebabMenu;
-              setShowKebabMenu(next);
-              if (next) startKebabTimer();
-              else stopKebabTimer();
-            }}
-            onKebabAction={(action) => {
-              if (action === 'clear') {
-                Alert.alert(
-                  lang === 'es' ? 'Acción no disponible' : 'Action not available',
-                  lang === 'es'
-                    ? 'El historial de chat solo se puede borrar desde la pestaña principal.'
-                    : 'Chat history can only be cleared from the main tab.'
-                );
-              } else {
-                openModal(action as any);
-              }
-            }}
-
           />
         </View>
 
@@ -1497,34 +1454,7 @@ export default function ToolsScreen() {
 
       </SafeAreaView>
 
-      {/* --- GLOBAL APP MENUS OVERLAY --- */}
-      <KebabMenuOverlay
-        visible={showKebabMenu}
-        anchorTop={kebabMenuTop}
-        onClose={() => {
-          setShowKebabMenu(false);
-          stopKebabTimer();
-        }}
-        colors={colors}
-        lang={lang}
-        menuItems={[
-          { emoji: '👤', labelEs: 'Perfil del Usuario', labelEn: 'User Profile', onPress: () => { setShowKebabMenu(false); setTimeout(() => openModal('profile'), Platform.OS === 'android' ? 100 : 0); } },
-          { emoji: '👓', labelEs: 'Introducción', labelEn: 'Introduction', onPress: () => { setShowKebabMenu(false); setTimeout(() => openModal('intro'), Platform.OS === 'android' ? 100 : 0); } },
-          { emoji: '🔊', labelEs: 'Configuración Voz Android', labelEn: 'Android Voice Settings', onPress: () => { setShowKebabMenu(false); setTimeout(() => openModal('voice_settings'), Platform.OS === 'android' ? 100 : 0); } },
-          { emoji: '🔒', labelEs: 'Encriptación de Datos', labelEn: 'Data Encryption', onPress: () => { setShowKebabMenu(false); setTimeout(() => openModal('vault'), Platform.OS === 'android' ? 100 : 0); } },
-          {
-            emoji: '🗑️', labelEs: 'Borrar Historial', labelEn: 'Clear History', onPress: () => {
-              setShowKebabMenu(false);
-              Alert.alert(
-                lang === 'es' ? 'Acción no disponible' : 'Action not available',
-                lang === 'es'
-                  ? 'El historial de chat solo se puede borrar desde la pestaña principal.'
-                  : 'Chat history can only be cleared from the main tab.'
-              );
-            }
-          },
-        ]}
-      />
+      {/* KebabMenuOverlay removed */}
 
       {selectedBook && db && (
         <React.Suspense fallback={null}>

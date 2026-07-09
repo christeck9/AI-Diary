@@ -14,55 +14,35 @@ import { useLanguage } from '../contexts/LanguageContext';
 import { useLlmState } from '../contexts/LlmContext';
 
 interface SanctuaryHeaderProps {
-  onVoicePress?: () => void;
-  onKebabAction?: (action: string) => void;
   onModelPress?: () => void;
   onHomePress?: () => void;
-  showVoiceIcon?: boolean;
   activeModelLabel?: string;
-  isMuted?: boolean;
-  chatTtsEnabled?: boolean;
+
   // External state for dropdowns (rendered at screen level)
   showLangPicker?: boolean;
   onLangPress?: () => void;
   onLangSelect?: (lang: string) => void;
-  showKebabMenu?: boolean;
-  onKebabPress?: (calculatedTop: number) => void;
   isStreaming?: boolean;
   animaMessage?: string;
+  onClearChat?: () => void;
 }
 
 export const SanctuaryHeader = ({ 
-  onVoicePress, 
-  onKebabAction, 
   onModelPress, 
   onHomePress, 
-  showVoiceIcon = true, 
   activeModelLabel, 
-  isMuted = false, 
-  chatTtsEnabled = true,
+
   showLangPicker: showLangPickerProp,
   onLangPress,
   onLangSelect,
-  showKebabMenu: showKebabMenuProp,
-  onKebabPress,
   isStreaming = false,
+  onClearChat,
 }: SanctuaryHeaderProps) => {
   const { colors, activeTheme } = useAppTheme();
   const { lang, setLang } = useLanguage();
   const { deviceRAM } = useLlmState();
 
-  const kebabBtnRef = useRef<TouchableOpacity>(null);
-
-  const handleKebabPress = () => {
-    kebabBtnRef.current?.measure((x, y, width, height, pageX, pageY) => {
-      const fallback = Platform.OS === 'android' ? (StatusBar.currentHeight || 0) + 70 : 85;
-      const topOffset = (pageY !== undefined && pageY !== 0) ? (pageY + height) : fallback;
-      if (onKebabPress) {
-        onKebabPress(topOffset);
-      }
-    });
-  };
+  // Kebab menu trigger removed, using local Clean Chat icon directly
 
   // Reanimated shared values for float and breathe/glow
   const floatValue = useSharedValue(0);
@@ -104,7 +84,7 @@ export const SanctuaryHeader = ({
       transform: [
         { translateY: floatValue.value },
         { scale: pulseValue.value }
-      ],
+      ] as any,
       opacity: pulseValue.value
     };
   });
@@ -200,41 +180,25 @@ export const SanctuaryHeader = ({
             </View>
           </View>
 
-          {/* CHAT VOICE: Prende / apaga la voz de la IA (TTS) */}
-          {showVoiceIcon && (
-            <TouchableOpacity 
-              key="header-voice-btn" 
-              onPress={onVoicePress}
-              style={{ alignItems: 'center', justifyContent: 'center' }}
+          {/* Clean Chat action button */}
+          {onClearChat && (
+            <TouchableOpacity
+              key="header-clear-chat"
+              style={{ alignItems: 'center', justifyContent: 'center', padding: 4 }}
+              onPress={onClearChat}
             >
-              <View style={{ height: 24, justifyContent: 'center', alignItems: 'center' }}>
-                <IconSymbol
-                  name={chatTtsEnabled ? 'voice.active' : 'voice.muted'}
-                  size={22}
-                  color={chatTtsEnabled ? colors.primary : colors.textSecondary}
-                />
-              </View>
+              <IconSymbol name="trash" size={24} color={colors.primary} />
               <Text style={{ 
                 fontSize: 8, 
                 fontWeight: 'bold', 
-                color: chatTtsEnabled ? colors.primary : colors.textSecondary, 
+                color: colors.primary, 
                 marginTop: 2, 
                 letterSpacing: 0.5 
               }}>
-                CHAT VOICE
+                Clean Chat
               </Text>
             </TouchableOpacity>
           )}
-
-          {/* Hamburger trigger - kebab menu rendered at screen level */}
-          <TouchableOpacity
-            key="header-kebab-trigger"
-            ref={kebabBtnRef}
-            style={{ padding: 5 }}
-            onPress={handleKebabPress}
-          >
-            <Text key="header-hamburger-lines" style={{ color: colors.primary, fontSize: 22, fontWeight: 'bold' }}>☰</Text>
-          </TouchableOpacity>
         </View>
       </View>
     </View>

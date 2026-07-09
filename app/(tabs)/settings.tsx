@@ -11,6 +11,7 @@ import { AppThemeType } from '../../constants/Themes';
 import { ManifestoCard } from '../../components/SanctuaryUI';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useAppTheme } from '../../contexts/ThemeContext';
+import { useProfile } from '../../contexts/ProfileContext';
 import { useRouter } from 'expo-router';
 
 import * as Haptics from 'expo-haptics';
@@ -18,10 +19,11 @@ import { useLlmState, useLlmActions } from '../../contexts/LlmContext';
 import { runOnJS } from 'react-native-reanimated';
 
 import { SanctuaryHeader } from '../../components/SanctuaryHeader';
-import { KebabMenuOverlay } from '../../components/KebabMenuOverlay';
 import { useFocusEffect } from '@react-navigation/native';
 
-import { useGlobalModals } from '../../contexts/GlobalModalsContext';
+const ProfileModal = React.lazy(() => import('../../components/modals/ProfileModal').then(m => ({ default: m.ProfileModal })));
+const IntroModal = React.lazy(() => import('../../components/modals/IntroModal').then(m => ({ default: m.IntroModal })));
+const VaultExplorerModal = React.lazy(() => import('../../components/modals/VaultExplorerModal').then(m => ({ default: m.VaultExplorerModal })));
 import { settingsService } from '../../lib/SettingsService';
 import { cloudTTSService } from '../../lib/CloudTTSService';
 import { getAllBadges } from '../../db/badgeSchema';
@@ -58,7 +60,7 @@ export default function SettingsScreen() {
 
   const { lang, setLang, t } = useLanguage();
   const db = useSQLiteContext();
-  const { openModal } = useGlobalModals();
+  const { userProfile, setUserProfile, psyProfile } = useProfile();
 
 
   const [showResetModal, setShowResetModal] = useState(false);
@@ -92,47 +94,39 @@ export default function SettingsScreen() {
       return () => clearTimeout(timer);
     }
   }, [showLangPicker]);
-  const [showKebabMenu, setShowKebabMenu] = useState(false);
-  const [kebabMenuTop, setKebabMenuTop] = useState(Platform.OS === 'android' ? (StatusBar.currentHeight || 0) + 70 : 85);
-  const kebabTimerRef = useRef<NodeJS.Timeout | null>(null);
+  // Local modals state
+  const [isProfileVisible, setIsProfileVisible] = useState(false);
+  const [isProfileMounted, setIsProfileMounted] = useState(false);
+  const [isIntroVisible, setIsIntroVisible] = useState(false);
+  const [isIntroMounted, setIsIntroMounted] = useState(false);
+  const [isVaultVisible, setIsVaultVisible] = useState(false);
+  const [isVaultMounted, setIsVaultMounted] = useState(false);
 
-  const stopKebabTimer = () => {
-    if (kebabTimerRef.current) {
-      clearTimeout(kebabTimerRef.current);
-      kebabTimerRef.current = null;
+  const handleOpenModal = (name: 'profile' | 'intro' | 'vault') => {
+    if (name === 'profile') {
+      setIsProfileMounted(true);
+      setTimeout(() => setIsProfileVisible(true), 50);
+    } else if (name === 'intro') {
+      setIsIntroMounted(true);
+      setTimeout(() => setIsIntroVisible(true), 50);
+    } else if (name === 'vault') {
+      setIsVaultMounted(true);
+      setTimeout(() => setIsVaultVisible(true), 50);
     }
   };
 
-  const startKebabTimer = () => {
-    stopKebabTimer();
-    kebabTimerRef.current = setTimeout(() => {
-      setShowKebabMenu(false);
-    }, 5000);
-  };
-
-  const onKebabAction = useCallback(async (action: string) => {
-    if (action === 'clear') {
-      Alert.alert(
-        lang === 'es' ? '¿Borrar Historial?' : 'Clear History?',
-        lang === 'es' ? 'Se eliminarán todos los mensajes. Esta acción es irreversible.' : 'All messages will be deleted. This action is permanent.',
-        [
-          { text: lang === 'es' ? 'Cancelar' : 'Cancel', style: 'cancel' },
-          {
-            text: lang === 'es' ? 'Borrar Todo' : 'Clear All',
-            style: 'destructive',
-            onPress: async () => {
-              if (db) {
-                await db.runAsync('DELETE FROM messages');
-                Alert.alert("Success", "Chat history cleared.");
-              }
-            }
-          }
-        ]
-      );
-    } else {
-      openModal(action as any);
+  const handleCloseModal = (name: 'profile' | 'intro' | 'vault') => {
+    if (name === 'profile') {
+      setIsProfileVisible(false);
+      setTimeout(() => setIsProfileMounted(false), 500);
+    } else if (name === 'intro') {
+      setIsIntroVisible(false);
+      setTimeout(() => setIsIntroMounted(false), 500);
+    } else if (name === 'vault') {
+      setIsVaultVisible(false);
+      setTimeout(() => setIsVaultMounted(false), 500);
     }
-  }, [lang, db, openModal]);
+  };
   const [freeDiskMB, setFreeDiskMB] = useState(0);
   const [totalDiskMB, setTotalDiskMB] = useState(0);
 
@@ -464,28 +458,66 @@ export default function SettingsScreen() {
         )}
 
         <SanctuaryHeader 
-          showVoiceIcon={false}
           activeModelLabel={status === 'ready' && activeModel ? activeModel[lang === 'es' ? 'labelEs' : 'labelEn'] : undefined}
           showLangPicker={showLangPicker}
-          onKebabAction={onKebabAction}
           onLangPress={() => setShowLangPicker(!showLangPicker)}
           onLangSelect={(l) => { setLang(l as 'en' | 'es'); setShowLangPicker(false); }}
-          showKebabMenu={showKebabMenu}
-          onKebabPress={(calculatedTop) => {
-            if (calculatedTop !== undefined) {
-              setKebabMenuTop(calculatedTop);
-            }
-            const next = !showKebabMenu;
-            setShowKebabMenu(next);
-            if (next) startKebabTimer();
-            else stopKebabTimer();
-          }}
-
         />
 
 
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
           <ScrollView contentContainerStyle={styles.scrollContent}>
+
+            {/* ⚙️ AJUSTES PRINCIPALES */}
+            <View style={[styles.section, { borderBottomWidth: 1, borderBottomColor: colors.border, paddingBottom: 20, marginBottom: 15 }]}>
+              <Text style={[styles.sectionTitle, { color: colors.primary, fontWeight: 'bold', fontSize: 13, letterSpacing: 1.5, marginBottom: 12 }]}>
+                {lang === 'es' ? 'AJUSTES PRINCIPALES' : 'CORE SETTINGS'}
+              </Text>
+              
+              <View style={{ gap: 10 }}>
+                {/* 1. Perfil del Usuario */}
+                <TouchableOpacity 
+                  style={[styles.quickButton, { backgroundColor: colors.surfaceSecondary, borderColor: colors.border }]}
+                  onPress={() => handleOpenModal('profile')}
+                >
+                  <View style={styles.quickButtonContent}>
+                    <Text style={styles.quickButtonEmoji}>👤</Text>
+                    <Text style={[styles.quickButtonText, { color: colors.textPrimary }]}>
+                      {lang === 'es' ? 'Perfil del Usuario' : 'User Profile'}
+                    </Text>
+                  </View>
+                  <IconSymbol name="chevron.right" size={16} color={colors.textSecondary} />
+                </TouchableOpacity>
+
+                {/* 2. Introducción y Ayuda */}
+                <TouchableOpacity 
+                  style={[styles.quickButton, { backgroundColor: colors.surfaceSecondary, borderColor: colors.border }]}
+                  onPress={() => handleOpenModal('intro')}
+                >
+                  <View style={styles.quickButtonContent}>
+                    <Text style={styles.quickButtonEmoji}>👓</Text>
+                    <Text style={[styles.quickButtonText, { color: colors.textPrimary }]}>
+                      {lang === 'es' ? 'Introducción y Ayuda (Voz)' : 'Introduction & Help (Voice)'}
+                    </Text>
+                  </View>
+                  <IconSymbol name="chevron.right" size={16} color={colors.textSecondary} />
+                </TouchableOpacity>
+
+                {/* 3. Bóveda Encriptada */}
+                <TouchableOpacity 
+                  style={[styles.quickButton, { backgroundColor: colors.surfaceSecondary, borderColor: colors.border }]}
+                  onPress={() => handleOpenModal('vault')}
+                >
+                  <View style={styles.quickButtonContent}>
+                    <Text style={styles.quickButtonEmoji}>🔒</Text>
+                    <Text style={[styles.quickButtonText, { color: colors.textPrimary }]}>
+                      {lang === 'es' ? 'Bóveda de Datos Encriptada' : 'Encrypted Data Vault'}
+                    </Text>
+                  </View>
+                  <IconSymbol name="chevron.right" size={16} color={colors.textSecondary} />
+                </TouchableOpacity>
+              </View>
+            </View>
             
             <View style={styles.section}>
               <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>{lang === 'es' ? 'Temas' : 'Themes'}</Text>
@@ -1621,24 +1653,43 @@ export default function SettingsScreen() {
       </Modal>
       </SafeAreaView>
 
-      {/* --- KEBAB MENU OVERLAY --- */}
-      <KebabMenuOverlay
-        visible={showKebabMenu}
-        anchorTop={kebabMenuTop}
-        onClose={() => {
-          setShowKebabMenu(false);
-          stopKebabTimer();
-        }}
-        colors={colors}
-        lang={lang}
-        menuItems={[
-          { emoji: '👤', labelEs: 'Perfil del Usuario', labelEn: 'User Profile', onPress: () => { setShowKebabMenu(false); setTimeout(() => onKebabAction('profile'), Platform.OS === 'android' ? 100 : 0); } },
-          { emoji: '👓', labelEs: 'Introducción', labelEn: 'Introduction', onPress: () => { setShowKebabMenu(false); setTimeout(() => onKebabAction('intro'), Platform.OS === 'android' ? 100 : 0); } },
-          { emoji: '🔊', labelEs: 'Configuración Voz Android', labelEn: 'Android Voice Settings', onPress: () => { setShowKebabMenu(false); setTimeout(() => onKebabAction('voice_settings'), Platform.OS === 'android' ? 100 : 0); } },
-          { emoji: '🔒', labelEs: 'Encriptación de Datos', labelEn: 'Data Encryption', onPress: () => { setShowKebabMenu(false); setTimeout(() => onKebabAction('vault'), Platform.OS === 'android' ? 100 : 0); } },
-          { emoji: '🗑️', labelEs: 'Borrar Historial', labelEn: 'Clear History', onPress: () => { setShowKebabMenu(false); setTimeout(() => onKebabAction('clear'), Platform.OS === 'android' ? 100 : 0); } },
-        ]}
-      />
+      {/* Local Modals in Settings Screen */}
+      {isProfileMounted && (
+        <React.Suspense fallback={null}>
+          <ProfileModal
+            visible={isProfileVisible}
+            onClose={() => handleCloseModal('profile')}
+            lang={lang}
+            colors={colors}
+            userProfile={userProfile}
+            setUserProfile={setUserProfile}
+            psyProfile={{ ...psyProfile, moodBalance: psyProfile.moodBalance ?? 0 }}
+            db={db}
+          />
+        </React.Suspense>
+      )}
+
+      {isIntroMounted && (
+        <React.Suspense fallback={null}>
+          <IntroModal
+            visible={isIntroVisible}
+            onClose={() => handleCloseModal('intro')}
+            lang={lang}
+            colors={colors}
+          />
+        </React.Suspense>
+      )}
+
+      {isVaultMounted && (
+        <React.Suspense fallback={null}>
+          <VaultExplorerModal
+            visible={isVaultVisible}
+            onClose={() => handleCloseModal('vault')}
+            lang={lang}
+            colors={colors}
+          />
+        </React.Suspense>
+      )}
     </>
   );
 }
@@ -1652,6 +1703,29 @@ const styles = StyleSheet.create({
   themeButtonText: { fontSize: 10 },
   vaultButtonPanic: { backgroundColor: '#d96c6c', paddingVertical: 18, borderRadius: 24, alignItems: 'center' },
   vaultButtonText: { color: '#FFF', fontWeight: 'bold' },
+
+  // Quick Settings Buttons
+  quickButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  quickButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  quickButtonEmoji: {
+    fontSize: 18,
+  },
+  quickButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
   
   // Wipe Modal Styles
   modalOverlay: {

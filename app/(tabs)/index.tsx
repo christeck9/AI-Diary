@@ -16,7 +16,6 @@ import { useSQLiteContext } from '../../components/MemoryProvider';
 const OnboardingModal = React.lazy(() => import('../../components/modals/OnboardingModal').then(m => ({ default: m.OnboardingModal })));
 import { VoiceOverlay } from '../../components/modals/VoiceOverlay';
 import { SanctuaryHeader } from '../../components/SanctuaryHeader';
-import { KebabMenuOverlay } from '../../components/KebabMenuOverlay';
 import { WhispAvatar } from '../../components/ui/WhispAvatar';
 
 import { useTodos } from '../../hooks/useTodos';
@@ -24,10 +23,9 @@ import { MarqueeText } from '../../components/ui/MarqueeText';
 
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useAppTheme } from '../../contexts/ThemeContext';
-import { useLlmState, useLlmProgress, useLlmActions } from '../../contexts/LlmContext';
+import { useLlmState, useLlmProgress, useLlmDownload, useLlmActions } from '../../contexts/LlmContext';
 import { useVoiceContext } from '../../contexts/VoiceContext';
 import { useProfile } from '../../contexts/ProfileContext';
-import { useGlobalModals } from '../../contexts/GlobalModalsContext';
 import { useAgentEngine } from '../../hooks/useAgentEngine';
 import { useAnimaScanner } from '../../hooks/useAnimaScanner';
 import type { ModelInfo } from '../../hooks/useAppLlm';
@@ -79,18 +77,22 @@ export default function NeuralLinkScreen() {
   const activeTodo = todos.length > 0 ? todos[currentTodoIndex % todos.length] : null;
 
   const { status: statusRaw,
-    isDownloading,
-    downloadingModel,
-    downloadingType,
     activeModel,
     AVAILABLE_MODELS,
     deviceRAM } = useLlmState();
 
   const {
+    isDownloading,
+    downloadingModel,
+    downloadingType,
     downloadedMB,
     downloadSpeed,
-    downloadPercent,
-    currentContextSize
+    downloadPercent
+  } = useLlmDownload();
+
+  const {
+    currentContextSize,
+    tokensUsed
   } = useLlmProgress();
 
   const { selectModel,
@@ -119,42 +121,15 @@ export default function NeuralLinkScreen() {
   const [selectedModel, setSelectedModel] = useState<ModelInfo>(AVAILABLE_MODELS[0]);
   const [showModelPicker, setShowModelPicker] = useState(false);
   const [canResume, setCanResume] = useState(false);
-  const [showKebabMenu, setShowKebabMenu] = useState(false);
-  const [kebabMenuTop, setKebabMenuTop] = useState(Platform.OS === 'android' ? (StatusBar.currentHeight || 0) + 70 : 85);
-  const kebabTimerRef = useRef<NodeJS.Timeout | null>(null);
   const modelReadyNotifiedRef = useRef(false);
   const flashListRef = useRef<any>(null);
 
-  const stopKebabTimer = () => {
-    if (kebabTimerRef.current) {
-      clearTimeout(kebabTimerRef.current);
-      kebabTimerRef.current = null;
-    }
-  };
-
-  const startKebabTimer = () => {
-    stopKebabTimer();
-    kebabTimerRef.current = setTimeout(() => {
-      setShowKebabMenu(false);
-    }, 5000);
-  };
   const [showVoiceNoteModal, setShowVoiceNoteModal] = useState(false);
   const [micPhase, setMicPhase] = useState<'idle' | 'permission' | 'init' | 'warming_up' | 'ready'>('idle');
   const [fullScreenImage, setFullScreenImage] = useState<string | null>(null);
-  const [imageViewerTicket, setImageViewerTicket] = useState(0);
-
-  useEffect(() => {
-    if (fullScreenImage) {
-      const timer = setTimeout(() => {
-        setImageViewerTicket(prev => prev + 1);
-      }, 50);
-      return () => clearTimeout(timer);
-    }
-  }, [fullScreenImage]);
   const [selectedContextMsg, setSelectedContextMsg] = useState<Message | null>(null);
   const [activeTest, setActiveTest] = useState<'ocean' | 'aptitude' | 'vocational' | 'anxiety' | 'mood' | 'mbti'>('ocean');
   const { userProfile, setUserProfile, psyProfile, setPsyProfile, psyCompleted, setPsyCompleted } = useProfile();
-  const { openModal } = useGlobalModals();
   const [isOnboardingComplete, setIsOnboardingComplete] = useState(true);
   const [onboardingStep, setOnboardingStep] = useState(0);
   const [consciousnessLevel, setConsciousnessLevel] = useState(1); // Default: Zen
@@ -174,6 +149,9 @@ export default function NeuralLinkScreen() {
   // --- RECURRING REPORTS STATE ---
   const [pendingReports, setPendingReports] = useState<any[]>([]);
   const [isProcessingReport, setIsProcessingReport] = useState(false);
+  const [activeSpeechId, setActiveSpeechId] = useState<string | null>(null);
+
+  // useEffect relocated below useInteractiveVoice to fix block scoping
 
   useEffect(() => {
     const loadSettings = async () => {
@@ -416,6 +394,13 @@ export default function NeuralLinkScreen() {
     voice
   );
   const isMuted = voiceState === 'MUTED';
+
+  // Restablecer el activeSpeechId cuando la voz se detiene
+  useEffect(() => {
+    if (!isVoiceSpeaking) {
+      setActiveSpeechId(null);
+    }
+  }, [isVoiceSpeaking]);
 
   // Synchronize interactive mode request from Tools Tab
   useEffect(() => {
@@ -754,7 +739,6 @@ export default function NeuralLinkScreen() {
 
     return () => {
       unsubscribe();
-      stopKebabTimer();
     };
   }, [navigation]);
 
@@ -1176,7 +1160,6 @@ export default function NeuralLinkScreen() {
     setInputText('');
     setSelectedModel(AVAILABLE_MODELS[0]);
     setShowModelPicker(false);
-    setShowKebabMenu(false);
     setInitNotification(null);
   }, [resetToHome, db, AVAILABLE_MODELS]);
 
@@ -1301,40 +1284,51 @@ export default function NeuralLinkScreen() {
           }
         }}
         onImagePress={handleImagePress}
+        ttsEnabled={dictation.ttsEnabled}
+        isSpeaking={(isLatest && isVoiceSpeaking) || (activeSpeechId === item.id && isVoiceSpeaking)}
+        onPlayPress={(msg) => {
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+          setActiveSpeechId(msg.id);
+          dictation.stopSpeaking().then(() => {
+             // Add a small delay as requested to prevent collisions
+             setTimeout(() => {
+               dictation.speak(msg.text);
+             }, 300);
+          });
+        }}
+        onStopPress={() => {
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+          setActiveSpeechId(null);
+          dictation.stopSpeaking();
+        }}
+        onToggleMute={() => {
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+          dictation.toggleTts();
+        }}
       />
     );
-  }, [colors, lang, handleReportMessage, handleImagePress, isTypingRef, addSystemMessage, handleSend, handleDeleteMessage]);
+  }, [colors, lang, handleReportMessage, handleImagePress, isTypingRef, addSystemMessage, handleSend, handleDeleteMessage, dictation, isVoiceSpeaking, activeSpeechId]);
 
-  const onKebabAction = useCallback(async (action: string) => {
-    if (action === 'intro') openModal('intro');
-    if (action === 'profile') openModal('profile');
-    if (action === 'vault') openModal('vault');
-    if (action === 'psy') openModal('tests_menu');
-    if (action === 'voice_settings') openModal('voice_settings');
-    if (action === 'toggle_tts_mute') {
-      dictation.toggleTts();
-    }
-    if (action === 'clear') {
-      Alert.alert(
-        lang === 'es' ? '¿Borrar Historial?' : 'Clear History?',
-        lang === 'es' ? 'Se eliminarán todos los mensajes. Esta acción es irreversible.' : 'All messages will be deleted. This action is permanent.',
-        [
-          { text: lang === 'es' ? 'Cancelar' : 'Cancel', style: 'cancel' },
-          {
-            text: lang === 'es' ? 'Borrar Todo' : 'Clear All',
-            style: 'destructive',
-            onPress: async () => {
-              if (db) {
-                await db.runAsync('DELETE FROM messages');
-                await db.runAsync('DELETE FROM memory_fts');
-              }
-              const welcomeId = `welcome-${Date.now()}`;
-              setMessages([{ id: welcomeId, role: 'ai', text: t('chat.welcome'), created_at: Date.now() }]);
+  const handleClearChat = useCallback(() => {
+    Alert.alert(
+      lang === 'es' ? '¿Borrar Historial?' : 'Clear History?',
+      lang === 'es' ? 'Se eliminarán todos los mensajes. Esta acción es irreversible.' : 'All messages will be deleted. This action is permanent.',
+      [
+        { text: lang === 'es' ? 'Cancelar' : 'Cancel', style: 'cancel' },
+        {
+          text: lang === 'es' ? 'Borrar Todo' : 'Clear All',
+          style: 'destructive',
+          onPress: async () => {
+            if (db) {
+              await db.runAsync('DELETE FROM messages');
+              await db.runAsync('DELETE FROM memory_fts');
             }
+            const welcomeId = `welcome-${Date.now()}`;
+            setMessages([{ id: welcomeId, role: 'ai', text: t('chat.welcome'), created_at: Date.now() }]);
           }
-        ]
-      );
-    }
+        }
+      ]
+    );
   }, [lang, db, t]);
 
   const handleHeaderHomePress = useCallback(async () => {
@@ -1358,28 +1352,11 @@ export default function NeuralLinkScreen() {
           </React.Suspense>
         )}
         <SanctuaryHeader
-          onVoicePress={() => {
-            // CHAT VOICE: prende / apaga la voz de la IA (TTS)
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            dictation.toggleTts();
-          }}
-          isMuted={voiceState === 'MUTED' || (voiceState === 'IDLE' && dictation.isMuted)}
-          chatTtsEnabled={dictation.ttsEnabled}
-          onKebabAction={onKebabAction}
           onHomePress={handleHeaderHomePress}
           onModelPress={handleModelPress}
           activeModelLabel={status === 'ready' && activeModel ? activeModel[lang === 'es' ? 'labelEs' : 'labelEn'] : undefined}
-          showKebabMenu={showKebabMenu}
-          onKebabPress={(calculatedTop) => {
-            if (calculatedTop !== undefined) {
-              setKebabMenuTop(calculatedTop);
-            }
-            const next = !showKebabMenu;
-            setShowKebabMenu(next);
-            if (next) startKebabTimer();
-            else stopKebabTimer();
-          }}
           isStreaming={isTyping}
+          onClearChat={handleClearChat}
         />
         
         {/* Fila 2: Sub-Barra de Diary Anima (Blob interactivo) - Solo en el Home/Diary */}
@@ -1721,17 +1698,19 @@ export default function NeuralLinkScreen() {
         {/* CONTEXT MENU MODAL HAS BEEN REMOVED IN FAVOR OF SWIPEABLE */}
 
         {/* FULL SCREEN IMAGE VIEWER WITH PINCH TO ZOOM */}
-        <Modal visible={!!fullScreenImage} transparent={true} animationType="fade" statusBarTranslucent={true}>
-          {Platform.OS === 'android' && <View style={{ height: (imageViewerTicket % 2 === 1) ? 0.5 : 0 }} />}
+        {/* 
+          🛡️ FABRIC FIX: transparent={false} evita colapso WRAP_CONTENT en Android 14.
+          No se usa layoutTicket hack (Directiva 11). Dimensiones con flex:1.
+        */}
+        <Modal visible={!!fullScreenImage} transparent={false} animationType="fade" statusBarTranslucent={false}>
           <View 
             style={{ 
               flex: 1, 
-              width: Dimensions.get('screen').width, 
-              height: Dimensions.get('screen').height, 
+              width: '100%', 
+              height: '100%', 
               backgroundColor: 'black', 
               justifyContent: 'center', 
-              alignItems: 'center',
-              paddingTop: Platform.OS === 'android' && (imageViewerTicket % 2 === 1) ? 0.5 : 0
+              alignItems: 'center'
             }}
           >
             <TouchableOpacity
@@ -1769,29 +1748,7 @@ export default function NeuralLinkScreen() {
 
       </SafeAreaView>
 
-      {/* --- GLOBAL APP MENUS OVERLAY --- */}
-      <KebabMenuOverlay
-        visible={showKebabMenu}
-        anchorTop={kebabMenuTop}
-        onClose={() => {
-          setShowKebabMenu(false);
-          stopKebabTimer();
-        }}
-        colors={colors}
-        lang={lang}
-        isDownloading={isDownloading}
-        downloadingModel={downloadingModel}
-        downloadPercent={downloadPercent}
-        downloadedMB={downloadedMB}
-        downloadSpeed={downloadSpeed}
-        menuItems={[
-          { emoji: '👤', labelEs: 'Perfil del Usuario', labelEn: 'User Profile', onPress: () => { setShowKebabMenu(false); setTimeout(() => onKebabAction('profile'), Platform.OS === 'android' ? 100 : 0); } },
-          { emoji: '👓', labelEs: 'Introducción', labelEn: 'Introduction', onPress: () => { setShowKebabMenu(false); setTimeout(() => onKebabAction('intro'), Platform.OS === 'android' ? 100 : 0); } },
-          { emoji: '🔊', labelEs: 'Configuración Voz Android', labelEn: 'Android Voice Settings', onPress: () => { setShowKebabMenu(false); setTimeout(() => onKebabAction('voice_settings'), Platform.OS === 'android' ? 100 : 0); } },
-          { emoji: '🔒', labelEs: 'Encriptación de Datos', labelEn: 'Data Encryption', onPress: () => { setShowKebabMenu(false); setTimeout(() => onKebabAction('vault'), Platform.OS === 'android' ? 100 : 0); } },
-          { emoji: '🗑️', labelEs: 'Borrar Historial', labelEn: 'Clear History', onPress: () => { setShowKebabMenu(false); setTimeout(() => onKebabAction('clear'), Platform.OS === 'android' ? 100 : 0); } },
-        ]}
-      />
+      {/* KebabMenuOverlay removed in favor of direct header Clean Chat button */}
     </>
   );
 }
