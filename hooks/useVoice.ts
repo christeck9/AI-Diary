@@ -535,14 +535,35 @@ export function useVoice(lang: string = 'en', psyProfile?: { O: number, C: numbe
         console.error('[VOICE] Cloud TTS Error:', e);
       }
 
-      // --- LOCAL FALLBACK ---
+      // --- LOCAL FALLBACK: expo-speech (Android TTS engine) ---
       if (isMuted) {
         console.log('[VOICE] Silence Mode Active. Skipping TTS.');
         safeOnDone();
         return;
       }
 
-      console.log('[VOICE] Using native TTS.');
+      console.log('[VOICE] 🔊 Using expo-speech fallback (JSI unavailable or not configured).');
+
+      // On Android, explicitly yield the expo-av AudioFocus before calling Speech.speak().
+      // expo-av may retain AudioFocus after setAudioModeAsync(). In Release builds,
+      // Android's audio system is strict: if expo-av holds focus, the TTS engine's
+      // AudioFocus request can be silently denied, resulting in complete silence.
+      if (Platform.OS === 'android') {
+        try {
+          await Audio.setAudioModeAsync({
+            allowsRecordingIOS: false,
+            playsInSilentModeIOS: true,
+            staysActiveInBackground: false, // Release AudioFocus so TTS can acquire it
+            shouldDuckAndroid: false,
+            interruptionModeAndroid: InterruptionModeAndroid.DoNotMix,
+            interruptionModeIOS: InterruptionModeIOS.DoNotMix,
+            playThroughEarpieceAndroid: false,
+          });
+          console.log('[VOICE] AudioFocus released for expo-speech.');
+        } catch (modeErr) {
+          console.warn('[VOICE] setAudioModeAsync pre-speech.speak() error:', modeErr);
+        }
+      }
 
       let targetLanguage = lang === 'es' ? 'es-MX' : 'en-US';
       if (availableVoices && availableVoices.length > 0) {

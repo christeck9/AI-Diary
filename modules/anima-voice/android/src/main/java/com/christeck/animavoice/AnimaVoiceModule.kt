@@ -63,20 +63,55 @@ class AnimaVoiceModule : Module(), TextToSpeech.OnInitListener {
 
   override fun definition() = ModuleDefinition {
     Name("AnimaVoice")
-    
+
     OnCreate {
+      // ── Init Android TTS engine (independent of JSI) ──
       try {
         tts = TextToSpeech(appContext.reactContext, this@AnimaVoiceModule)
+      } catch (e: Exception) {
+        android.util.Log.e("AnimaVoice", "Failed to initialize TextToSpeech engine", e)
+      }
+
+      // ── Install JSI bridge on the JS thread ──
+      // Uses a two-strategy approach to support both architectures:
+      //   Strategy 1 (New Arch / Bridgeless, RN 0.74+): ReactContext.javaScriptContextHolder directly
+      //   Strategy 2 (Old Arch / Bridge): getCatalystInstance reflection chain
+      try {
         System.loadLibrary("anima_voice")
-        val reactContext = appContext.reactContext
-        val catalystInstance = reactContext?.javaClass?.getMethod("getCatalystInstance")?.invoke(reactContext)
-        val jsContextHolder = catalystInstance?.javaClass?.getMethod("getJavaScriptContextHolder")?.invoke(catalystInstance)
-        val runtimePtr = jsContextHolder?.javaClass?.getMethod("get")?.invoke(jsContextHolder) as? Long ?: 0L
-        if (runtimePtr != 0L) {
-          nativeInstallJSI(runtimePtr)
+        val reactContext = appContext.reactContext ?: return@OnCreate
+
+        reactContext.runOnJSQueueThread {
+          var runtimePtr: Long = 0L
+
+          // Strategy 1: New Architecture (Bridgeless / Fabric)
+          try {
+            @Suppress("UNCHECKED_CAST")
+            val holder = reactContext.javaClass.getMethod("getJavaScriptContextHolder").invoke(reactContext)
+            runtimePtr = holder?.javaClass?.getMethod("get")?.invoke(holder) as? Long ?: 0L
+          } catch (e: Exception) {
+            android.util.Log.w("AnimaVoice", "New-arch JSI access failed, trying legacy bridge: ${e.message}")
+          }
+
+          // Strategy 2: Old Architecture (Bridge via CatalystInstance)
+          if (runtimePtr == 0L) {
+            try {
+              val catalystInstance = reactContext.javaClass.getMethod("getCatalystInstance").invoke(reactContext)
+              val jsHolder = catalystInstance?.javaClass?.getMethod("getJavaScriptContextHolder")?.invoke(catalystInstance)
+              runtimePtr = jsHolder?.javaClass?.getMethod("get")?.invoke(jsHolder) as? Long ?: 0L
+            } catch (e: Exception) {
+              android.util.Log.w("AnimaVoice", "Legacy-arch JSI access also failed: ${e.message}")
+            }
+          }
+
+          if (runtimePtr != 0L) {
+            nativeInstallJSI(runtimePtr)
+            android.util.Log.i("AnimaVoice", "✅ JSI audio bridge installed (ptr=$runtimePtr)")
+          } else {
+            android.util.Log.w("AnimaVoice", "⚠️ JSI runtime pointer is 0. Native Oboe audio unavailable, expo-speech fallback will be used.")
+          }
         }
       } catch (e: Exception) {
-        e.printStackTrace()
+        android.util.Log.e("AnimaVoice", "Failed to load native library or schedule JSI install", e)
       }
     }
 
