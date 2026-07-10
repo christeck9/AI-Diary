@@ -1,13 +1,11 @@
 import { type SQLiteDatabase } from 'expo-sqlite';
 
 export const BADGE_CATEGORIES = [
-  { id: 'scientist', emoji: '🔬', name: 'Científico' },
-  { id: 'self_growth', emoji: '🌱', name: 'Autocrecimiento' },
-  { id: 'resilience', emoji: '🛡️', name: 'Resiliencia' },
-  { id: 'philosopher', emoji: '🧠', name: 'Filósofo' },
-  { id: 'creative', emoji: '🎨', name: 'Creativo' },
-  { id: 'humor', emoji: '🎭', name: 'Ingenio' },
-  { id: 'habits', emoji: '⚙️', name: 'Hábitos' }
+  { id: 'communication', emoji: '💬', name: 'Comunicación', nameEn: 'Communication' },
+  { id: 'proactivity', emoji: '⚡', name: 'Proactividad', nameEn: 'Proactivity' },
+  { id: 'productivity', emoji: '🚀', name: 'Productividad', nameEn: 'Productivity' },
+  { id: 'awareness', emoji: '👁️', name: 'Consciencia', nameEn: 'Awareness' },
+  { id: 'expert', emoji: '🛠️', name: 'Experto', nameEn: 'Expertise' }
 ];
 
 export async function initializeBadges(db: SQLiteDatabase) {
@@ -21,6 +19,10 @@ export async function initializeBadges(db: SQLiteDatabase) {
         last_awarded INTEGER
       );
     `);
+    
+    // Clean old badges to prevent legacy ones from rendering
+    const ids = BADGE_CATEGORIES.map(b => `'${b.id}'`).join(',');
+    await db.execAsync(`DELETE FROM user_badges WHERE id NOT IN (${ids})`);
   } catch (error) {
     console.error('[BadgeSchema] Initialization error:', error);
   }

@@ -15,6 +15,7 @@ import { settingsService } from '../../lib/SettingsService';
 const VisionDownloadModal = React.lazy(() => import('../../components/VisionDownloadModal').then(m => ({ default: m.VisionDownloadModal })));
 import * as Haptics from 'expo-haptics';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import { useBadgeTracker } from '../../hooks/useBadgeTracker';
 
 
 const themesList = [
@@ -84,6 +85,7 @@ export default function ProjectsScreen() {
   const db = useSQLiteContext();
   const { colors, activeTheme } = useAppTheme();
   const { lang } = useLanguage();
+  const { markAction: markProductivityAction } = useBadgeTracker('productivity');
 
   const { status: llmStatus, activeModel } = useLlmState();
   const { isDownloading, downloadingModel, downloadingType, downloadPercent, downloadedMB, downloadSpeed } = useLlmDownload();
@@ -412,6 +414,7 @@ export default function ProjectsScreen() {
       setCustomTheme('');
       await settingsService.set({ activeProjectId: id });
       await loadProjects();
+      markProductivityAction();
       
       Alert.alert(
         lang === 'es' ? 'Proyecto Creado' : 'Project Created',

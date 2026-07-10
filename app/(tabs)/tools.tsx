@@ -16,6 +16,7 @@ import { useRouter } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import { useVoiceContext } from '../../contexts/VoiceContext';
 import { useLlmState, useLlmActions } from '../../contexts/LlmContext';
+import { useBadgeTracker } from '../../hooks/useBadgeTracker';
 
 import { settingsService } from '../../lib/SettingsService';
 import * as SecureStore from 'expo-secure-store';
@@ -37,6 +38,8 @@ export default function ToolsScreen() {
   const { status, activeModel } = useLlmState();
   const { generateStreamingResponse, llamaContextRef, generateEmbeddings } = useLlmActions();
   const db = useSQLiteContext();
+
+  const { markAction: markProactivityAction } = useBadgeTracker('proactivity');
 
   // --- LIBRARY & DOWNLOAD CENTER STATE ---
   const [libActiveTab, setLibActiveTab] = useState<'search' | 'library'>('search');
@@ -116,6 +119,7 @@ export default function ToolsScreen() {
           lang === 'es' ? '¡Descarga Exitosa!' : 'Download Complete!',
           lang === 'es' ? `"${item.title}" se agregó a tu biblioteca.` : `"${item.title}" added to your library.`
         );
+        markProactivityAction();
         loadLibrary();
         setLibActiveTab('library');
       } else {
@@ -145,6 +149,7 @@ export default function ToolsScreen() {
           lang === 'es' ? 'Importación Exitosa' : 'Import Complete',
           lang === 'es' ? `"${book.title}" se cargó en la biblioteca.` : `"${book.title}" loaded to the library.`
         );
+        markProactivityAction();
         loadLibrary();
         setLibActiveTab('library');
       }
@@ -368,6 +373,7 @@ export default function ToolsScreen() {
     const dateStr = todoDate ? todoDate.toLocaleDateString() : null;
     const timeStr = todoTime ? todoTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : null;
     await addTodo(todoText, dateStr, timeStr);
+    markProactivityAction();
     setTodoText('');
     setTodoDate(null);
     setTodoTime(null);
@@ -932,7 +938,7 @@ export default function ToolsScreen() {
                               <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
                                 <TouchableOpacity
                                   style={{ flex: 1, paddingVertical: 6, borderRadius: 6, backgroundColor: colors.primary, alignItems: 'center' }}
-                                  onPress={() => { setSelectedBook(book); setIsReaderVisible(true); }}
+                                  onPress={() => { setSelectedBook(book); setIsReaderVisible(true); markProactivityAction(); }}
                                 >
                                   <Text style={{ color: '#000', fontWeight: 'bold', fontSize: 11 }}>
                                     {lang === 'es' ? 'LEER' : 'READ'}

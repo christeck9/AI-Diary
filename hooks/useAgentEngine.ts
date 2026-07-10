@@ -845,14 +845,21 @@ export const useAgentEngine = (
              console.log('[AGENT_ENGINE] 🧠 Starting background fact extraction...');
              await factExtractionService.extractFacts(llamaContextRef.current, userText, finalText, db, arch, generateEmbeddings);
  
-             console.log('[AGENT_ENGINE] 🏆 Starting background badge evaluation...');
+             console.log('[AGENT_ENGINE] 🏆 Checking communication badge...');
              const { badgeService } = await import('../lib/BadgeService');
-             const badge = await badgeService.evaluateConversation(llamaContextRef.current, userText, finalText, db, arch);
-            if (badge) {
-              setEarnedBadge(badge);
-              // Clear the badge UI after 6 seconds
-              setTimeout(() => setEarnedBadge(null), 6000);
-            }
+             const result = await badgeService.recordAction(db, 'communication');
+             if (result && result.awarded) {
+               setEarnedBadge({
+                 emoji: result.emoji || '💬',
+                 name: lang === 'es' ? 'Comunicación' : 'Communication',
+                 count: result.badgeCount || 1
+               });
+               setTimeout(() => setEarnedBadge(null), 6000);
+               const congrats = lang === 'es' ? result.spanishCongrats : result.englishCongrats;
+               if (congrats) {
+                 speak(congrats);
+               }
+             }
 
             // 🗜️ Context Folding: If messages dropped, compress them in episodic memory
             if (messagesToDrop.length > 0) {

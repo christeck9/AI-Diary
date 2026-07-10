@@ -26,7 +26,8 @@ const IntroModal = React.lazy(() => import('../../components/modals/IntroModal')
 const VaultExplorerModal = React.lazy(() => import('../../components/modals/VaultExplorerModal').then(m => ({ default: m.VaultExplorerModal })));
 import { settingsService } from '../../lib/SettingsService';
 import { cloudTTSService } from '../../lib/CloudTTSService';
-import { getAllBadges } from '../../db/badgeSchema';
+import { getAllBadges, BADGE_CATEGORIES } from '../../db/badgeSchema';
+import { useBadgeTracker } from '../../hooks/useBadgeTracker';
 
 const OPENAI_VOICES = ['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer'];
 const GOOGLE_VOICES = {
@@ -62,6 +63,7 @@ export default function SettingsScreen() {
   const db = useSQLiteContext();
   const { userProfile, setUserProfile, psyProfile } = useProfile();
   const { voice } = useVoiceContext();
+  const { markAction: markExpertAction } = useBadgeTracker('expert');
 
 
   const [showResetModal, setShowResetModal] = useState(false);
@@ -243,6 +245,7 @@ export default function SettingsScreen() {
   const saveSettings = async (updates: any) => {
     try {
       await settingsService.set(updates);
+      markExpertAction();
     } catch (e) { console.error('Save error', e); }
   };
 
@@ -506,29 +509,33 @@ export default function SettingsScreen() {
               <Text style={[styles.sectionTitle, { color: colors.textSecondary, textAlign: 'center' }]}>
                 {lang === 'es' ? 'MIS INSIGNIAS' : 'MY BADGES'}
               </Text>
-              {badges.length > 0 ? (
+              {badges.filter(b => b.count > 0).length > 0 ? (
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ paddingHorizontal: 5 }}>
-                  {badges.map((badge, idx) => (
-                    <View key={badge.id} style={{
-                      backgroundColor: 'rgba(0,0,0,0.15)',
-                      padding: 12,
-                      borderRadius: 12,
-                      borderWidth: 1,
-                      borderColor: colors.border,
-                      marginRight: 10,
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      minWidth: 80
-                    }}>
-                      <Text style={{ fontSize: 24, marginBottom: 4 }}>{badge.emoji}</Text>
-                      <Text style={{ color: colors.textPrimary, fontSize: 10, fontWeight: 'bold' }}>{badge.name}</Text>
-                      <Text style={{ color: colors.textSecondary, fontSize: 10 }}>x{badge.count}</Text>
-                    </View>
-                  ))}
+                  {badges.filter(b => b.count > 0).map((badge) => {
+                    const category = BADGE_CATEGORIES.find(c => c.id === badge.id);
+                    const displayName = lang === 'es' ? (category?.name || badge.name) : (category?.nameEn || badge.name);
+                    return (
+                      <View key={badge.id} style={{
+                        backgroundColor: 'rgba(0,0,0,0.15)',
+                        padding: 12,
+                        borderRadius: 12,
+                        borderWidth: 1,
+                        borderColor: colors.border,
+                        marginRight: 10,
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        minWidth: 80
+                      }}>
+                        <Text style={{ fontSize: 24, marginBottom: 4 }}>{badge.emoji}</Text>
+                        <Text style={{ color: colors.textPrimary, fontSize: 10, fontWeight: 'bold' }}>{displayName}</Text>
+                        <Text style={{ color: colors.textSecondary, fontSize: 10 }}>x{badge.count}</Text>
+                      </View>
+                    );
+                  })}
                 </ScrollView>
               ) : (
                 <Text style={{ color: colors.textSecondary, textAlign: 'center', fontSize: 12, fontStyle: 'italic', paddingHorizontal: 5 }}>
-                  {lang === 'es' ? 'Aún no has ganado insignias. Sigue charlando para descubrirlas.' : 'No badges earned yet. Keep chatting to discover them.'}
+                  {lang === 'es' ? 'Aún no has ganado insignias. Explora la app para descubrirlas.' : 'No badges earned yet. Explore the app to discover them.'}
                 </Text>
               )}
             </View>

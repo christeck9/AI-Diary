@@ -14,6 +14,7 @@ import { SanctuaryHeader } from '../../components/SanctuaryHeader';
 // expo-print and expo-sharing are dynamically imported
 import Svg, { Line } from 'react-native-svg';
 import { useLlmState } from '../../contexts/LlmContext';
+import { useBadgeTracker } from '../../hooks/useBadgeTracker';
 
 export default function SelfKnowScreen() {
   const { colors, activeTheme } = useAppTheme();
@@ -21,6 +22,13 @@ export default function SelfKnowScreen() {
   const { psyProfile, setPsyProfile, setPsyCompleted, userProfile, setUserProfile } = useProfile();
   const db = useSQLiteContext();
   const { status, activeModel } = useLlmState();
+
+  const { markAction: markAwarenessAction } = useBadgeTracker('awareness');
+
+  const wrappedSetUserProfile = useCallback((val: any) => {
+    setUserProfile(val);
+    markAwarenessAction();
+  }, [setUserProfile, markAwarenessAction]);
 
   // Local modals state
   const [isPsyTestVisible, setIsPsyTestVisible] = useState(false);
@@ -105,6 +113,7 @@ export default function SelfKnowScreen() {
         }
         return newProfile;
       });
+      markAwarenessAction();
     } else if (type === 'mood') {
       const sum = answers.reduce((a, b) => a + b, 0);
       const normalized = sum / (answers.length * 3); // 25 questions * max 3 = 75
@@ -116,6 +125,7 @@ export default function SelfKnowScreen() {
         }
         return newProfile;
       });
+      markAwarenessAction();
     }
     console.log(`[TEST_COMPLETE] ${type} scored with ${answers.length} answers.`);
   };
@@ -797,7 +807,7 @@ export default function SelfKnowScreen() {
           lang={lang}
           colors={colors}
           userProfile={userProfile}
-          setUserProfile={setUserProfile}
+          setUserProfile={wrappedSetUserProfile}
           psyProfile={{ ...psyProfile, moodBalance: psyProfile.moodBalance ?? 0 }}
           db={db}
         />
