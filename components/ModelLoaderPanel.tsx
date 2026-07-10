@@ -140,25 +140,27 @@ export function ModelLoaderPanel({
       {(status === 'idle' || status === 'downloading') && (
         <View style={{ width: '90%', marginTop: 15, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 10 }}>
           {/* DOWNLOAD BUTTON */}
-          <Animated.View style={[{ flex: 1, opacity: (status !== 'downloading') ? 1 : 0.6 }]}>
-            <TouchableOpacity
-              style={[
-                styles.actionBtn,
-                {
-                  borderColor: colors.primary,
-                  backgroundColor: colors.primary,
-                  borderWidth: 2,
-                  width: '100%'
-                }
-              ]}
-              onPress={handleDownload}
-              disabled={status === 'downloading'}
-            >
-              <Text style={{ color: '#FFF', fontWeight: 'bold', fontSize: 13, textAlign: 'center' }}>
-                {lang === 'es' ? 'DESCARGAR' : 'DOWNLOAD'}
-              </Text>
-            </TouchableOpacity>
-          </Animated.View>
+          {!modelExists && (
+            <Animated.View style={[{ flex: 1, opacity: (status !== 'downloading') ? 1 : 0.6 }]}>
+              <TouchableOpacity
+                style={[
+                  styles.actionBtn,
+                  {
+                    borderColor: colors.primary,
+                    backgroundColor: colors.primary,
+                    borderWidth: 2,
+                    width: '100%'
+                  }
+                ]}
+                onPress={handleDownload}
+                disabled={status === 'downloading'}
+              >
+                <Text style={{ color: '#FFF', fontWeight: 'bold', fontSize: 13, textAlign: 'center' }}>
+                  {lang === 'es' ? 'DESCARGAR' : 'DOWNLOAD'}
+                </Text>
+              </TouchableOpacity>
+            </Animated.View>
+          )}
 
           {/* ACTIVATE BUTTON */}
           <Animated.View style={[{ flex: 1, opacity: (modelExists && status !== 'downloading') ? 1 : 0.6 }]}>
