@@ -5,7 +5,7 @@ import * as FileSystem from 'expo-file-system';
 import * as SecureStore from 'expo-secure-store';
 import * as Linking from 'expo-linking';
 import React, { useEffect, useState, useCallback, useRef } from 'react';
-import { Alert, KeyboardAvoidingView, Platform, SafeAreaView, ScrollView, StatusBar, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View, BackHandler, Modal, Dimensions } from 'react-native';
+import { Alert, KeyboardAvoidingView, Platform, SafeAreaView, ScrollView, StatusBar, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View, BackHandler, Modal, Dimensions, Image } from 'react-native';
 import { useSQLiteContext } from '../../components/MemoryProvider';
 import { AppThemeType } from '../../constants/Themes';
 import { ManifestoCard } from '../../components/SanctuaryUI';
@@ -526,7 +526,14 @@ export default function SettingsScreen() {
                         justifyContent: 'center',
                         minWidth: 80
                       }}>
-                        <Text style={{ fontSize: 24, marginBottom: 4 }}>{badge.emoji}</Text>
+                        {badge.emoji === 'mental-care.png' ? (
+                          <Image 
+                            source={require('../../assets/images/mental-care.png')} 
+                            style={{ width: 28, height: 28, marginBottom: 4, borderRadius: 6 }} 
+                          />
+                        ) : (
+                          <Text style={{ fontSize: 24, marginBottom: 4 }}>{badge.emoji}</Text>
+                        )}
                         <Text style={{ color: colors.textPrimary, fontSize: 10, fontWeight: 'bold' }}>{displayName}</Text>
                         <Text style={{ color: colors.textSecondary, fontSize: 10 }}>x{badge.count}</Text>
                       </View>

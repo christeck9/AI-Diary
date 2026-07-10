@@ -591,7 +591,8 @@ export default function NeuralLinkScreen() {
       return initNotification;
     }
     if (earnedBadge) {
-      return `✨ ${earnedBadge.emoji} ${earnedBadge.name} (+${earnedBadge.count})`;
+      const displayEmoji = earnedBadge.emoji.endsWith('.png') ? '🧠' : earnedBadge.emoji;
+      return `✨ ${displayEmoji} ${earnedBadge.name} (+${earnedBadge.count})`;
     }
     if (whispStatus === 'thinking') {
       if (processingPhase === 'reading_file') return lang === 'es' ? 'Leyendo\narchivo...' : 'Reading\nfile...';

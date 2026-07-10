@@ -4,7 +4,7 @@ export const BADGE_CATEGORIES = [
   { id: 'communication', emoji: '💬', name: 'Comunicación', nameEn: 'Communication' },
   { id: 'proactivity', emoji: '⚡', name: 'Proactividad', nameEn: 'Proactivity' },
   { id: 'productivity', emoji: '🚀', name: 'Productividad', nameEn: 'Productivity' },
-  { id: 'awareness', emoji: '👁️', name: 'Consciencia', nameEn: 'Awareness' },
+  { id: 'mental_care', emoji: 'mental-care.png', name: 'Cuidado Mental', nameEn: 'Mental Care' },
   { id: 'expert', emoji: '🛠️', name: 'Experto', nameEn: 'Expertise' }
 ];
 
