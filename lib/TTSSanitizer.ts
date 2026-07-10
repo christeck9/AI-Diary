@@ -61,6 +61,11 @@ export function sanitizeForNativeTTS(text: string): string {
     .replace(/\s{2,}/g, ' ')
     .trim();
 
+  // Verify that the string contains at least one letter or digit in any language
+  if (!/[\p{L}\p{N}]/u.test(cleaned)) {
+    return '';
+  }
+
   return cleaned;
 }
 
