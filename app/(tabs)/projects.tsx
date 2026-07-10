@@ -26,6 +26,8 @@ const themesList = [
   { value: 'Learn Language', labelEs: '🗣️ Aprender un Idioma', labelEn: '🗣️ Learn a Language' },
   { value: 'Brainstorming', labelEs: '💡 Lluvia de Ideas', labelEn: '💡 Brainstorming' },
   { value: 'Relationship', labelEs: '🤝 Lidiar con una Relación', labelEn: '🤝 Deal with a Relationship' },
+  { value: 'Web Code', labelEs: '💻 Dar código para página web', labelEn: '💻 Provide Web Page Code' },
+  { value: 'Program Code', labelEs: '🖥️ Crear código para programa', labelEn: '🖥️ Create Program Code' },
   { value: 'Other', labelEs: '⚙️ Otro', labelEn: '⚙️ Other' }
 ];
 
@@ -34,7 +36,28 @@ const getConsoleSystemPrompt = (project: any, lang: string) => {
   const name = project.name;
   const description = project.description || '';
   
+  const isCodeProject = (theme === 'Web Code' || theme === 'Program Code');
+  
   if (lang === 'es') {
+    if (isCodeProject) {
+      return `Eres Anima, una IA asistente de desarrollo de software integrada en la consola de proyectos del usuario. Estás ayudando al usuario en su proyecto de codificación:
+Nombre del Proyecto: "${name}"
+Tema del Proyecto: "${theme}" (Desarrollo en un solo archivo index.html)
+Descripción: "${description}"
+
+Tu objetivo principal es escribir código limpio, funcional y auto-contenido en un ÚNICO archivo HTML (que debe incluir estilos en etiquetas <style> y toda la interactividad o lógica en etiquetas <script>). 
+🚨 REGLAS CRÍTICAS DE SALIDA:
+1. Debes proporcionar todo el código HTML/CSS/JS de la página web o programa en un bloque de código markdown marcado explícitamente como \`\`\`html ... \`\`\`.
+2. Adviértele al usuario que este proyecto está diseñado para desarrollarse en un solo archivo y que puede exportarlo usando el botón "Exportar index.html" situado en la Mesa de Trabajo abajo.
+3. El archivo puede tener botones, estilos responsivos modernos y animaciones interactivas, pero todo debe vivir dentro del mismo y único archivo HTML.
+4. Tienes control directo sobre la Mesa de Trabajo del usuario a través de comandos especiales. Si deseas actualizar la Mesa de Trabajo, debes incluir uno o más de los siguientes tags en tu respuesta (se procesarán en segundo plano y se ocultarán al usuario):
+   - Para establecer o actualizar el recordatorio/meta clave en la tarjeta PIN: [SET_PIN: Tu meta clave aquí]
+   - Para añadir una tarjeta de estudio (Flashcard): [ADD_CARD: Concepto clave || Respuesta detallada]
+   - Para añadir un paso o tarea en la lista: [ADD_STEP: Descripción de la tarea]
+
+Por favor, sé conciso en tus explicaciones y enfócate en proporcionar el código más óptimo y completo.`;
+    }
+
     return `Eres Anima, una IA asistente experta integrada en el diario del usuario. Estás ayudando al usuario en su proyecto actual:
 Nombre del Proyecto: "${name}"
 Tema del Proyecto: "${theme}"
@@ -53,6 +76,25 @@ Si el usuario te pide información en tiempo real, eventos recientes, datos exte
 
 Por favor, sé conciso, minimalista y mantén una personalidad de consola inteligente. Si el usuario te pide ayuda, dale respuestas directas y útiles.`;
   } else {
+    if (isCodeProject) {
+      return `You are Anima, an AI software development assistant integrated into the user's project console. You are helping the user with their coding project:
+Project Name: "${name}"
+Project Theme: "${theme}" (Single-file index.html development)
+Description: "${description}"
+
+Your main goal is to write clean, functional, and self-contained code in a SINGLE HTML file (which must include styles in <style> tags and all interactivity or logic in <script> tags).
+🚨 CRITICAL OUTPUT RULES:
+1. You must provide all the HTML/CSS/JS code for the web page or program inside a markdown code block marked explicitly as \`\`\`html ... \`\`\`.
+2. Advise the user that this project is designed to be developed in a single file and that they can export it using the "Export index.html" button located in the Worktable below.
+3. The file can have buttons, modern responsive styles, and interactive animations, but everything must live inside the same single HTML file.
+4. You have direct control over the user's Worktable through special commands. If you want to update the Worktable, include one or more of the following tags in your response (they will be processed in the background and hidden from the user):
+   - To set/update the key reminder on the PIN card: [SET_PIN: Concise main goal]
+   - To add a study flashcard: [ADD_CARD: Key concept || Detailed answer]
+   - To add a step or task to the checklist: [ADD_STEP: Task description]
+
+Please be concise in your explanations and focus on providing the most optimal and complete code.`;
+    }
+
     return `You are Anima, an expert AI assistant integrated into the user's diary. You are helping the user with their active project:
 Project Name: "${name}"
 Project Theme: "${theme}"
@@ -717,6 +759,77 @@ ${factsText}`;
         }
       ]
     );
+  const handleExportHtml = async () => {
+    if (!activeProject) return;
+    try {
+      const msgs = await db.getAllAsync<any>(
+        "SELECT * FROM project_messages WHERE project_id = ? ORDER BY created_at ASC",
+        [activeProject.id]
+      );
+      
+      let htmlContent = '';
+      
+      // Scan backwards to find the latest valid HTML block or doctype match
+      for (let i = msgs.length - 1; i >= 0; i--) {
+        const text = msgs[i].text;
+        const htmlMatch = text.match(/```html([\s\S]*?)```/i);
+        if (htmlMatch && htmlMatch[1].trim()) {
+          htmlContent = htmlMatch[1].trim();
+          break;
+        }
+        
+        const rawCodeMatch = text.match(/```(?:xml|)?([\s\S]*?)```/i);
+        if (rawCodeMatch && (rawCodeMatch[1].toLowerCase().includes('<!doctype html>') || rawCodeMatch[1].toLowerCase().includes('<html'))) {
+          htmlContent = rawCodeMatch[1].trim();
+          break;
+        }
+      }
+      
+      // Fallback: Generate a clean conversation log if no html code block is found
+      if (!htmlContent) {
+        const bodyContent = msgs.map(m => `
+          <div class="msg ${m.role}">
+            <strong>${m.role === 'user' ? 'User' : 'Anima'}:</strong>
+            <p>${m.text.replace(/\n/g, '<br>')}</p>
+          </div>
+        `).join('\n');
+        
+        htmlContent = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>${activeProject.name}</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #0f1115; color: #e1e4e8; padding: 20px; line-height: 1.6; }
+    .container { max-width: 800px; margin: 0 auto; background: #161b22; padding: 25px; border-radius: 8px; border: 1px solid #30363d; }
+    h1 { color: #58a6ff; margin-top: 0; }
+    .msg { margin-bottom: 15px; padding: 12px; border-radius: 6px; }
+    .msg.user { background: #0d1117; border-left: 4px solid #58a6ff; }
+    .msg.assistant { background: #21262d; border-left: 4px solid #3fb950; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>${activeProject.name}</h1>
+    <p><em>${activeProject.description || ''}</em></p>
+    <hr style="border-color: #30363d;" />
+    ${bodyContent}
+  </div>
+</body>
+</html>`;
+      }
+      
+      const FileSystem = await import('expo-file-system');
+      const Sharing = await import('expo-sharing');
+      const fileUri = FileSystem.documentDirectory + 'index.html';
+      
+      await FileSystem.writeAsStringAsync(fileUri, htmlContent, { encoding: FileSystem.EncodingType.UTF8 });
+      await Sharing.shareAsync(fileUri);
+      
+    } catch (e) {
+      console.error('[PROJECTS] Export HTML error:', e);
+      Alert.alert('Error', lang === 'es' ? 'No se pudo exportar el archivo HTML.' : 'Could not export HTML file.');
+    }
   };
 
   // Mic Press Handler
@@ -785,6 +898,16 @@ ${factsText}`;
             </Text>
             <IconSymbol name="chevron.down" size={16} color={colors.textSecondary} />
           </TouchableOpacity>
+
+          {(projectTheme === 'Web Code' || projectTheme === 'Program Code') && (
+            <View style={{ backgroundColor: 'rgba(235, 94, 40, 0.1)', padding: 10, borderRadius: 8, borderWidth: 1, borderColor: colors.primary, marginTop: 8, marginBottom: 8 }}>
+              <Text style={{ color: colors.primary, fontSize: 11, fontWeight: 'bold' }}>
+                {lang === 'es' 
+                  ? '⚠️ Nota: Todo el código se desarrollará en un único archivo index.html auto-contenido (incluyendo estilos CSS y scripts para los botones). Podrás exportarlo al final.' 
+                  : '⚠️ Note: All code will be developed in a single self-contained index.html file (including CSS styles and scripts for buttons). You can export it at the end.'}
+              </Text>
+            </View>
+          )}
 
           {projectTheme === 'Other' && (
             <TextInput
@@ -865,7 +988,7 @@ ${factsText}`;
         {activeProject && !isCompressing && (
           <>
             {/* MESA DE TRABAJO */}
-            {(worktable.pin || worktable.cards.length > 0 || worktable.steps.length > 0) && (
+            {(worktable.pin || worktable.cards.length > 0 || worktable.steps.length > 0 || activeProject.theme === 'Web Code' || activeProject.theme === 'Program Code') && (
               <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border, marginTop: 16 }]}>
                 <Text style={[styles.cardTitle, { color: colors.textPrimary, marginBottom: 12 }]}>
                   {lang === 'es' ? '🛠️ Mesa de Trabajo' : '🛠️ Worktable'}
@@ -1026,6 +1149,38 @@ ${factsText}`;
                     />
                     </React.Suspense>
                   </View>
+                  </View>
+                )}
+                {(activeProject.theme === 'Web Code' || activeProject.theme === 'Program Code') && (
+                  <View style={{ marginTop: 16, paddingTop: 16, borderTopWidth: 1, borderColor: colors.border }}>
+                    <Text style={{ fontSize: 13, color: colors.textSecondary, marginBottom: 10 }}>
+                      {lang === 'es' 
+                        ? 'Este proyecto está diseñado para desarrollar un solo archivo HTML auto-contenido.' 
+                        : 'This project is designed to develop a single self-contained HTML file.'}
+                    </Text>
+                    <TouchableOpacity
+                      style={{
+                        backgroundColor: colors.primary,
+                        paddingVertical: 12,
+                        paddingHorizontal: 15,
+                        borderRadius: 8,
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: 8,
+                        shadowColor: '#000',
+                        shadowOffset: { width: 0, height: 2 },
+                        shadowOpacity: 0.1,
+                        shadowRadius: 3,
+                        elevation: 2
+                      }}
+                      onPress={handleExportHtml}
+                    >
+                      <IconSymbol name="square.and.arrow.up" size={16} color="white" />
+                      <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 14 }}>
+                        {lang === 'es' ? 'Exportar index.html' : 'Export index.html'}
+                      </Text>
+                    </TouchableOpacity>
                   </View>
                 )}
               </View>
