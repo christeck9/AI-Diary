@@ -29,7 +29,7 @@ interface OnboardingModalProps {
   handleDownload?: (modelOverride?: any) => void;
   canResume?: boolean;
   status?: any;
-  modelExists?: boolean;
+  modelStatus?: 'missing' | 'outdated' | 'current';
   downloadPercent?: number;
   downloadedMB?: number;
   downloadingModel?: ModelInfo | null;
@@ -60,7 +60,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
   handleDownload,
   canResume,
   status,
-  modelExists,
+  modelStatus,
   downloadPercent,
   downloadedMB,
   downloadingModel,

@@ -21,7 +21,7 @@ export function ModelLoaderPanel({
   AVAILABLE_MODELS,
   deviceRAM,
   selectModel,
-  modelExists,
+  modelStatus,
   handleDownload,
   canResume,
   handleLoad,
@@ -45,7 +45,7 @@ export function ModelLoaderPanel({
   AVAILABLE_MODELS: ModelInfo[];
   deviceRAM: number;
   selectModel: (val: ModelInfo) => void;
-  modelExists: boolean;
+  modelStatus: 'missing' | 'outdated' | 'current';
   handleDownload: () => void;
   canResume: boolean;
   handleLoad: () => void;
@@ -139,8 +139,8 @@ export function ModelLoaderPanel({
 
       {(status === 'idle' || status === 'downloading') && (
         <View style={{ width: '90%', marginTop: 15, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 10 }}>
-          {/* DOWNLOAD BUTTON */}
-          {!modelExists && (
+          {/* DOWNLOAD / UPDATE BUTTON */}
+          {modelStatus !== 'current' && (
             <Animated.View style={[{ flex: 1, opacity: (status !== 'downloading') ? 1 : 0.6 }]}>
               <TouchableOpacity
                 style={[
@@ -156,28 +156,30 @@ export function ModelLoaderPanel({
                 disabled={status === 'downloading'}
               >
                 <Text style={{ color: '#FFF', fontWeight: 'bold', fontSize: 13, textAlign: 'center' }}>
-                  {lang === 'es' ? 'DESCARGAR' : 'DOWNLOAD'}
+                  {modelStatus === 'outdated'
+                    ? (lang === 'es' ? 'ACTUALIZAR IA (opcional)' : 'UPDATE AI (optional)')
+                    : (lang === 'es' ? 'DESCARGAR' : 'DOWNLOAD')}
                 </Text>
               </TouchableOpacity>
             </Animated.View>
           )}
 
           {/* ACTIVATE BUTTON */}
-          <Animated.View style={[{ flex: 1, opacity: (modelExists && status !== 'downloading') ? 1 : 0.6 }]}>
+          <Animated.View style={[{ flex: 1, opacity: ((modelStatus === 'current' || modelStatus === 'outdated') && status !== 'downloading') ? 1 : 0.6 }]}>
             <TouchableOpacity
               style={[
                 styles.actionBtn,
                 {
-                  borderColor: (modelExists && status !== 'downloading') ? colors.secondary : colors.border,
-                  backgroundColor: (modelExists && status !== 'downloading') ? colors.secondary : 'transparent',
-                  borderWidth: (modelExists && status !== 'downloading') ? 2 : 1,
+                  borderColor: ((modelStatus === 'current' || modelStatus === 'outdated') && status !== 'downloading') ? colors.secondary : colors.border,
+                  backgroundColor: ((modelStatus === 'current' || modelStatus === 'outdated') && status !== 'downloading') ? colors.secondary : 'transparent',
+                  borderWidth: ((modelStatus === 'current' || modelStatus === 'outdated') && status !== 'downloading') ? 2 : 1,
                   width: '100%'
                 }
               ]}
               onPress={handleLoad}
-              disabled={!modelExists || status === 'downloading'}
+              disabled={(modelStatus === 'missing') || status === 'downloading'}
             >
-              <Text style={{ color: (modelExists && status !== 'downloading') ? '#FFF' : colors.textSecondary, fontWeight: 'bold', fontSize: 13, textAlign: 'center' }}>
+              <Text style={{ color: ((modelStatus === 'current' || modelStatus === 'outdated') && status !== 'downloading') ? '#FFF' : colors.textSecondary, fontWeight: 'bold', fontSize: 13, textAlign: 'center' }}>
                 {lang === 'es' ? 'ACTIVAR IA' : 'ACTIVATE AI'}
               </Text>
             </TouchableOpacity>

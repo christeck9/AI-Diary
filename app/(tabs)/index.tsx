@@ -107,6 +107,7 @@ export default function NeuralLinkScreen() {
     generateStreamingResponse,
     abortGeneration,
     prefillContextLlm,
+    checkModelVersion,
     generateEmbeddings } = useLlmActions();
   const status = statusRaw as any;
 
@@ -117,7 +118,7 @@ export default function NeuralLinkScreen() {
 
   const [inputText, setInputText] = useState('');
   const [messages, setMessages] = useState<Message[]>([]);
-  const [modelExists, setModelExists] = useState(false);
+  const [modelStatus, setModelStatus] = useState<'missing' | 'outdated' | 'current'>('missing');
   const [selectedModel, setSelectedModel] = useState<ModelInfo>(AVAILABLE_MODELS[0]);
   const [showModelPicker, setShowModelPicker] = useState(false);
   const [canResume, setCanResume] = useState(false);
@@ -789,37 +790,13 @@ export default function NeuralLinkScreen() {
   useEffect(() => {
     let isMounted = true;
     const checkFile = async () => {
+      let canResumeDownload = false;
       const localDir = `${FileSystem.documentDirectory?.replace(/\/+$/, '')}/llm_models`;
       const localPath = `${localDir}/${selectedModel.fileName}`;
-      
-      const pathsToCheck = [localPath];
-      if (Platform.OS === 'android') {
-        pathsToCheck.push(
-          `file:///data/user/0/com.christeck.worldtrans/files/llm_models/${selectedModel.fileName}`,
-          `file:///data/user/0/com.christeck.aiworldtrans/files/llm_models/${selectedModel.fileName}`,
-          `file:///data/user/0/com.christeck.aidiary/files/llm_models/${selectedModel.fileName}`
-        );
-      }
 
-      let existsAndValid = false;
-      let foundPath = localPath;
-      for (const path of pathsToCheck) {
-        try {
-          const info = await FileSystem.getInfoAsync(path);
-          if (info.exists) {
-            const size = (info as any).size;
-            const expectedBytes = selectedModel.sizeMB * 1024 * 1024 * 0.9;
-            let modelValid = typeof size === 'number' ? size > expectedBytes : Number(size) > expectedBytes;
-            if (modelValid) {
-              existsAndValid = true;
-              foundPath = path;
-              break;
-            }
-          }
-        } catch (err) {}
-      }
+      const state = await checkModelVersion(selectedModel);
+      const existsAndValid = (state === 'current' || state === 'outdated');
 
-      let canResumeDownload = false;
       if (!existsAndValid) {
         const resumeStatePath = `${localDir}/download_resume_${selectedModel.fileName}.json`;
         const resumeInfo = await FileSystem.getInfoAsync(resumeStatePath);
@@ -850,7 +827,7 @@ export default function NeuralLinkScreen() {
       }
 
       if (isMounted) {
-        setModelExists(existsAndValid);
+        setModelStatus(state);
         setCanResume(canResumeDownload);
       }
     };
@@ -861,34 +838,13 @@ export default function NeuralLinkScreen() {
 
   const checkSpecificModelExists = useCallback(async (model: any) => {
     try {
-      const localDir = `${FileSystem.documentDirectory?.replace(/\/+$/, '')}/llm_models`;
-      const localPath = `${localDir}/${model.fileName}`;
-      
-      const pathsToCheck = [localPath];
-      if (Platform.OS === 'android') {
-        pathsToCheck.push(
-          `file:///data/user/0/com.christeck.worldtrans/files/llm_models/${model.fileName}`,
-          `file:///data/user/0/com.christeck.aiworldtrans/files/llm_models/${model.fileName}`,
-          `file:///data/user/0/com.christeck.aidiary/files/llm_models/${model.fileName}`
-        );
-      }
-      
-      for (const path of pathsToCheck) {
-        try {
-          const info = await FileSystem.getInfoAsync(path);
-          if (info.exists) {
-            const size = (info as any).size;
-            const expectedBytes = model.sizeMB * 1024 * 1024 * 0.9;
-            const valid = typeof size === 'number' ? size > expectedBytes : Number(size) > expectedBytes;
-            if (valid) return true;
-          }
-        } catch (err) {}
-      }
+      const state = await checkModelVersion(model);
+      return (state === 'current' || state === 'outdated');
     } catch (e) {
       console.warn('[CHECK_SPECIFIC] Error checking model:', e);
     }
     return false;
-  }, []);
+  }, [checkModelVersion]);
 
   const heartbeatAnim = useSharedValue(0); // For Neuronal Heartbeat
   const hasSentSystemPromptRef = useRef(false);
@@ -1494,7 +1450,7 @@ export default function NeuralLinkScreen() {
             handleDownload={handleDownload}
             canResume={canResume}
             status={status}
-            modelExists={modelExists}
+            modelStatus={modelStatus}
             downloadPercent={downloadPercent}
             downloadedMB={downloadedMB}
             downloadingModel={downloadingModel as any}
@@ -1525,7 +1481,7 @@ export default function NeuralLinkScreen() {
           AVAILABLE_MODELS={AVAILABLE_MODELS}
           deviceRAM={deviceRAM}
           selectModel={selectModel}
-          modelExists={modelExists}
+          modelStatus={modelStatus}
           handleDownload={handleDownload}
           canResume={canResume}
           handleLoad={handleLoad}
