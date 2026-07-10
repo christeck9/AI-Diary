@@ -838,10 +838,10 @@ export const useAgentEngine = (
       if (llamaContextRef?.current && finalText && db) {
         (async () => {
           try {
-      if (isVoice) {
-        console.log('[AGENT_ENGINE] ⏳ Voice mode active: deferring background tasks by 10s to clear TTS path...');
-        await new Promise(resolve => setTimeout(resolve, 10000));
-      }
+            // Defer background tasks to allow the device to return to complete idle and prioritize TTS/User read time.
+            const deferTime = isVoice ? 12000 : 8000;
+            console.log(`[AGENT_ENGINE] ⏳ Deferring background tasks by ${deferTime}ms to prioritize user interaction and clear TTS path...`);
+            await new Promise(resolve => setTimeout(resolve, deferTime));
              console.log('[AGENT_ENGINE] 🧠 Starting background fact extraction...');
              await factExtractionService.extractFacts(llamaContextRef.current, userText, finalText, db, arch, generateEmbeddings);
  
