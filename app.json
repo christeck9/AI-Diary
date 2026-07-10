@@ -12,7 +12,7 @@
     },
     "android": {
       "package": "com.christeck.aidiary",
-      "versionCode": 31,
+      "versionCode": 33,
       "launchMode": "singleTask",
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/icon_adaptive_foreground.png",
@@ -21,6 +21,7 @@
     },
     "ios": {
       "bundleIdentifier": "com.christeck.aidiary",
+      "buildNumber": "33",
       "appleTeamId": "5BSRSHBRR6",
       "supportsTablet": true,
       "infoPlist": {

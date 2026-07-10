@@ -5,7 +5,48 @@ import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { Platform, View, StyleSheet, Text as RNText, BackHandler } from 'react-native';
 import { useEffect, useMemo } from 'react';
+import React from 'react';
 import 'react-native-reanimated';
+
+// ─── Global Error Boundary ────────────────────────────────────────────────────
+// Prevents uncaught JS exceptions from reaching Hermes's C++ terminate handler
+// (which calls abort() → EXC_CRASH / SIGABRT on iOS). Apple requires the app
+// NOT to crash silently — this boundary catches the exception and renders a
+// recoverable error screen instead.
+interface ErrorBoundaryState { hasError: boolean; errorMessage: string; }
+class AppErrorBoundary extends React.Component<{ children: React.ReactNode }, ErrorBoundaryState> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false, errorMessage: '' };
+  }
+
+  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
+    return { hasError: true, errorMessage: error?.message ?? 'Unknown error' };
+  }
+
+  componentDidCatch(error: Error, info: React.ErrorInfo) {
+    // Log for debugging — do NOT re-throw (that would reach abort())
+    console.error('[AppErrorBoundary] Caught exception:', error, info.componentStack);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <View style={{ flex: 1, backgroundColor: '#050505', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+          <RNText style={{ color: '#B026FF', fontSize: 22, fontWeight: 'bold', marginBottom: 12 }}>AI Diary</RNText>
+          <RNText style={{ color: '#ffffff', fontSize: 15, textAlign: 'center', marginBottom: 8 }}>
+            The app encountered an issue on startup.
+          </RNText>
+          <RNText style={{ color: '#888', fontSize: 12, textAlign: 'center' }}>
+            Please close and reopen the app. If the issue persists, check your connection settings.
+          </RNText>
+        </View>
+      );
+    }
+    return this.props.children;
+  }
+}
+// ─────────────────────────────────────────────────────────────────────────────
 
 // Prevent splash screen from auto-hiding until database is ready
 SplashScreen.preventAutoHideAsync().catch(() => { });
@@ -97,22 +138,26 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 export default function RootLayout() {
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      <AppThemeProvider>
-        <LanguageProvider>
-          <VoiceProvider>
-            <MemoryProvider>
-              <ProfileProvider>
-                <LlmProvider>
-                  <RootThemeContainer />
-                  <GlobalDownloadBanner />
-                </LlmProvider>
-              </ProfileProvider>
-            </MemoryProvider>
-          </VoiceProvider>
-        </LanguageProvider>
-      </AppThemeProvider>
-    </GestureHandlerRootView>
+    <AppErrorBoundary>
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <AppThemeProvider>
+          <LanguageProvider>
+            <AppErrorBoundary>
+              <VoiceProvider>
+                <MemoryProvider>
+                  <ProfileProvider>
+                    <LlmProvider>
+                      <RootThemeContainer />
+                      <GlobalDownloadBanner />
+                    </LlmProvider>
+                  </ProfileProvider>
+                </MemoryProvider>
+              </VoiceProvider>
+            </AppErrorBoundary>
+          </LanguageProvider>
+        </AppThemeProvider>
+      </GestureHandlerRootView>
+    </AppErrorBoundary>
   );
 }
 
