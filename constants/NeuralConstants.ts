@@ -1,12 +1,12 @@
 export const CONSCIOUSNESS_CONFIG = {
   es: {
-    1: { label: 'Zen', desc: 'Preguntas rápidas,\nno busca en sus memorias.' },
+    1: { label: 'Zen', desc: 'Respuestas rápidas,\nsin internet, sin grabación.' },
     2: { label: 'Balance', desc: 'Identidad, memoria,\ne-consultas.' },
     3: { label: 'Deep', desc: 'Análisis, reflexión,\nmemoria.' },
     4: { label: 'Creative', desc: 'Consciencia abierta, \ncreatividad visible.' },
   },
   en: {
-    1: { label: 'Zen', desc: 'Quick answering,\nno internet, no recording' },
+    1: { label: 'Zen', desc: 'Quick answering,\nno internet, no recording.' },
     2: { label: 'Balance', desc: 'Identity, memory,\nqueries.' },
     3: { label: 'Deep', desc: 'Analysis, reflection,\nmemory.' },
     4: { label: 'Creative', desc: 'Open awareness,\nvisible creativity.' },

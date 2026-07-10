@@ -381,8 +381,8 @@ export const useAgentEngine = (
     toolQueryRef.current = '';
     let searchResult: string | null = null;
 
-    // 🚀 Preemptive Search Trigger for ALL modes
-    const preemptiveCheck = SentinelService.processInbound("", userText);
+    // 🚀 Preemptive Search Trigger (Skipped in ZEN mode)
+    const preemptiveCheck = !isZenMode ? SentinelService.processInbound("", userText) : { detected: false, dialect: '', query: '', stream: '' };
     if (preemptiveCheck.detected && preemptiveCheck.dialect === 'PROACTIVE_CURRENCY_CHECK') {
       console.log(`[AGENT_ENGINE] 🚀 Preemptive Search Triggered: "${preemptiveCheck.query}"`);
       toolQueryRef.current = preemptiveCheck.query;
@@ -578,7 +578,7 @@ export const useAgentEngine = (
                 const inbound = SentinelService.processInbound(textForSentinel, userText);
 
                 // 🛡️ Prevent proactive search loop: only allow PROACTIVE_CURRENCY_CHECK on the first round (toolRounds === 0)
-                const shouldTrigger = inbound.detected &&
+                const shouldTrigger = !isZenMode && inbound.detected &&
                    (inbound.dialect !== 'PROACTIVE_CURRENCY_CHECK' || toolRounds === 0);
 
                 if (shouldTrigger) {

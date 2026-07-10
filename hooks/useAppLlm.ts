@@ -1022,21 +1022,26 @@ export function useAppLlm(lang: string = 'es') {
       let targetTopP = forceDeterminism ? 0.90 : modelConfig.top_p;
 
       if (isLlama) {
-        // Llama 3.2 1B Instruct dynamic parameters (staying strictly within the safe 0.70 - 1.20 range)
-        targetTemp = forceDeterminism ? 0.15 : (forceHighTemperature ? 1.15 : (
-          consciousnessLevel === 1 ? 0.80 // Zen: lower bound to keep it concise, avoiding repetition collapse
-            : consciousnessLevel === 2 ? 0.90 // Balance: optimal baseline
-              : consciousnessLevel === 3 ? 1.0 // Deep: higher temperature to inject entropy
-                : 1.15 // Philosophic: maximum conceptual diversity
+        // Llama 3.2 1B Instruct dynamic parameters (scaled down to prevent hallucinations and word starvation)
+        targetTemp = forceDeterminism ? 0.15 : (forceHighTemperature ? 0.70 : (
+          consciousnessLevel === 1 ? 0.15 // Zen: strict determinism to keep it brief and coherent
+            : consciousnessLevel === 2 ? 0.30 // Balance: stable conversational baseline
+              : consciousnessLevel === 3 ? 0.50 // Deep: higher entropy for reasoning
+                : 0.70 // Philosophic/Creative: conceptual diversity limit for 1B
         ));
-        targetMinP = forceDeterminism ? 0.05 : (forceHighTemperature ? 0.14 : (
-          consciousnessLevel === 1 ? 0.06 // Zen: dynamic min_p for concentrated distribution
-            : consciousnessLevel === 2 ? 0.09 // Balance: sweet spot
-              : consciousnessLevel === 3 ? 0.11 // Deep: extra weight to counteract thermal flattening
-                : 0.14 // Philosophic: maximum control against noise/hallucinations at high temperature
+        targetMinP = forceDeterminism ? 0.05 : (forceHighTemperature ? 0.10 : (
+          consciousnessLevel === 1 ? 0.05
+            : consciousnessLevel === 2 ? 0.05
+              : consciousnessLevel === 3 ? 0.08
+                : 0.10 // Philosophic: controls noise/hallucinations at high temperature
         ));
-        targetTopP = 1.0; // Disabled to let min_p work cleanly
-        targetRepeatPenalty = 1.15;
+        targetTopP = 0.90;
+        targetRepeatPenalty = forceDeterminism ? 1.00 : (
+          consciousnessLevel === 1 ? 1.02
+            : consciousnessLevel === 2 ? 1.05
+              : consciousnessLevel === 3 ? 1.05
+                : 1.08
+        );
       } else if (isGemma3) {
         // Gemma 3 4B requires higher temperature for stable outputs and to prevent loops/refusals
         targetTemp = forceDeterminism ? 0.15 : (forceHighTemperature ? 0.85 : (
@@ -1057,14 +1062,15 @@ export function useAppLlm(lang: string = 'es') {
 
       // Map consciousnessLevel directly to directives (1=Zen, 2=Balance, 3=Deep, 4=Philosophic)
       const directives: Record<number, string> = {
-        1: lang === 'es' ? "\n[[RULE: Sin pensar. Sin preámbulos. Responde en una sola oración.]]" : "\n[[RULE: No thinking. No preamble. Respond in one sentence.]]",
-        2: lang === 'es' ? "\n[[RULE: Mantén tu Proceso de Pensamiento breve (máximo 2 párrafos).]]" : "\n[[RULE: Keep your Thinking Process brief (maximum 2 paragraphs).]]",
-        3: lang === 'es' ? "\n[[RULE: Mantén tu Proceso de Pensamiento conciso (máximo 4 párrafos).]]" : "\n[[RULE: Keep your Thinking Process concise (maximum 4 paragraphs).]]",
+        1: lang === 'es' 
+             ? "\n[[RULE: Sin preámbulos. Responde en una sola oración. No inventes datos. Si no sabes algo, di 'No lo sé'. No tienes acceso a internet.]]" 
+             : "\n[[RULE: No preamble. Respond in one sentence. Do not hallucinate facts. If you do not know, say 'I don't know'. You have no internet access.]]",
+        2: isLlama ? "" : (lang === 'es' ? "\n[[RULE: Mantén tu Proceso de Pensamiento breve (máximo 2 párrafos).]]" : "\n[[RULE: Keep your Thinking Process brief (maximum 2 paragraphs).]]"),
+        3: isLlama ? "" : (lang === 'es' ? "\n[[RULE: Mantén tu Proceso de Pensamiento conciso (máximo 4 párrafos).]]" : "\n[[RULE: Keep your Thinking Process concise (maximum 4 paragraphs).]]"),
         4: ""
       };
 
-      // Only apply directives to Gemma architectures (they have reasoning blocks)
-      const directive = isLlama ? "" : (directives[consciousnessLevel] || "");
+      const directive = directives[consciousnessLevel] || "";
       if (directive) {
         if (adjustedMessages && adjustedMessages.length > 0) {
           const lastIdx = adjustedMessages.length - 1;
