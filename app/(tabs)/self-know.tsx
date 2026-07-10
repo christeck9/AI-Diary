@@ -23,12 +23,12 @@ export default function SelfKnowScreen() {
   const db = useSQLiteContext();
   const { status, activeModel } = useLlmState();
 
-  const { markAction: markMentalCareAction } = useBadgeTracker('mental_care');
+  const { markAction: markAwarenessAction } = useBadgeTracker('awareness');
 
   const wrappedSetUserProfile = useCallback((val: any) => {
     setUserProfile(val);
-    markMentalCareAction();
-  }, [setUserProfile, markMentalCareAction]);
+    markAwarenessAction();
+  }, [setUserProfile, markAwarenessAction]);
 
   // Local modals state
   const [isPsyTestVisible, setIsPsyTestVisible] = useState(false);
@@ -113,7 +113,7 @@ export default function SelfKnowScreen() {
         }
         return newProfile;
       });
-      markMentalCareAction();
+      markAwarenessAction();
     } else if (type === 'mood') {
       const sum = answers.reduce((a, b) => a + b, 0);
       const normalized = sum / (answers.length * 3); // 25 questions * max 3 = 75
@@ -125,7 +125,7 @@ export default function SelfKnowScreen() {
         }
         return newProfile;
       });
-      markMentalCareAction();
+      markAwarenessAction();
     }
     console.log(`[TEST_COMPLETE] ${type} scored with ${answers.length} answers.`);
   };

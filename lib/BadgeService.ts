@@ -2,7 +2,7 @@ import { type SQLiteDatabase } from 'expo-sqlite';
 import { incrementBadge, BADGE_CATEGORIES } from '../db/badgeSchema';
 import { settingsService } from './SettingsService';
 
-export type BadgeCategory = 'communication' | 'proactivity' | 'productivity' | 'mental_care' | 'expert';
+export type BadgeCategory = 'communication' | 'proactivity' | 'productivity' | 'awareness' | 'expert';
 
 const SPANISH_ORDINALS = [
   'primer', 'segundo', 'tercer', 'cuarto', 'quinto',
@@ -78,9 +78,9 @@ export class BadgeService {
           } else if (category === 'productivity') {
             categorySp = 'productividad';
             categoryEn = 'productivity';
-          } else if (category === 'mental_care') {
-            categorySp = 'cuidado mental';
-            categoryEn = 'mental care';
+          } else if (category === 'awareness') {
+            categorySp = 'consciencia';
+            categoryEn = 'awareness';
           } else if (category === 'expert') {
             categorySp = 'experto';
             categoryEn = 'expertise';
