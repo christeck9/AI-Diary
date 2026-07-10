@@ -16,7 +16,8 @@ const VisionDownloadModal = React.lazy(() => import('../../components/VisionDown
 import * as Haptics from 'expo-haptics';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useBadgeTracker } from '../../hooks/useBadgeTracker';
-
+import { formatFullPrompt } from '../../lib/PromptService';
+import * as Clipboard from 'expo-clipboard';
 
 const themesList = [
   { value: 'Self Growth', labelEs: '🌱 Crecimiento Personal', labelEn: '🌱 Self Growth' },
@@ -219,6 +220,7 @@ export default function ProjectsScreen() {
 
   // Form State
   const [projectName, setProjectName] = useState('');
+  const [projectDescription, setProjectDescription] = useState('');
   const [customTheme, setCustomTheme] = useState('');
   const [projectTheme, setProjectTheme] = useState('Self Growth');
   const [showThemeDropdown, setShowThemeDropdown] = useState(false);
@@ -243,12 +245,34 @@ export default function ProjectsScreen() {
   const [messages, setMessages] = useState<any[]>([]);
   const [inputText, setInputText] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
+  const [latestHtmlCode, setLatestHtmlCode] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (activeProject && (activeProject.theme === 'Web Code' || activeProject.theme === 'Program Code')) {
+      let foundHtml = '';
+      for (let i = messages.length - 1; i >= 0; i--) {
+        const text = messages[i].text;
+        if (!text) continue;
+        const htmlMatch = text.match(/```html([\s\S]*?)```/i);
+        if (htmlMatch && htmlMatch[1].trim()) {
+          foundHtml = htmlMatch[1].trim();
+          break;
+        }
+        const rawCodeMatch = text.match(/```(?:xml|)?([\s\S]*?)```/i);
+        if (rawCodeMatch && (rawCodeMatch[1].toLowerCase().includes('<!doctype html>') || rawCodeMatch[1].toLowerCase().includes('<html'))) {
+          foundHtml = rawCodeMatch[1].trim();
+          break;
+        }
+      }
+      setLatestHtmlCode(foundHtml || null);
+    } else {
+      setLatestHtmlCode(null);
+    }
+  }, [messages, activeProject]);
 
   // Worktable State
   const [worktable, setWorktable] = useState<{ pin: any; cards: { id: number, question: string, answer: string, timestamp: number }[]; steps: any[] }>({ pin: null, cards: [], steps: [] });
   const [flippingCardId, setFlippingCardId] = useState<number | null>(null);
-
-  // Header & Kebab Menu removed
 
   // Compression loading state
   const [isCompressing, setIsCompressing] = useState(false);
@@ -433,8 +457,8 @@ export default function ProjectsScreen() {
       const themeValue = projectTheme === 'Other' && customTheme.trim() ? customTheme.trim() : projectTheme;
       
       await db.runAsync(
-        "INSERT INTO projects (id, name, theme, status, created_at) VALUES (?, ?, ?, ?, ?)",
-        [id, projectName.trim(), themeValue, 'active', now]
+        "INSERT INTO projects (id, name, theme, description, status, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+        [id, projectName.trim(), themeValue, projectDescription.trim() || null, 'active', now]
       );
       
       const welcomeText = lang === 'es'
@@ -453,6 +477,7 @@ export default function ProjectsScreen() {
       );
 
       setProjectName('');
+      setProjectDescription('');
       setCustomTheme('');
       await settingsService.set({ activeProjectId: id });
       await loadProjects();
@@ -546,13 +571,12 @@ export default function ProjectsScreen() {
       const ragContext = await WisdomService.getWisdomContext(db, combinedUserText);
       
       const historyRows = await db.getAllAsync<any>(
-        "SELECT role, text FROM project_messages WHERE project_id = ? ORDER BY created_at DESC LIMIT 10",
+        "SELECT role, text FROM (SELECT role, text, created_at FROM project_messages WHERE project_id = ? ORDER BY created_at DESC LIMIT 10) ORDER BY created_at ASC",
         [selectedProjectId]
       );
       
       const history = historyRows
-        .slice(1) // exclude current
-        .reverse()
+        .slice(0, -1) // exclude current user message at the end
         .map(row => ({
           id: '',
           role: row.role as 'user' | 'ai',
@@ -560,7 +584,7 @@ export default function ProjectsScreen() {
         }));
         
       const systemPrompt = getConsoleSystemPrompt(activeProject, lang);
-      const formattedPrompt = require('../../lib/PromptService').formatFullPrompt(
+      const formattedPrompt = formatFullPrompt(
         activeModel,
         systemPrompt,
         history,
@@ -759,6 +783,7 @@ ${factsText}`;
         }
       ]
     );
+  };
   const handleExportHtml = async () => {
     if (!activeProject) return;
     try {
@@ -860,8 +885,6 @@ ${factsText}`;
     await resetToHome();
   }, [resetToHome]);
 
-  // Kebab / Header actions removed
-
   const activeThemeLabel = themesList.find(t => t.value === projectTheme);
   const activeThemeLabelText = activeThemeLabel ? (lang === 'es' ? activeThemeLabel.labelEs : activeThemeLabel.labelEn) : projectTheme;
 
@@ -878,7 +901,7 @@ ${factsText}`;
         onHomePress={handleHeaderHomePress}
       />
 
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 50 }} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={styles.scrollViewContainer} keyboardShouldPersistTaps="handled">
         {/* CREATE PROJECT SECTION */}
         <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>
@@ -886,22 +909,22 @@ ${factsText}`;
           </Text>
           
           {/* CUSTOM THEME DROPDOWN */}
-          <Text style={{ fontSize: 13, fontWeight: 'bold', color: colors.textSecondary, marginBottom: 4, marginTop: 4 }}>
+          <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>
             {lang === 'es' ? 'Tema del Proyecto' : 'Project Theme'}
           </Text>
           <TouchableOpacity
             style={[styles.dropdownTrigger, { backgroundColor: colors.surfaceSecondary, borderColor: colors.border }]}
             onPress={() => setShowThemeDropdown(true)}
           >
-            <Text style={{ color: colors.textPrimary, fontSize: 14 }}>
+            <Text style={[styles.dropdownTriggerText, { color: colors.textPrimary }]}>
               {projectTheme === 'Other' && customTheme.trim() ? customTheme : activeThemeLabelText}
             </Text>
             <IconSymbol name="chevron.down" size={16} color={colors.textSecondary} />
           </TouchableOpacity>
 
           {(projectTheme === 'Web Code' || projectTheme === 'Program Code') && (
-            <View style={{ backgroundColor: 'rgba(235, 94, 40, 0.1)', padding: 10, borderRadius: 8, borderWidth: 1, borderColor: colors.primary, marginTop: 8, marginBottom: 8 }}>
-              <Text style={{ color: colors.primary, fontSize: 11, fontWeight: 'bold' }}>
+            <View style={[styles.codeWarningContainer, { backgroundColor: 'rgba(235, 94, 40, 0.1)', borderColor: colors.primary }]}>
+              <Text style={[styles.codeWarningText, { color: colors.primary }]}>
                 {lang === 'es' 
                   ? '⚠️ Nota: Todo el código se desarrollará en un único archivo index.html auto-contenido (incluyendo estilos CSS y scripts para los botones). Podrás exportarlo al final.' 
                   : '⚠️ Note: All code will be developed in a single self-contained index.html file (including CSS styles and scripts for buttons). You can export it at the end.'}
@@ -925,6 +948,23 @@ ${factsText}`;
             onChangeText={setProjectName}
             placeholder={lang === 'es' ? 'Nombre del Proyecto...' : 'Project Name...'}
             placeholderTextColor={colors.textSecondary}
+          />
+
+          <TextInput
+            style={[
+              styles.input,
+              styles.descriptionInput,
+              {
+                color: colors.textPrimary,
+                borderColor: colors.border,
+                backgroundColor: colors.surfaceSecondary
+              }
+            ]}
+            value={projectDescription}
+            onChangeText={setProjectDescription}
+            placeholder={lang === 'es' ? 'Descripción (opcional)...' : 'Description (optional)...'}
+            placeholderTextColor={colors.textSecondary}
+            multiline={true}
           />
 
           <TouchableOpacity
@@ -1152,32 +1192,99 @@ ${factsText}`;
                   </View>
                 )}
                 {(activeProject.theme === 'Web Code' || activeProject.theme === 'Program Code') && (
-                  <View style={{ marginTop: 16, paddingTop: 16, borderTopWidth: 1, borderColor: colors.border }}>
+                  <View style={[styles.artifactContainer, { borderColor: colors.border }]}>
+                    <Text style={[styles.artifactTitle, { color: colors.textPrimary }]}>
+                      {lang === 'es' ? '💻 Código del Artefacto' : '💻 Artifact Code'}
+                    </Text>
+                    
+                    {latestHtmlCode ? (
+                      <View style={[
+                        styles.artifactCard, 
+                        { 
+                          backgroundColor: isMatrix ? '#060706' : colors.surfaceSecondary, 
+                          borderColor: isMatrix ? '#00ff41' : colors.border
+                        }
+                      ]}>
+                        <View style={styles.artifactCardHeader}>
+                          <Text style={[
+                            styles.artifactFileName, 
+                            { 
+                              color: isMatrix ? '#00ff41' : colors.primary,
+                              fontFamily: isMatrix ? (Platform.OS === 'ios' ? 'Courier' : 'monospace') : undefined
+                            }
+                          ]}>
+                            📄 index.html ({Math.round(latestHtmlCode.length / 102.4) / 10} KB)
+                          </Text>
+                          <TouchableOpacity 
+                            style={[
+                              styles.artifactCopyButton, 
+                              { 
+                                backgroundColor: isMatrix ? '#121412' : colors.surface,
+                                borderColor: isMatrix ? '#00ff41' : colors.border
+                              }
+                            ]}
+                            onPress={async () => {
+                              await Clipboard.setStringAsync(latestHtmlCode);
+                              try { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); } catch(_) {}
+                              Alert.alert(lang === 'es' ? 'Copiado' : 'Copied', lang === 'es' ? 'Código copiado al portapapeles.' : 'Code copied to clipboard.');
+                            }}
+                          >
+                            <Text style={[styles.artifactCopyText, { color: isMatrix ? '#00ff41' : colors.textPrimary }]}>
+                              {lang === 'es' ? 'Copiar 📋' : 'Copy 📋'}
+                            </Text>
+                          </TouchableOpacity>
+                        </View>
+
+                        {/* Monospace Code Preview Box */}
+                        <View style={[
+                          styles.artifactPreviewBox, 
+                          { backgroundColor: isMatrix ? '#000' : '#1e1e1e' }
+                        ]}>
+                          <Text style={[
+                            styles.artifactCodeText, 
+                            { 
+                              fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace', 
+                              color: isMatrix ? '#00ff41' : '#d4d4d4'
+                            }
+                          ]}
+                          numberOfLines={7}>
+                            {latestHtmlCode}
+                          </Text>
+                        </View>
+                      </View>
+                    ) : (
+                      <View style={[
+                        styles.artifactPlaceholderCard, 
+                        { 
+                          backgroundColor: isMatrix ? '#060706' : colors.surfaceSecondary, 
+                          borderColor: isMatrix ? '#2b472b' : colors.border
+                        }
+                      ]}>
+                        <Text style={[styles.artifactPlaceholderText, { color: colors.textSecondary }]}>
+                          {lang === 'es' 
+                            ? 'Esperando a que Anima genere código. Solicítale un diseño o programa en la consola interactiva de abajo.' 
+                            : 'Waiting for Anima to generate code. Ask for a design or program in the interactive console below.'}
+                        </Text>
+                      </View>
+                    )}
+
                     <Text style={{ fontSize: 13, color: colors.textSecondary, marginBottom: 10 }}>
                       {lang === 'es' 
                         ? 'Este proyecto está diseñado para desarrollar un solo archivo HTML auto-contenido.' 
                         : 'This project is designed to develop a single self-contained HTML file.'}
                     </Text>
                     <TouchableOpacity
-                      style={{
-                        backgroundColor: colors.primary,
-                        paddingVertical: 12,
-                        paddingHorizontal: 15,
-                        borderRadius: 8,
-                        flexDirection: 'row',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: 8,
-                        shadowColor: '#000',
-                        shadowOffset: { width: 0, height: 2 },
-                        shadowOpacity: 0.1,
-                        shadowRadius: 3,
-                        elevation: 2
-                      }}
+                      style={[
+                        styles.artifactExportButton,
+                        {
+                          backgroundColor: latestHtmlCode ? colors.primary : colors.textSecondary + '60',
+                        }
+                      ]}
                       onPress={handleExportHtml}
+                      disabled={!latestHtmlCode}
                     >
                       <IconSymbol name="square.and.arrow.up" size={16} color="white" />
-                      <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 14 }}>
+                      <Text style={[styles.artifactExportButtonText, { color: 'white' }]}>
                         {lang === 'es' ? 'Exportar index.html' : 'Export index.html'}
                       </Text>
                     </TouchableOpacity>
@@ -1463,7 +1570,6 @@ ${factsText}`;
         </TouchableOpacity>
       </Modal>
 
-      {/* GLOBAL APP KEBAB MENU OVERLAY REMOVED */}
     </View>
   );
 }
@@ -1591,5 +1697,112 @@ const styles = StyleSheet.create({
   modalItem: {
     paddingVertical: 12,
     borderBottomWidth: 1
+  },
+  artifactContainer: {
+    marginTop: 16,
+    paddingTop: 16,
+    borderTopWidth: 1,
+  },
+  artifactTitle: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    marginBottom: 8,
+  },
+  artifactCard: {
+    borderRadius: 8,
+    borderWidth: 1,
+    padding: 10,
+    marginBottom: 12,
+  },
+  artifactCardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  artifactFileName: {
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+  artifactCopyButton: {
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 4,
+    borderWidth: 1,
+  },
+  artifactCopyText: {
+    fontSize: 11,
+    fontWeight: 'bold',
+  },
+  artifactPreviewBox: {
+    borderRadius: 6,
+    padding: 8,
+    height: 100,
+    overflow: 'hidden',
+  },
+  artifactCodeText: {
+    fontSize: 10,
+    lineHeight: 13,
+  },
+  artifactPlaceholderCard: {
+    borderRadius: 8,
+    borderWidth: 1,
+    padding: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+  },
+  artifactPlaceholderText: {
+    fontSize: 12,
+    textAlign: 'center',
+    fontStyle: 'italic',
+  },
+  artifactExportButton: {
+    paddingVertical: 12,
+    paddingHorizontal: 15,
+    borderRadius: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  artifactExportButtonText: {
+    fontWeight: 'bold',
+    fontSize: 14,
+  },
+  scrollViewContainer: {
+    padding: 16,
+    paddingBottom: 50,
+  },
+  fieldLabel: {
+    fontSize: 13,
+    fontWeight: 'bold',
+    marginBottom: 4,
+    marginTop: 4,
+  },
+  dropdownTriggerText: {
+    fontSize: 14,
+  },
+  codeWarningContainer: {
+    padding: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    marginTop: 8,
+    marginBottom: 8,
+  },
+  codeWarningText: {
+    fontSize: 11,
+    fontWeight: 'bold',
+  },
+  descriptionInput: {
+    height: 60,
+    paddingTop: 10,
+    textAlignVertical: 'top',
+    marginBottom: 12,
   }
 });
