@@ -8,8 +8,9 @@
     "isolatedModules": true,
     "jsx": "react-native",
     "lib": [
-      "es2017"
+      "es2020"
     ],
+    "module": "esnext",
     "moduleResolution": "node",
     "noEmit": true,
     "resolveJsonModule": true,
