@@ -8,17 +8,20 @@ import { ModelInfo } from '../hooks/useAppLlm';
 export type LlmState = {
   deviceRAM: number;
   status: 'idle' | 'downloading' | 'loading' | 'ready' | 'error';
-  isDownloading: boolean;
-  downloadingModel: ModelDefinition | null;
-  downloadingType: 'model' | 'vision' | null;
   activeModel: ModelInfo | null;
   AVAILABLE_MODELS: ModelInfo[];
 };
 
-export type LlmProgress = {
+export type LlmDownloadState = {
+  isDownloading: boolean;
+  downloadingModel: ModelDefinition | null;
+  downloadingType: 'model' | 'vision' | null;
   downloadedMB: number;
   downloadSpeed: number;
   downloadPercent: number;
+};
+
+export type LlmProgress = {
   currentContextSize: number;
   tokensUsed: number;
 };
@@ -43,6 +46,7 @@ export type LlmActions = {
 };
 
 const LlmStateContext = createContext<LlmState | null>(null);
+const LlmDownloadContext = createContext<LlmDownloadState | null>(null);
 const LlmProgressContext = createContext<LlmProgress | null>(null);
 const LlmActionsContext = createContext<LlmActions | null>(null);
 
@@ -84,35 +88,40 @@ export function LlmProvider({ children }: { children: React.ReactNode }) {
   const state: LlmState = useMemo(() => ({
     deviceRAM: llm.deviceRAM,
     status: llm.status,
-    isDownloading: llm.isDownloading,
-    downloadingModel: llm.downloadingModel,
-    downloadingType: llm.downloadingType,
     activeModel: llm.activeModel,
     AVAILABLE_MODELS: llm.AVAILABLE_MODELS,
   }), [
-    llm.deviceRAM, llm.status, llm.isDownloading, 
-    llm.downloadingModel, llm.downloadingType, 
-    llm.activeModel, llm.AVAILABLE_MODELS
+    llm.deviceRAM, llm.status, llm.activeModel, llm.AVAILABLE_MODELS
   ]);
 
-  const progress: LlmProgress = useMemo(() => ({
+  const downloadState: LlmDownloadState = useMemo(() => ({
+    isDownloading: llm.isDownloading,
+    downloadingModel: llm.downloadingModel,
+    downloadingType: llm.downloadingType,
     downloadedMB: llm.downloadedMB,
     downloadSpeed: llm.downloadSpeed,
     downloadPercent: llm.downloadPercent,
+  }), [
+    llm.isDownloading, llm.downloadingModel, llm.downloadingType,
+    llm.downloadedMB, llm.downloadSpeed, llm.downloadPercent
+  ]);
+
+  const progress: LlmProgress = useMemo(() => ({
     currentContextSize: llm.currentContextSize,
     tokensUsed: llm.tokensUsed,
   }), [
-    llm.downloadedMB, llm.downloadSpeed, llm.downloadPercent, 
     llm.currentContextSize, llm.tokensUsed
   ]);
 
   return (
     <LlmStateContext.Provider value={state}>
-      <LlmProgressContext.Provider value={progress}>
-        <LlmActionsContext.Provider value={actions}>
-          {children}
-        </LlmActionsContext.Provider>
-      </LlmProgressContext.Provider>
+      <LlmDownloadContext.Provider value={downloadState}>
+        <LlmProgressContext.Provider value={progress}>
+          <LlmActionsContext.Provider value={actions}>
+            {children}
+          </LlmActionsContext.Provider>
+        </LlmProgressContext.Provider>
+      </LlmDownloadContext.Provider>
     </LlmStateContext.Provider>
   );
 }
@@ -120,6 +129,12 @@ export function LlmProvider({ children }: { children: React.ReactNode }) {
 export function useLlmState(): LlmState {
   const ctx = useContext(LlmStateContext);
   if (!ctx) throw new Error('useLlmState must be used inside <LlmProvider>');
+  return ctx;
+}
+
+export function useLlmDownload(): LlmDownloadState {
+  const ctx = useContext(LlmDownloadContext);
+  if (!ctx) throw new Error('useLlmDownload must be used inside <LlmProvider>');
   return ctx;
 }
 

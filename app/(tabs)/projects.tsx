@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import DraggableFlatList, { ScaleDecorator } from 'react-native-draggable-flatlist';
-import { StyleSheet, View, Text, TextInput, TouchableOpacity, Alert, Platform, StatusBar, ScrollView, FlatList, ActivityIndicator, KeyboardAvoidingView, Modal, Dimensions } from 'react-native';
+import { StyleSheet, View, Text, TextInput, TouchableOpacity, Alert, Platform, StatusBar, ScrollView, FlatList, ActivityIndicator, KeyboardAvoidingView, Dimensions } from 'react-native';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useFocusEffect } from 'expo-router';
 import { IconSymbol } from '../../components/ui/icon-symbol';
@@ -1495,80 +1495,84 @@ ${factsText}`;
         )}
       </ScrollView>
 
-      {/* THEME PICKER MODAL */}
-      <Modal visible={showThemeDropdown} transparent animationType="fade" statusBarTranslucent={true} onRequestClose={() => setShowThemeDropdown(false)}>
-        {Platform.OS === 'android' && <View style={{ height: (dropdownTicket % 2 === 1) ? 0.5 : 0 }} />}
-        <TouchableOpacity 
-          style={[
-            styles.modalOverlay, 
-            { 
-              width: Dimensions.get('screen').width, 
-              height: Dimensions.get('screen').height,
-              paddingTop: Platform.OS === 'android' && (dropdownTicket % 2 === 1) ? 0.5 : 0
-            }
-          ]} 
-          activeOpacity={1} 
-          onPress={() => setShowThemeDropdown(false)}
-        >
-          <View style={[styles.modalContent, { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1 }]}>
-            <Text style={[styles.modalTitle, { color: colors.textPrimary }]}>
-              {lang === 'es' ? 'Selecciona un Tema' : 'Select a Theme'}
-            </Text>
-            {themesList.map((theme) => (
-              <TouchableOpacity
-                key={theme.value}
-                style={[styles.modalItem, { borderBottomColor: colors.border }]}
-                onPress={() => {
-                  setProjectTheme(theme.value);
-                  setShowThemeDropdown(false);
-                }}
-              >
-                <Text style={{ color: colors.textPrimary, fontSize: 14 }}>
-                  {lang === 'es' ? theme.labelEs : theme.labelEn}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </TouchableOpacity>
-      </Modal>
+      {/* THEME PICKER OVERLAY */}
+      {showThemeDropdown && (
+        <View style={[StyleSheet.absoluteFill, { zIndex: 1000, elevation: 1000 }]}>
+          {Platform.OS === 'android' && <View style={{ height: (dropdownTicket % 2 === 1) ? 0.5 : 0 }} />}
+          <TouchableOpacity 
+            style={[
+              styles.modalOverlay, 
+              { 
+                width: Dimensions.get('screen').width, 
+                height: Dimensions.get('screen').height,
+                paddingTop: Platform.OS === 'android' && (dropdownTicket % 2 === 1) ? 0.5 : 0
+              }
+            ]} 
+            activeOpacity={1} 
+            onPress={() => setShowThemeDropdown(false)}
+          >
+            <View style={[styles.modalContent, { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1 }]}>
+              <Text style={[styles.modalTitle, { color: colors.textPrimary }]}>
+                {lang === 'es' ? 'Selecciona un Tema' : 'Select a Theme'}
+              </Text>
+              {themesList.map((theme) => (
+                <TouchableOpacity
+                  key={theme.value}
+                  style={[styles.modalItem, { borderBottomColor: colors.border }]}
+                  onPress={() => {
+                    setProjectTheme(theme.value);
+                    setShowThemeDropdown(false);
+                  }}
+                >
+                  <Text style={{ color: colors.textPrimary, fontSize: 14 }}>
+                    {lang === 'es' ? theme.labelEs : theme.labelEn}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </TouchableOpacity>
+        </View>
+      )}
 
-      {/* ACTIVE PROJECTS MODAL */}
-      <Modal visible={showProjectDropdown} transparent animationType="fade" statusBarTranslucent={true} onRequestClose={() => setShowProjectDropdown(false)}>
-        {Platform.OS === 'android' && <View style={{ height: (dropdownTicket % 2 === 1) ? 0.5 : 0 }} />}
-        <TouchableOpacity 
-          style={[
-            styles.modalOverlay, 
-            { 
-              width: Dimensions.get('screen').width, 
-              height: Dimensions.get('screen').height,
-              paddingTop: Platform.OS === 'android' && (dropdownTicket % 2 === 1) ? 0.5 : 0
-            }
-          ]} 
-          activeOpacity={1} 
-          onPress={() => setShowProjectDropdown(false)}
-        >
-          <View style={[styles.modalContent, { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1 }]}>
-            <Text style={[styles.modalTitle, { color: colors.textPrimary }]}>
-              {lang === 'es' ? 'Selecciona un Proyecto' : 'Select a Project'}
-            </Text>
-            {activeProjects.map((p) => (
-              <TouchableOpacity
-                key={p.id}
-                style={[styles.modalItem, { borderBottomColor: colors.border }]}
-                onPress={async () => {
-                  setSelectedProjectId(p.id);
-                  await settingsService.set({ activeProjectId: p.id });
-                  setShowProjectDropdown(false);
-                }}
-              >
-                <Text style={{ color: colors.textPrimary, fontSize: 14, fontWeight: p.id === selectedProjectId ? 'bold' : 'normal' }}>
-                  {p.name} ({p.theme})
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </TouchableOpacity>
-      </Modal>
+      {/* ACTIVE PROJECTS OVERLAY */}
+      {showProjectDropdown && (
+        <View style={[StyleSheet.absoluteFill, { zIndex: 1000, elevation: 1000 }]}>
+          {Platform.OS === 'android' && <View style={{ height: (dropdownTicket % 2 === 1) ? 0.5 : 0 }} />}
+          <TouchableOpacity 
+            style={[
+              styles.modalOverlay, 
+              { 
+                width: Dimensions.get('screen').width, 
+                height: Dimensions.get('screen').height,
+                paddingTop: Platform.OS === 'android' && (dropdownTicket % 2 === 1) ? 0.5 : 0
+              }
+            ]} 
+            activeOpacity={1} 
+            onPress={() => setShowProjectDropdown(false)}
+          >
+            <View style={[styles.modalContent, { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1 }]}>
+              <Text style={[styles.modalTitle, { color: colors.textPrimary }]}>
+                {lang === 'es' ? 'Selecciona un Proyecto' : 'Select a Project'}
+              </Text>
+              {activeProjects.map((p) => (
+                <TouchableOpacity
+                  key={p.id}
+                  style={[styles.modalItem, { borderBottomColor: colors.border }]}
+                  onPress={async () => {
+                    setSelectedProjectId(p.id);
+                    await settingsService.set({ activeProjectId: p.id });
+                    setShowProjectDropdown(false);
+                  }}
+                >
+                  <Text style={{ color: colors.textPrimary, fontSize: 14, fontWeight: p.id === selectedProjectId ? 'bold' : 'normal' }}>
+                    {p.name} ({p.theme})
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </TouchableOpacity>
+        </View>
+      )}
 
     </View>
   );

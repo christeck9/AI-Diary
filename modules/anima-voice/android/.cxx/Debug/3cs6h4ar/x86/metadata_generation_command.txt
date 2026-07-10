@@ -1,0 +1,21 @@
+                        -HC:\AI-Diary\modules\anima-voice\android\src\main\cpp
+-DCMAKE_SYSTEM_NAME=Android
+-DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+-DCMAKE_SYSTEM_VERSION=26
+-DANDROID_PLATFORM=android-26
+-DANDROID_ABI=x86
+-DCMAKE_ANDROID_ARCH_ABI=x86
+-DANDROID_NDK=C:\Users\Chris\AppData\Local\Android\Sdk\ndk\26.1.10909125
+-DCMAKE_ANDROID_NDK=C:\Users\Chris\AppData\Local\Android\Sdk\ndk\26.1.10909125
+-DCMAKE_TOOLCHAIN_FILE=C:\Users\Chris\AppData\Local\Android\Sdk\ndk\26.1.10909125\build\cmake\android.toolchain.cmake
+-DCMAKE_MAKE_PROGRAM=C:\Users\Chris\AppData\Local\Android\Sdk\cmake\3.22.1\bin\ninja.exe
+-DCMAKE_CXX_FLAGS=-std=c++20 -fexceptions -frtti
+-DCMAKE_LIBRARY_OUTPUT_DIRECTORY=C:\AI-Diary\modules\anima-voice\android\build\intermediates\cxx\Debug\3cs6h4ar\obj\x86
+-DCMAKE_RUNTIME_OUTPUT_DIRECTORY=C:\AI-Diary\modules\anima-voice\android\build\intermediates\cxx\Debug\3cs6h4ar\obj\x86
+-DCMAKE_BUILD_TYPE=Debug
+-DCMAKE_FIND_ROOT_PATH=C:\AI-Diary\modules\anima-voice\android\.cxx\Debug\3cs6h4ar\prefab\x86\prefab
+-BC:\AI-Diary\modules\anima-voice\android\.cxx\Debug\3cs6h4ar\x86
+-GNinja
+-DANDROID_STL=c++_shared
+                        Build command args: []
+                        Version: 2

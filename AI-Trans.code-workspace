@@ -1,0 +1,14 @@
+{
+	"folders": [
+		{
+			"path": "../AI-Trans"
+		},
+		{
+			"path": "."
+		}
+	],
+	"settings": {
+		"java.configuration.updateBuildConfiguration": "interactive",
+		"java.compile.nullAnalysis.mode": "automatic"
+	}
+}

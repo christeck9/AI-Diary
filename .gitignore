@@ -49,3 +49,14 @@ scratch/
 
 # System reserved filenames
 nul
+
+# Environment Variables and Credentials
+.env
+.env.*
+*.env
+src/.env
+local.properties
+
+# Databases (SQLite)
+*.db
+*.sqlite

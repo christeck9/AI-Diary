@@ -1,5 +1,5 @@
 import React from 'react';
-import { Modal, View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native';
 import { IconSymbol } from './ui/icon-symbol';
 
 interface VisionDownloadModalProps {
@@ -25,14 +25,11 @@ export function VisionDownloadModal({
 
   // 🛡️ FABRIC FIX: transparent={false} evita colapso WRAP_CONTENT.
   // Sin layoutTicket hack (Directiva 11). Backdrop con rgba(0,0,0,0.75).
+  
+  if (!visible) return null;
+
   return (
-    <Modal
-      transparent={false}
-      animationType="fade"
-      visible={visible}
-      statusBarTranslucent={false}
-      onRequestClose={onClose}
-    >
+    <View style={[StyleSheet.absoluteFill, { zIndex: 1000, elevation: 1000 }]}>
       <View style={styles.overlay}>
         <View style={[styles.container, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           <View style={[styles.iconContainer, { backgroundColor: colors.surfaceSecondary }]}>
@@ -70,7 +67,7 @@ export function VisionDownloadModal({
           </View>
         </View>
       </View>
-    </Modal>
+    </View>
   );
 }
 

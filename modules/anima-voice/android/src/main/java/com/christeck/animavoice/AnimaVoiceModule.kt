@@ -16,7 +16,7 @@ import com.facebook.react.bridge.ReactApplicationContext
 
 class AnimaVoiceModule : Module(), TextToSpeech.OnInitListener {
   private var tts: TextToSpeech? = null
-  private var isTtsInitialized = false
+  @Volatile private var isTtsInitialized = false
   
   // Track active TTS promises and their corresponding temp files
   private val activePromises = ConcurrentHashMap<String, Pair<Promise, File>>()
@@ -143,12 +143,6 @@ class AnimaVoiceModule : Module(), TextToSpeech.OnInitListener {
     }
 
     AsyncFunction("synthesizeNativeToPCM") { text: String, lang: String, promise: Promise ->
-      var attempts = 0
-      while (!isTtsInitialized && attempts < 20) {
-        Thread.sleep(100)
-        attempts++
-      }
-
       if (!isTtsInitialized || tts == null) {
         promise.reject("TTS_NOT_READY", "TextToSpeech engine not initialized", null)
         return@AsyncFunction

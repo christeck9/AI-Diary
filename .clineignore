@@ -16,7 +16,7 @@ obj/
 *.app
 android/app/build/
 android/build/
-android/.gradle/
+# android/.gradle/
 android/.cxx/
 ios/build/
 
@@ -84,3 +84,19 @@ Thumbs.db
 # Custom backup/Doc directories
 BACKUPS/
 DOCS/
+
+# Otros
+Wan2GP/
+
+# Environment Variables and Credentials
+.env*
+local.properties
+android/local.properties
+
+# Databases (SQLite / Local caches)
+*.db
+*.sqlite
+
+# Scratch / Temp directories
+scratch/
+

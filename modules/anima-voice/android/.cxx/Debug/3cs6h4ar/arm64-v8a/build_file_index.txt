@@ -1,0 +1,1 @@
+C:\AI-Diary\modules\anima-voice\android\src\main\cpp\CMakeLists.txt

@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState } from 'react';
+import { settingsService } from '../lib/SettingsService';
 
 export type AppLanguage = 'en' | 'es';
 
@@ -105,7 +106,7 @@ const translations: Record<AppLanguage, Record<string, string>> = {
 // ─── CONTEXT ────────────────────────────────────────────────────
 interface LanguageContextType {
   lang: AppLanguage;
-  setLang: (lang: AppLanguage) => void;
+  setLang: (lang: AppLanguage) => void | Promise<void>;
   t: (key: string) => string;
 }
 
@@ -145,7 +146,31 @@ const getInitialLanguage = (): AppLanguage => {
 };
  
 export const LanguageProvider = ({ children }: { children: React.ReactNode }) => {
-  const [lang, setLang] = useState<AppLanguage>(getInitialLanguage());
+  const [lang, setLangState] = useState<AppLanguage>(getInitialLanguage());
+
+  // On mount, restore persisted language preference (overrides system locale)
+  React.useEffect(() => {
+    const restoreLanguage = async () => {
+      try {
+        const saved = await settingsService.get<string>('app_language');
+        if (saved === 'es' || saved === 'en') {
+          setLangState(saved as AppLanguage);
+        }
+      } catch (e) {
+        // Fallback silently — system locale already set
+      }
+    };
+    restoreLanguage();
+  }, []);
+
+  const setLang = async (newLang: AppLanguage) => {
+    try {
+      await settingsService.set({ app_language: newLang });
+    } catch (e) {
+      console.warn('[LANG] Failed to persist language:', e);
+    }
+    setLangState(newLang);
+  };
 
   const t = (key: string): string => {
     return translations[lang]?.[key] ?? translations['en']?.[key] ?? key;

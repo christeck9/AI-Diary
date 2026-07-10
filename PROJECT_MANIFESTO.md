@@ -1664,26 +1664,11 @@ La aplicación cuenta con un flujo estructurado en 5 pestañas principales:
   - **Doble Buffering y Precarga Activa:** Se adaptó `useVoice.ts` para soportar objetos `Audio.Sound` precargados e inicializados asíncronamente en segundo plano. A su vez, `useInteractiveVoice.ts` coordina la resolución de estas promesas en paralelo mientras el audio previo está sonando, reduciendo la brecha entre oraciones a prácticamente cero.
   - **Estrategia de Recolección de Basura:** Se añadió una rutina de descarga (`unloadAsync`) preventiva en la función de reinicio de la cola (`resetSpeechQueue`) para asegurar que los fragmentos de audio precargados no reproducidos se limpien correctamente de la memoria, evitando fugas de recursos.
 
+
+
+  
+
 # AI DIARY: Finishing Touches and bug fixes v1.9.6.6 2026-07-01
-
-## 1. Corrections and improvements in Modals and Overlayers (Fabric Android Layout Collapse Bug)
-
-- **Corrección de Diseño en Modales y Overlayers (Fabric Android Layout Collapse Bug)**:
-  - **Eliminación del Evento Inestable `onShow`**: Se detectó que el evento nativo `onShow` no se disparaba de forma confiable en Android (Fabric) al montar los modales directamente con la propiedad `visible={true}`. Esto dejaba a los modales colapsados a tamaño cero, haciéndolos lucir completamente transparentes y no interactivos.
-  - **Patrón de Doble Renderizado Controlado por JS**: Se implementó una lógica basada en `useEffect` que inicia un temporizador de `50ms` al montarse el modal. Al completarse, incrementa un ticket de diseño (`layoutTicket`) que obliga a React Native a forzar un pase de redibujado de Yoga una vez que la ventana nativa está presentada.
-  - **Estiramiento Físico Absoluto del Contenedor**: Se forzó el ancho y alto del contenedor raíz del modal utilizando `Dimensions.get('screen')` para garantizar que la vista no colapse.
-  - **Inyección de Elemento Dummy**: Se agregó una vista dummy de alto microscópico (`0.5` píxeles) que cambia de tamaño reactivamente según el `layoutTicket`, forzando el recalculo de medidas de la jerarquía completa.
-  - **Modales Parcheados en su Totalidad (13 en total)**:
-    - Modales principales: `BookReaderModal`, `ProfileModal`, `IntroModal`, `VoiceSettingsModal`, `VaultExplorerModal`, `TestsMenuModal`, `PsyTestModal`.
-    - Modales de interfaz auxiliares: `VisionDownloadModal` (descarga local) y `MessageContextMenu` (menú contextual de burbujas).
-    - Modales inline de pestañas: Visor de imágenes a pantalla completa en `app/(tabs)/index.tsx`, Language Picker en `app/(tabs)/settings.tsx`, y Theme/Project Selectors en `app/(tabs)/projects.tsx`.
-
-- **Creación de Script Automatizado de Auditoría (`scripts/audit_modals.py`)**:
-  - Se desarrolló un script en Python que analiza el código fuente del proyecto y audita de forma automática cualquier archivo `.tsx` o `.ts` que renderice un componente `<Modal>`.
-  - El script verifica matemáticamente y estructuralmente que se cumplan las directivas de Fabric: uso de `transparent={true}`, `statusBarTranslucent={true}`, `Dimensions.get('screen')`, y la lógica de re-renderizado mediante `Ticket` o `ReRender`.
-  - Se configuró la salida en codificación UTF-8 para garantizar compatibilidad con terminales de Windows y evitar errores de encoding al imprimir símbolos de aprobación.
-
-# AI DIARY: Onboarding Flow Overhaul and Hardware Guards v1.9.6.7 2026-07-01
 
 ## 1. Redesigned Onboarding Sequence
 - **Step 0 (Welcome Screen)**:
@@ -1703,4 +1688,19 @@ La aplicación cuenta con un flujo estructurado en 5 pestañas principales:
 - **Model Loader UI Simplification**:
   - Removed the download button from the main application dashboard (`ModelLoaderPanel.tsx`), shifting all downloads to Onboarding. The loader panel now only contains an "ACTIVAR IA" / "ACTIVATE AI" button that executes validation checks prior to loading the model into memory.
 
+## 3. Corrections and improvements in Modals and Overlayers (Fabric Android Layout Collapse Bug)
 
+- **Corrección de Diseño en Modales y Overlayers (Fabric Android Layout Collapse Bug)**:
+  - **Eliminación del Evento Inestable `onShow`**: Se detectó que el evento nativo `onShow` no se disparaba de forma confiable en Android (Fabric) al montar los modales directamente con la propiedad `visible={true}`. Esto dejaba a los modales colapsados a tamaño cero, haciéndolos lucir completamente transparentes y no interactivos.
+  - **Patrón de Doble Renderizado Controlado por JS**: Se implementó una lógica basada en `useEffect` que inicia un temporizador de `50ms` al montarse el modal. Al completarse, incrementa un ticket de diseño (`layoutTicket`) que obliga a React Native a forzar un pase de redibujado de Yoga una vez que la ventana nativa está presentada.
+  - **Estiramiento Físico Absoluto del Contenedor**: Se forzó el ancho y alto del contenedor raíz del modal utilizando `Dimensions.get('screen')` para garantizar que la vista no colapse.
+  - **Inyección de Elemento Dummy**: Se agregó una vista dummy de alto microscópico (`0.5` píxeles) que cambia de tamaño reactivamente según el `layoutTicket`, forzando el recalculo de medidas de la jerarquía completa.
+  - **Modales Parcheados en su Totalidad (13 en total)**:
+    - Modales principales: `BookReaderModal`, `ProfileModal`, `IntroModal`, `VoiceSettingsModal`, `VaultExplorerModal`, `TestsMenuModal`, `PsyTestModal`.
+    - Modales de interfaz auxiliares: `VisionDownloadModal` (descarga local) y `MessageContextMenu` (menú contextual de burbujas).
+    - Modales inline de pestañas: Visor de imágenes a pantalla completa en `app/(tabs)/index.tsx`, Language Picker en `app/(tabs)/settings.tsx`, y Theme/Project Selectors en `app/(tabs)/projects.tsx`.
+
+- **Creación de Script Automatizado de Auditoría (`scripts/audit_modals.py`)**:
+  - Se desarrolló un script en Python que analiza el código fuente del proyecto y audita de forma automática cualquier archivo `.tsx` o `.ts` que renderice un componente `<Modal>`.
+  - El script verifica matemáticamente y estructuralmente que se cumplan las directivas de Fabric: uso de `transparent={true}`, `statusBarTranslucent={true}`, `Dimensions.get('screen')`, y la lógica de re-renderizado mediante `Ticket` o `ReRender`.
+  - Se configuró la salida en codificación UTF-8 para garantizar compatibilidad con terminales de Windows y evitar errores de encoding al imprimir símbolos de aprobación.

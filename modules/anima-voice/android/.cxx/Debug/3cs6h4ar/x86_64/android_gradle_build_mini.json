@@ -1,0 +1,31 @@
+{
+  "buildFiles": [
+    "C:\\AI-Diary\\modules\\anima-voice\\android\\src\\main\\cpp\\CMakeLists.txt"
+  ],
+  "cleanCommandsComponents": [
+    [
+      "C:\\Users\\Chris\\AppData\\Local\\Android\\Sdk\\cmake\\3.22.1\\bin\\ninja.exe",
+      "-C",
+      "C:\\AI-Diary\\modules\\anima-voice\\android\\.cxx\\Debug\\3cs6h4ar\\x86_64",
+      "clean"
+    ]
+  ],
+  "buildTargetsCommandComponents": [
+    "C:\\Users\\Chris\\AppData\\Local\\Android\\Sdk\\cmake\\3.22.1\\bin\\ninja.exe",
+    "-C",
+    "C:\\AI-Diary\\modules\\anima-voice\\android\\.cxx\\Debug\\3cs6h4ar\\x86_64",
+    "{LIST_OF_TARGETS_TO_BUILD}"
+  ],
+  "libraries": {
+    "anima_voice::@6890427a1f51a3e7e1df": {
+      "artifactName": "anima_voice",
+      "abi": "x86_64",
+      "output": "C:\\AI-Diary\\modules\\anima-voice\\android\\build\\intermediates\\cxx\\Debug\\3cs6h4ar\\obj\\x86_64\\libanima_voice.so",
+      "runtimeFiles": [
+        "C:\\Users\\Chris\\.gradle\\caches\\transforms-4\\824f0ddbf688790dc4580d25e6051bb4\\transformed\\oboe-1.8.0\\prefab\\modules\\oboe\\libs\\android.x86_64\\liboboe.so",
+        "C:\\Users\\Chris\\.gradle\\caches\\transforms-4\\876c0d5e87cb2fab92f2b2170c4d2362\\transformed\\react-android-0.74.1-debug\\prefab\\modules\\jsi\\libs\\android.x86_64\\libjsi.so",
+        "C:\\Users\\Chris\\.gradle\\caches\\transforms-4\\876c0d5e87cb2fab92f2b2170c4d2362\\transformed\\react-android-0.74.1-debug\\prefab\\modules\\react_nativemodule_core\\libs\\android.x86_64\\libreact_nativemodule_core.so"
+      ]
+    }
+  }
+}

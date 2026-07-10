@@ -1,2 +1,4 @@
 ninja: Entering directory `C:\AI-Diary\modules\anima-voice\android\.cxx\RelWithDebInfo\5ti5w1w1\x86_64'
-ninja: no work to do.
+[1/3] Building CXX object CMakeFiles/anima_voice.dir/AudioPlayer.cpp.o
+[2/3] Building CXX object CMakeFiles/anima_voice.dir/cpp-adapter.cpp.o
+[3/3] Linking CXX shared library C:\AI-Diary\modules\anima-voice\android\build\intermediates\cxx\RelWithDebInfo\5ti5w1w1\obj\x86_64\libanima_voice.so

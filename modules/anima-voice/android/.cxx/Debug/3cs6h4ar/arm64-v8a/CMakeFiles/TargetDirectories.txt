@@ -1,0 +1,3 @@
+C:/AI-Diary/modules/anima-voice/android/.cxx/Debug/3cs6h4ar/arm64-v8a/CMakeFiles/anima_voice.dir
+C:/AI-Diary/modules/anima-voice/android/.cxx/Debug/3cs6h4ar/arm64-v8a/CMakeFiles/edit_cache.dir
+C:/AI-Diary/modules/anima-voice/android/.cxx/Debug/3cs6h4ar/arm64-v8a/CMakeFiles/rebuild_cache.dir
