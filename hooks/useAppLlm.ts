@@ -1022,26 +1022,21 @@ export function useAppLlm(lang: string = 'es') {
       let targetTopP = forceDeterminism ? 0.90 : modelConfig.top_p;
 
       if (isLlama) {
-        // Llama 3.2 1B Instruct dynamic parameters (scaled down to prevent hallucinations and word starvation)
-        targetTemp = forceDeterminism ? 0.15 : (forceHighTemperature ? 0.70 : (
-          consciousnessLevel === 1 ? 0.15 // Zen: strict determinism to keep it brief and coherent
-            : consciousnessLevel === 2 ? 0.30 // Balance: stable conversational baseline
-              : consciousnessLevel === 3 ? 0.50 // Deep: higher entropy for reasoning
-                : 0.70 // Philosophic/Creative: conceptual diversity limit for 1B
+        // Llama 3.2 1B Instruct dynamic parameters (optimal baseline configs)
+        targetTemp = forceDeterminism ? 0.15 : (forceHighTemperature ? 1.15 : (
+          consciousnessLevel === 1 ? 0.80 // Zen: lower bound to keep it concise, avoiding repetition collapse
+            : consciousnessLevel === 2 ? 0.90 // Balance: optimal baseline
+              : consciousnessLevel === 3 ? 1.00 // Deep: higher temperature to inject entropy
+                : 1.15 // Philosophic: maximum conceptual diversity
         ));
-        targetMinP = forceDeterminism ? 0.05 : (forceHighTemperature ? 0.10 : (
-          consciousnessLevel === 1 ? 0.05
-            : consciousnessLevel === 2 ? 0.05
-              : consciousnessLevel === 3 ? 0.08
-                : 0.10 // Philosophic: controls noise/hallucinations at high temperature
+        targetMinP = forceDeterminism ? 0.05 : (forceHighTemperature ? 0.14 : (
+          consciousnessLevel === 1 ? 0.06 // Zen: dynamic min_p for concentrated distribution
+            : consciousnessLevel === 2 ? 0.09 // Balance: sweet spot
+              : consciousnessLevel === 3 ? 0.11 // Deep: extra weight to counteract thermal flattening
+                : 0.14 // Philosophic: maximum control against noise/hallucinations at high temperature
         ));
-        targetTopP = 0.90;
-        targetRepeatPenalty = forceDeterminism ? 1.00 : (
-          consciousnessLevel === 1 ? 1.02
-            : consciousnessLevel === 2 ? 1.05
-              : consciousnessLevel === 3 ? 1.05
-                : 1.08
-        );
+        targetTopP = 1.0; // Disabled to let min_p work cleanly
+        targetRepeatPenalty = 1.15;
       } else if (isGemma3) {
         // Gemma 3 4B requires higher temperature for stable outputs and to prevent loops/refusals
         targetTemp = forceDeterminism ? 0.15 : (forceHighTemperature ? 0.85 : (
@@ -1070,7 +1065,8 @@ export function useAppLlm(lang: string = 'es') {
         4: ""
       };
 
-      const directive = directives[consciousnessLevel] || "";
+      // Only apply directives to Gemma architectures (they have reasoning blocks)
+      const directive = isLlama ? "" : (directives[consciousnessLevel] || "");
       if (directive) {
         if (adjustedMessages && adjustedMessages.length > 0) {
           const lastIdx = adjustedMessages.length - 1;

@@ -382,7 +382,7 @@ export const useAgentEngine = (
     let searchResult: string | null = null;
 
     // 🚀 Preemptive Search Trigger (Skipped in ZEN mode)
-    const preemptiveCheck = !isZenMode ? SentinelService.processInbound("", userText) : { detected: false, dialect: '', query: '', stream: '' };
+    const preemptiveCheck = !isZenMode ? SentinelService.processInbound("", userText) : { detected: false, dialect: '', query: '', stream: 'NONE' as SentinelService.SentinelStream };
     if (preemptiveCheck.detected && preemptiveCheck.dialect === 'PROACTIVE_CURRENCY_CHECK') {
       console.log(`[AGENT_ENGINE] 🚀 Preemptive Search Triggered: "${preemptiveCheck.query}"`);
       toolQueryRef.current = preemptiveCheck.query;
