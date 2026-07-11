@@ -288,11 +288,6 @@ export function useVoice(lang: string = 'en', psyProfile?: { O: number, C: numbe
       return;
     }
 
-    if (!cleanText) {
-      safeOnDone();
-      return;
-    }
-
     let speechRate = 0.95;
     let speechPitch = 1.0;
 
@@ -316,7 +311,7 @@ export function useVoice(lang: string = 'en', psyProfile?: { O: number, C: numbe
 
     if (onDone) {
       const wordsCount = cleanText.split(/\s+/).length;
-      const timeoutMs = Math.min(Math.max(5000, wordsCount * 500 + 5000), 60000);
+      const timeoutMs = Math.max(3500, wordsCount * 600 + 3000);
       fallbackTimeoutId = setTimeout(async () => {
         console.warn(`[VOICE_ROBUSTNESS] Speech fallback timeout reached (${timeoutMs}ms) for: "${cleanText.substring(0, 30)}...". Forcing safeOnDone.`);
         try {
@@ -353,10 +348,6 @@ export function useVoice(lang: string = 'en', psyProfile?: { O: number, C: numbe
         }
       }
 
-      // 🚨 ALERTA (DIRECTIVA 9 - AGENTS.md):
-      // El puente JSI (Oboe) debe saltarse en emuladores (!isEmulatorRef.current) porque AnimaVoice.synthesizeNativeToPCM
-      // se cuelga en ellos y congela el motor nativo de TTS de Android por completo. En hardware real
-      // debe mantenerse activo para garantizar latencia cero.
       // 🚀 ZERO LATENCY FAST PATH (JSI + Oboe C++)
       if (!isEmulatorRef.current && typeof (global as any).animaFeedAudioChunk === 'function') {
         try {
