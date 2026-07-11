@@ -148,12 +148,21 @@ class AnimaVoiceModule : Module(), TextToSpeech.OnInitListener {
         return@AsyncFunction
       }
 
-      val locale = Locale.forLanguageTag(lang.replace("_", "-"))
-      tts?.language = locale
-
       val cacheDir = appContext.reactContext?.cacheDir
       val tempFile = File(cacheDir, "anima_native_tts_${System.currentTimeMillis()}_${UUID.randomUUID()}.wav")
       val utteranceId = "anima_${UUID.randomUUID()}"
+
+      // Emit timeout event to JS after 15 seconds if no callback
+      Thread {
+        Thread.sleep(15000)
+        if (activePromises.containsKey(utteranceId)) {
+          activePromises.remove(utteranceId)?.first?.reject("TTS_TIMEOUT", "Native TTS synthesis timed out after 15s", null)
+          if (tempFile.exists()) tempFile.delete()
+        }
+      }.start()
+
+      val locale = Locale.forLanguageTag(lang.replace("_", "-"))
+      tts?.language = locale
 
       activePromises[utteranceId] = Pair(promise, tempFile)
 

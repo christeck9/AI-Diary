@@ -82,7 +82,46 @@ export function useVoice(lang: string = 'en', psyProfile?: { O: number, C: numbe
   const activeParamsRef = useRef<{ dynamicPsyProfile?: any, onDone?: () => void, preloadedData?: any }>({});
   const [isPaused, setIsPaused] = useSafeState(false);
   const isEmulatorRef = useRef(false);
- 
+
+  // JSI Circuit Breaker State
+  const jsiFailuresRef = useRef(0);
+  const jsiCircuitOpenRef = useRef(false);
+  const jsiCircuitResetTimeRef = useRef<number | null>(null);
+  const JSI_RETRY_TIMEOUT_MS = 300000; // 5 min retry
+  const JSI_MAX_FAILURES = 3;
+  const JSI_TIMEOUT_MS = 15000; // 15s timeout
+
+  const logTTS = useCallback((phase: string, ...a: any[]) => {
+    const ts = new Date().toISOString();
+    console.log('[TTS_' + phase + ']', ...a);
+  }, []);
+
+  const isJSIReady = useCallback(async (): Promise<boolean> => {
+    if (jsiCircuitOpenRef.current) {
+      const now = Date.now();
+      if (jsiCircuitResetTimeRef.current && now - jsiCircuitResetTimeRef.current < JSI_RETRY_TIMEOUT_MS) {
+        logTTS('SKIP', 'circuit open'); return false;
+      }
+      jsiCircuitOpenRef.current = false; jsiFailuresRef.current = 0;
+    }
+    if (isEmulatorRef.current) { logTTS('SKIP', 'emulator'); return false; }
+    if (typeof (global as any).animaFeedAudioChunk !== 'function') { logTTS('SKIP', 'no fn'); return false; }
+    return true;
+  }, [logTTS]);
+
+  const registerJSIFailure = useCallback(() => {
+    jsiFailuresRef.current++;
+    if (jsiFailuresRef.current >= JSI_MAX_FAILURES) {
+      jsiCircuitOpenRef.current = true;
+      jsiCircuitResetTimeRef.current = Date.now();
+      logTTS('OPEN', jsiFailuresRef.current);
+    }
+  }, [logTTS]);
+
+  const resetJSICircuit = useCallback(() => {
+    jsiFailuresRef.current = 0; jsiCircuitOpenRef.current = false;
+  }, []);
+
   useEffect(() => {
     getHardwareConfig().then(cfg => {
       isEmulatorRef.current = cfg.isEmulator;
@@ -206,7 +245,8 @@ export function useVoice(lang: string = 'en', psyProfile?: { O: number, C: numbe
     try {
       const settings = await getSettings();
       if (!isMuted) {
-        if (!isEmulatorRef.current && typeof (global as any).animaFeedAudioChunk === 'function') {
+        const jsiOk = await isJSIReady();
+        if (jsiOk && typeof (global as any).animaFeedAudioChunk === 'function') {
           if (settings.useCloudTTS) {
             return await cloudTTSService.synthesizeJSI(cleanText, lang, settings as any);
           } else {
@@ -214,11 +254,14 @@ export function useVoice(lang: string = 'en', psyProfile?: { O: number, C: numbe
               // Wrap native synthesis in a timeout race to prevent infinite hangs
               const uint8Array = await promiseWithTimeout(
                 AnimaVoice.synthesizeNativeToPCM(cleanText, lang),
-                2500,
+                JSI_TIMEOUT_MS,
                 'Native TTS pre-synthesis timeout'
               );
-              return new Int16Array(uint8Array.buffer, uint8Array.byteOffset, uint8Array.length / 2);
+              const pcm = new Int16Array(uint8Array.buffer, uint8Array.byteOffset, uint8Array.length / 2);
+              resetJSICircuit();
+              return pcm;
             } catch (nativeErr) {
+               registerJSIFailure();
                console.warn('[VOICE] Preload native PCM synthesis failed or timed out:', nativeErr);
                // Fallthrough to null and classic playback
             }
@@ -239,7 +282,7 @@ export function useVoice(lang: string = 'en', psyProfile?: { O: number, C: numbe
       console.error('[VOICE] preloadSpeech Error:', e);
     }
     return null;
-  }, [lang, ttsEnabled, isMuted]);
+  }, [lang, ttsEnabled, isMuted, isJSIReady, registerJSIFailure, resetJSICircuit]);
 
   const speak = useCallback((
     text: string,
@@ -310,10 +353,10 @@ export function useVoice(lang: string = 'en', psyProfile?: { O: number, C: numbe
     setIsSpeaking(true);
 
     if (onDone) {
-      const wordsCount = cleanText.split(/\s+/).length;
-      const timeoutMs = Math.max(3500, wordsCount * 600 + 3000);
+      const progressiveTimeoutMs = Math.min(Math.max(5000, cleanText.split(/\s+/).length * 500 + 5000), 60000);
       fallbackTimeoutId = setTimeout(async () => {
-        console.warn(`[VOICE_ROBUSTNESS] Speech fallback timeout reached (${timeoutMs}ms) for: "${cleanText.substring(0, 30)}...". Forcing safeOnDone.`);
+        logTTS('FALLBACK_TIMEOUT', `Speech fallback timeout reached (${progressiveTimeoutMs}ms) for: "${cleanText.substring(0, 30)}...".`);
+        console.warn(`[VOICE_ROBUSTNESS] Speech fallback timeout reached (${progressiveTimeoutMs}ms) for: "${cleanText.substring(0, 30)}...". Forcing safeOnDone.`);
         try {
           const settings = await getSettings();
           if (!settings.useCloudTTS && selectedVoiceId) {
@@ -322,7 +365,7 @@ export function useVoice(lang: string = 'en', psyProfile?: { O: number, C: numbe
           }
         } catch (e) { }
         safeOnDone();
-      }, timeoutMs);
+      }, progressiveTimeoutMs);
     }
 
     const performSpeak = async () => {
@@ -349,7 +392,8 @@ export function useVoice(lang: string = 'en', psyProfile?: { O: number, C: numbe
       }
 
       // 🚀 ZERO LATENCY FAST PATH (JSI + Oboe C++)
-      if (!isEmulatorRef.current && typeof (global as any).animaFeedAudioChunk === 'function') {
+      const jsiOk = await isJSIReady();
+      if (jsiOk && typeof (global as any).animaFeedAudioChunk === 'function') {
         try {
           let audioBuffer: Float32Array | Int16Array | ArrayBuffer | null = null;
           if (preloadedData && (preloadedData instanceof Float32Array || preloadedData instanceof Int16Array || preloadedData instanceof ArrayBuffer)) {
@@ -361,14 +405,17 @@ export function useVoice(lang: string = 'en', psyProfile?: { O: number, C: numbe
             } else if (!isMuted) {
               // 🚀 NATIVE TTS JSI FAST PATH (GAPLESS)
               try {
+                logTTS('SYNTHESIZE_NATIVE', '⚡ Synthesizing Native TTS to PCM...');
                 console.log('[VOICE] ⚡ Synthesizing Native TTS to PCM...');
                 const uint8Array = await promiseWithTimeout(
                   AnimaVoice.synthesizeNativeToPCM(cleanText, lang),
-                  7000,
+                  JSI_TIMEOUT_MS,
                   'Native TTS synthesis timeout'
                 );
                 audioBuffer = new Int16Array(uint8Array.buffer, uint8Array.byteOffset, uint8Array.length / 2);
+                resetJSICircuit();
               } catch (nativeErr) {
+                registerJSIFailure();
                 console.warn('[VOICE] Native PCM synthesis failed or timed out, falling back to expo-speech:', nativeErr);
               }
             }
@@ -380,31 +427,32 @@ export function useVoice(lang: string = 'en', psyProfile?: { O: number, C: numbe
           );
 
           if (hasData) {
+            logTTS('PUSH_BUFFER', '⚡ Pushing audio buffer via zero-latency JSI bridge.');
             console.log('[VOICE] ⚡ Pushing audio buffer via zero-latency JSI bridge.');
             let durationMs = 0;
             
             if (audioBuffer instanceof Float32Array) {
-               (global as any).animaFeedAudioChunk(audioBuffer.buffer);
-               durationMs = (audioBuffer.length / 24000) * 1000;
+              (global as any).animaFeedAudioChunk(audioBuffer.buffer);
+              durationMs = (audioBuffer.length / 24000) * 1000;
             } else if (audioBuffer instanceof Int16Array) {
-               if (typeof (global as any).animaFeedAudioChunkInt16 === 'function') {
-                   (global as any).animaFeedAudioChunkInt16(audioBuffer.buffer);
-               } else {
-                   const floats = new Float32Array(audioBuffer.length);
-                   for (let i = 0; i < audioBuffer.length; i++) floats[i] = audioBuffer[i] / 32768.0;
-                   (global as any).animaFeedAudioChunk(floats.buffer);
-               }
-               durationMs = (audioBuffer.length / 24000) * 1000;
+              if (typeof (global as any).animaFeedAudioChunkInt16 === 'function') {
+                (global as any).animaFeedAudioChunkInt16(audioBuffer.buffer);
+              } else {
+                const floats = new Float32Array(audioBuffer.length);
+                for (let i = 0; i < audioBuffer.length; i++) floats[i] = audioBuffer[i] / 32768.0;
+                (global as any).animaFeedAudioChunk(floats.buffer);
+              }
+              durationMs = (audioBuffer.length / 24000) * 1000;
             } else if (audioBuffer instanceof ArrayBuffer) {
-               if (typeof (global as any).animaFeedAudioChunkInt16 === 'function') {
-                   (global as any).animaFeedAudioChunkInt16(audioBuffer);
-               } else {
-                   const int16 = new Int16Array(audioBuffer);
-                   const floats = new Float32Array(int16.length);
-                   for (let i = 0; i < int16.length; i++) floats[i] = int16[i] / 32768.0;
-                   (global as any).animaFeedAudioChunk(floats.buffer);
-               }
-               durationMs = (audioBuffer.byteLength / 2 / 24000) * 1000;
+              if (typeof (global as any).animaFeedAudioChunkInt16 === 'function') {
+                (global as any).animaFeedAudioChunkInt16(audioBuffer);
+              } else {
+                const int16 = new Int16Array(audioBuffer);
+                const floats = new Float32Array(int16.length);
+                for (let i = 0; i < int16.length; i++) floats[i] = int16[i] / 32768.0;
+                (global as any).animaFeedAudioChunk(floats.buffer);
+              }
+              durationMs = (audioBuffer.byteLength / 2 / 24000) * 1000;
             }
 
             setTimeout(() => {
@@ -537,11 +585,13 @@ export function useVoice(lang: string = 'en', psyProfile?: { O: number, C: numbe
 
       // --- LOCAL FALLBACK: expo-speech (Android TTS engine) ---
       if (isMuted) {
+        logTTS('SKIP_FALLBACK', 'Silence Mode Active. Skipping TTS.');
         console.log('[VOICE] Silence Mode Active. Skipping TTS.');
         safeOnDone();
         return;
       }
 
+      logTTS('FALLBACK', '🔊 Using expo-speech fallback (JSI unavailable or not configured).');
       console.log('[VOICE] 🔊 Using expo-speech fallback (JSI unavailable or not configured).');
 
       // On Android, explicitly yield the expo-av AudioFocus before calling Speech.speak().
@@ -626,7 +676,7 @@ export function useVoice(lang: string = 'en', psyProfile?: { O: number, C: numbe
     };
 
     performSpeak();
-  }, [lang, ttsEnabled, psyProfile, selectedVoiceId, isMuted, selectedOfflineVoiceId, selectedOfflineSpeakerId]);
+  }, [lang, ttsEnabled, psyProfile, selectedVoiceId, isMuted, selectedOfflineVoiceId, selectedOfflineSpeakerId, isJSIReady, registerJSIFailure, resetJSICircuit]);
 
   const stopSpeaking = useCallback(async () => {
     currentSessionIdRef.current++; // Invalidate any active speech session callbacks immediately
