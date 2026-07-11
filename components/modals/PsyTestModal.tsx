@@ -1,54 +1,161 @@
-import React from 'react';
+import React, { useState } from 'react';
 /**
- * PSYCHOMETRIC FOUNDATIONS - AI SANCTUARY (SANCTUARY v4.0)
- * ---------------------------------------------------
- * 1. OCEAN+: Based on the Five-Factor Model (Big Five) expanded with 
- *    custom dimensions for Decision Speed (D) and Learning Style (L).
- * 2. Aptitudes: Based on the GATB (General Aptitude Test Battery), 
- *    evaluating logical, numerical, verbal, and spatial reasoning.
- * 3. Vocational: Based on the Holland Code (RIASEC): 
- *    Realistic, Investigative, Artistic, Social, Enterprising, and Conventional.
- * 4. Anxiety: Based on the GAD-7 (Generalized Anxiety Disorder) 
- *    expanded with elements from the BAI (Beck Anxiety Inventory).
- * 5. Mood (Mood Balance): Based on the PHQ-9 and the 
- *    Warwick-Edinburgh Mental Well-being Scale, focused on "Emotional Balance".
- * 6. Personalidad 16r: Based on Carl Jung's theory of psychological types 
- *    (Extraversion/Introversion, Sensing/Intuition, Thinking/Feeling, Judging/Perceiving).
+ * PSYCHOMETRIC FOUNDATIONS - AI DIARY (v2.0 — Fixed Results Visualizer)
+ * -------------------------------------------------------------------
+ * FIX v2.0: Results are stored in LOCAL state computed immediately when
+ * the last answer is pressed — NOT read from the async psyProfile context.
+ * This guarantees results screen shows correct data right away.
+ * Tests: OCEAN+, Aptitude, Vocational, Anxiety/Balance, Mood, MBTI 16r.
  */
-import { Modal, View, Text, TouchableOpacity, ScrollView, StyleSheet, Platform, SafeAreaView } from 'react-native';
-import { IconSymbol } from '../ui/icon-symbol';
+import {
+  Modal, View, Text, TouchableOpacity, ScrollView, StyleSheet,
+  Platform, SafeAreaView, Animated, Easing,
+} from 'react-native';
 
 export interface PsyProfile {
-  O: number;
-  C: number;
-  E: number;
-  A: number;
-  N: number;
-  D: number;
-  L: number;
-  // New metrics for other tests
-  aptitudeScore?: number;
-  vocationalType?: string;
-  anxietyLevel?: string;
-  moodBalance?: number;
-  mbtiType?: string;
+  O: number; C: number; E: number; A: number; N: number; D: number; L: number;
+  aptitudeScore?: number; vocationalType?: string; anxietyLevel?: string;
+  moodBalance?: number; mbtiType?: string;
 }
-
 export type TestType = 'ocean' | 'aptitude' | 'vocational' | 'anxiety' | 'mood' | 'mbti';
 
 interface PsyTestModalProps {
-  visible: boolean;
-  onClose: () => void;
-  lang: 'en' | 'es';
-  colors: any;
-  psyProfile: PsyProfile;
-  psyStep: number;
-  setPsyStep: (step: number) => void;
-  psyAnswers: number[];
-  setPsyAnswers: (answers: number[] | ((prev: number[]) => number[])) => void;
-  activeTest: TestType;
-  scoreTest: (type: TestType, answers: number[]) => void;
+  visible: boolean; onClose: () => void; lang: 'en' | 'es'; colors: any;
+  psyProfile: PsyProfile; psyStep: number; setPsyStep: (step: number) => void;
+  psyAnswers: number[]; setPsyAnswers: (answers: number[] | ((prev: number[]) => number[])) => void;
+  activeTest: TestType; scoreTest: (type: TestType, answers: number[]) => void;
 }
+
+// ─── Self-contained scoring (no async context dependency) ─────────────────────
+
+function scoreOcean(answers: number[], questions: any[]): Record<string, number> {
+  const dims: Record<string, number[]> = { O: [], C: [], E: [], A: [], N: [], D: [], L: [] };
+  answers.forEach((ansIdx, i) => {
+    const opt = questions[i]?.opts[ansIdx];
+    if (opt?.dim && dims[opt.dim] !== undefined) dims[opt.dim].push(opt.val ?? 0);
+  });
+  const avg = (arr: number[]) => arr.length > 0 ? arr.reduce((a, b) => a + b, 0) / arr.length : 0.5;
+  return { O: avg(dims.O), C: avg(dims.C), E: avg(dims.E), A: avg(dims.A), N: avg(dims.N), D: avg(dims.D), L: avg(dims.L) };
+}
+
+function scoreAptitude(answers: number[], questions: any[]): number {
+  let correct = 0;
+  answers.forEach((ansIdx, i) => { if (questions[i]?.opts[ansIdx]?.correct === true) correct++; });
+  return correct / Math.max(questions.length, 1);
+}
+
+function scoreVocational(answers: number[], questions: any[]): Record<string, number> {
+  const dims: Record<string, number> = { R: 0, I: 0, A: 0, S: 0, E: 0, C: 0 };
+  answers.forEach((ansIdx, i) => {
+    const qType = questions[i]?.opts[0]?.type as string;
+    if (qType && dims[qType] !== undefined) {
+      dims[qType] += ansIdx === 0 ? 1 : ansIdx === 1 ? 0.7 : ansIdx === 2 ? 0.4 : 0;
+    }
+  });
+  return dims;
+}
+
+function scoreAnxiety(answers: number[], questions: any[]): { score: number; level: string } {
+  const total = answers.reduce((sum, ansIdx, i) => sum + (questions[i]?.opts[ansIdx]?.val ?? 0), 0);
+  const pct = total / (questions.length * 3);
+  const level = pct < 0.2 ? 'minimal' : pct < 0.4 ? 'mild' : pct < 0.6 ? 'moderate' : 'severe';
+  return { score: 1 - pct, level };
+}
+
+function scoreMood(answers: number[], questions: any[]): number {
+  const total = answers.reduce((sum, ansIdx, i) => sum + (questions[i]?.opts[ansIdx]?.val ?? 0), 0);
+  return 1 - total / (questions.length * 3);
+}
+
+function scoreMbti(answers: number[], questions: any[]): string {
+  const dims: Record<string, number> = { E: 0, I: 0, S: 0, N: 0, T: 0, F: 0, J: 0, P: 0 };
+  answers.forEach((ansIdx, i) => { const opt = questions[i]?.opts[ansIdx]; if (opt?.dim) dims[opt.dim]++; });
+  return (dims.E >= dims.I ? 'E' : 'I') + (dims.S >= dims.N ? 'S' : 'N') +
+         (dims.T >= dims.F ? 'T' : 'F') + (dims.J >= dims.P ? 'J' : 'P');
+}
+
+// ─── MBTI Archetypes ──────────────────────────────────────────────────────────
+const MBTI_ARCHETYPES: Record<string, { emoji: string; en: string; es: string; desc_en: string; desc_es: string }> = {
+  INTJ: { emoji: '🏛️', en: 'The Architect',    es: 'El Arquitecto',  desc_en: 'Strategic, independent, driven by vision.',        desc_es: 'Estratégico, independiente, guiado por la visión.' },
+  INTP: { emoji: '🔬', en: 'The Thinker',      es: 'El Pensador',    desc_en: 'Innovative logician who loves ideas.',             desc_es: 'Lógico innovador que ama las ideas.' },
+  ENTJ: { emoji: '⚡', en: 'The Commander',    es: 'El Comandante',  desc_en: 'Bold leader who always finds a way.',              desc_es: 'Líder audaz que siempre encuentra el camino.' },
+  ENTP: { emoji: '💡', en: 'The Debater',      es: 'El Debatidor',   desc_en: 'Quick-witted, loves intellectual challenges.',     desc_es: 'Mente ágil, ama los retos intelectuales.' },
+  INFJ: { emoji: '🌿', en: 'The Advocate',     es: 'El Defensor',    desc_en: 'Quiet idealist with deep insights.',              desc_es: 'Idealista tranquilo con visión profunda.' },
+  INFP: { emoji: '🦋', en: 'The Mediator',     es: 'El Mediador',    desc_en: 'Poetic, empathetic, values authenticity.',        desc_es: 'Poético, empático, valora la autenticidad.' },
+  ENFJ: { emoji: '🌟', en: 'The Protagonist',  es: 'El Protagonista',desc_en: 'Charismatic leader who inspires others.',         desc_es: 'Líder carismático que inspira a los demás.' },
+  ENFP: { emoji: '🎇', en: 'The Campaigner',   es: 'El Inspirador',  desc_en: 'Enthusiastic creative; life is full of possibilities.', desc_es: 'Creativo entusiasta; ve la vida llena de posibilidades.' },
+  ISTJ: { emoji: '📋', en: 'The Logistician',  es: 'El Logístico',   desc_en: 'Practical, reliable, detail-oriented.',           desc_es: 'Práctico, confiable, orientado al detalle.' },
+  ISFJ: { emoji: '🛡️', en: 'The Defender',     es: 'El Protector',   desc_en: 'Dedicated, warm protector.',                     desc_es: 'Protector dedicado y cálido.' },
+  ESTJ: { emoji: '⚖️', en: 'The Executive',    es: 'El Ejecutivo',   desc_en: 'Order, structure, tradition — the manager.',      desc_es: 'Orden, estructura, tradición — el gestor.' },
+  ESFJ: { emoji: '🤝', en: 'The Consul',       es: 'El Cónsul',      desc_en: 'Popular, caring, social harmony seeker.',         desc_es: 'Popular, solidario, busca armonía social.' },
+  ISTP: { emoji: '🔧', en: 'The Virtuoso',     es: 'El Virtuoso',    desc_en: 'Bold experimenter who masters tools.',            desc_es: 'Experimentador audaz, maestro de herramientas.' },
+  ISFP: { emoji: '🎨', en: 'The Adventurer',   es: 'El Aventurero',  desc_en: 'Flexible artist, true to their nature.',          desc_es: 'Artista flexible, fiel a su naturaleza.' },
+  ESTP: { emoji: '🏄', en: 'The Entrepreneur', es: 'El Emprendedor', desc_en: 'Smart, energetic, perceptive.',                   desc_es: 'Inteligente, enérgico, perspicaz.' },
+  ESFP: { emoji: '🎭', en: 'The Entertainer',  es: 'El Animador',    desc_en: 'Spontaneous, energetic, brings joy.',             desc_es: 'Espontáneo, enérgico, trae alegría.' },
+};
+
+// ─── Holland Vocational Labels ────────────────────────────────────────────────
+const HOLLAND_LABELS: Record<string, { emoji: string; en: string; es: string; careers_en: string; careers_es: string }> = {
+  R: { emoji: '🔨', en: 'Realistic',     es: 'Realista',     careers_en: 'Engineering, Trades, Agriculture',       careers_es: 'Ingeniería, Oficios, Agricultura' },
+  I: { emoji: '🔭', en: 'Investigative', es: 'Investigador', careers_en: 'Science, Research, Medicine',            careers_es: 'Ciencia, Investigación, Medicina' },
+  A: { emoji: '🎨', en: 'Artistic',      es: 'Artístico',    careers_en: 'Design, Music, Writing',                 careers_es: 'Diseño, Música, Escritura' },
+  S: { emoji: '🤗', en: 'Social',        es: 'Social',       careers_en: 'Teaching, Counseling, Healthcare',       careers_es: 'Docencia, Consejería, Salud' },
+  E: { emoji: '💼', en: 'Enterprising',  es: 'Emprendedor',  careers_en: 'Business, Law, Management',              careers_es: 'Negocios, Derecho, Gestión' },
+  C: { emoji: '📊', en: 'Conventional',  es: 'Convencional', careers_en: 'Accounting, Administration, Finance',    careers_es: 'Contabilidad, Administración, Finanzas' },
+};
+
+// ─── OCEAN dimension metadata ─────────────────────────────────────────────────
+const OCEAN_META: Record<string, { emoji: string; color: string; label_en: string; label_es: string }> = {
+  O: { emoji: '🔭', color: '#a855f7', label_en: 'Openness',          label_es: 'Apertura' },
+  C: { emoji: '📋', color: '#3b82f6', label_en: 'Conscientiousness', label_es: 'Responsabilidad' },
+  E: { emoji: '🌟', color: '#f59e0b', label_en: 'Extraversion',      label_es: 'Extraversión' },
+  A: { emoji: '🤝', color: '#10b981', label_en: 'Agreeableness',     label_es: 'Amabilidad' },
+  N: { emoji: '⚓', color: '#06b6d4', label_en: 'Stability',         label_es: 'Estabilidad' },
+  D: { emoji: '⚡', color: '#f97316', label_en: 'Decision Speed',    label_es: 'Velocidad de Decisión' },
+  L: { emoji: '📚', color: '#8b5cf6', label_en: 'Learning Style',    label_es: 'Estilo de Aprendizaje' },
+};
+
+// ─── Animated horizontal bar ───────────────────────────────────────────────────
+const AnimatedBar: React.FC<{ label: string; emoji: string; value: number; color: string; colors: any; delay: number }> =
+  ({ label, emoji, value, color, colors, delay }) => {
+  const [width] = useState(new Animated.Value(0));
+  React.useEffect(() => {
+    Animated.timing(width, {
+      toValue: Math.max(0, Math.min(1, value)), duration: 600, delay,
+      easing: Easing.out(Easing.cubic), useNativeDriver: false,
+    }).start();
+  }, [value]);
+  return (
+    <View style={{ marginBottom: 14 }}>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 5 }}>
+        <Text style={{ color: colors.textPrimary, fontWeight: '600', fontSize: 14 }}>{emoji}  {label}</Text>
+        <Text style={{ color, fontSize: 14, fontWeight: 'bold' }}>{Math.round(value * 100)}%</Text>
+      </View>
+      <View style={{ backgroundColor: colors.surfaceSecondary, height: 10, borderRadius: 5, overflow: 'hidden' }}>
+        <Animated.View style={{
+          backgroundColor: color, height: 10, borderRadius: 5,
+          width: width.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] }),
+        }} />
+      </View>
+    </View>
+  );
+};
+
+// ─── Circular gauge indicator ─────────────────────────────────────────────────
+const GaugeIndicator: React.FC<{ score: number; color: string; label: string; colors: any }> =
+  ({ score, color, label, colors }) => (
+  <View style={{ alignItems: 'center', marginVertical: 16 }}>
+    <View style={{
+      width: 120, height: 120, borderRadius: 60, borderWidth: 12,
+      borderColor: colors.surfaceSecondary, justifyContent: 'center',
+      alignItems: 'center', backgroundColor: colors.surface,
+      shadowColor: color, shadowOpacity: 0.35, shadowRadius: 14, elevation: 8,
+    }}>
+      <Text style={{ color, fontSize: 26, fontWeight: 'bold' }}>{Math.round(score * 100)}%</Text>
+    </View>
+    <Text style={{ color: colors.textPrimary, fontWeight: 'bold', fontSize: 15, marginTop: 12 }}>{label}</Text>
+  </View>
+);
 
 export const PSY_QUESTIONS = [
   // Core 10 questions (Indices 0-9)
@@ -497,178 +604,436 @@ export const MBTI_QUESTIONS = [
 ];
 
 export const PsyTestModal: React.FC<PsyTestModalProps> = ({
-  visible,
-  onClose,
-  lang,
-  colors,
-  psyProfile,
-  psyStep,
-  setPsyStep,
-  psyAnswers,
-  setPsyAnswers,
-  activeTest,
-  scoreTest
+  visible, onClose, lang, colors, psyProfile,
+  psyStep, setPsyStep, psyAnswers, setPsyAnswers, activeTest, scoreTest,
 }) => {
+  // Local results: computed immediately on last answer — no async context wait
+  const [localResults, setLocalResults] = useState<any>(null);
+
   const getQuestions = () => {
-    switch(activeTest) {
-      case 'aptitude': return APTITUDE_QUESTIONS;
-      case 'vocational': return VOCATIONAL_QUESTIONS;
-      case 'anxiety': return ANXIETY_QUESTIONS;
-      case 'mood': return MOOD_QUESTIONS;
-      case 'mbti': return MBTI_QUESTIONS;
-      default: return PSY_QUESTIONS;
+    switch (activeTest) {
+      case 'aptitude':  return APTITUDE_QUESTIONS;
+      case 'vocational':return VOCATIONAL_QUESTIONS;
+      case 'anxiety':   return ANXIETY_QUESTIONS;
+      case 'mood':      return MOOD_QUESTIONS;
+      case 'mbti':      return MBTI_QUESTIONS;
+      default:          return PSY_QUESTIONS;
     }
   };
-
-  const questions = getQuestions();
+  const questions      = getQuestions();
   const totalQuestions = questions.length;
 
-  const psyDimensionLabel = (key: string): string => {
-    const labels: Record<string, Record<string, string>> = {
-      O: { en: 'Openness', es: 'Apertura' },
-      C: { en: 'Conscientiousness', es: 'Responsabilidad' },
-      E: { en: 'Extraversion', es: 'Extraversión' },
-      A: { en: 'Agreeableness', es: 'Amabilidad' },
-      N: { en: 'Stability', es: 'Estabilidad' },
-      D: { en: 'Decision Speed', es: 'Velocidad de Decisión' },
-      L: { en: 'Learning Style', es: 'Estilo de Aprendizaje' },
-    };
-    return labels[key]?.[lang] || key;
+  // ── Handle answer tap ───────────────────────────────────────────────────────
+  const handleAnswer = (ansIdx: number) => {
+    const newAnswers = [...psyAnswers, ansIdx];
+    setPsyAnswers(newAnswers);
+
+    if (psyStep + 1 < totalQuestions) {
+      setPsyStep(psyStep + 1);
+      return;
+    }
+
+    // Last answer → compute results locally BEFORE calling parent (async)
+    let results: any = {};
+    switch (activeTest) {
+      case 'ocean':
+        results = { type: 'ocean', scores: scoreOcean(newAnswers, questions) };
+        break;
+      case 'aptitude':
+        results = { type: 'aptitude', score: scoreAptitude(newAnswers, questions) };
+        break;
+      case 'vocational': {
+        const dims = scoreVocational(newAnswers, questions);
+        const sorted = Object.entries(dims).sort(([, a], [, b]) => b - a);
+        results = { type: 'vocational', dims, topTypes: sorted.slice(0, 3).map(([k]) => k) };
+        break;
+      }
+      case 'anxiety': {
+        const { score, level } = scoreAnxiety(newAnswers, questions);
+        results = { type: 'anxiety', score, level };
+        break;
+      }
+      case 'mood':
+        results = { type: 'mood', score: scoreMood(newAnswers, questions) };
+        break;
+      case 'mbti':
+        results = { type: 'mbti', mbtiType: scoreMbti(newAnswers, questions) };
+        break;
+    }
+    setLocalResults(results);
+    setPsyStep(totalQuestions);
+    scoreTest(activeTest, newAnswers); // persist to DB (fire-and-forget)
+  };
+
+  // ── Export current test result as PDF ───────────────────────────────────────
+  const handleExportResults = async () => {
+    if (!localResults) return;
+    try {
+      const getVal = (v: number) => `${Math.round(v * 100)}%`;
+      let html = '';
+
+      if (localResults.type === 'ocean') {
+        const scores = localResults.scores as Record<string, number>;
+        const rows = Object.entries(scores)
+          .filter(([k]) => ['O','C','E','A','N','D','L'].includes(k))
+          .map(([key, val]) => {
+            const m = OCEAN_META[key];
+            return `<tr><td style="padding:8px;font-weight:bold;">${m?.emoji} ${lang==='es'?m?.label_es:m?.label_en} (${key})</td>
+              <td style="padding:8px;"><div style="background:#e5e7eb;border-radius:6px;height:14px;overflow:hidden;">
+              <div style="width:${Math.round(val*100)}%;height:14px;background:${m?.color};border-radius:6px;"></div></div></td>
+              <td style="padding:8px;font-weight:bold;color:${m?.color};">${Math.round(val*100)}%</td></tr>`;
+          }).join('');
+        html = `<html><head><style>body{font-family:sans-serif;padding:32px;color:#222;}h1{color:#7c3aed;}table{width:100%;border-collapse:collapse;}</style></head>
+          <body><h1>🧠 ${lang==='es'?'Perfil OCEAN+':'OCEAN+ Profile'}</h1>
+          <p>${lang==='es'?'Fecha':'Date'}: ${new Date().toLocaleDateString()}</p>
+          <table>${rows}</table></body></html>`;
+
+      } else if (localResults.type === 'mbti') {
+        const arch = MBTI_ARCHETYPES[localResults.mbtiType] || {};
+        html = `<html><head><style>body{font-family:sans-serif;padding:32px;}.badge{font-size:52px;font-weight:900;letter-spacing:8px;color:#fff;background:#ec4899;padding:16px 32px;border-radius:12px;display:inline-block;}</style></head>
+          <body><h1>🎭 ${lang==='es'?'Perfil MBTI (16r)':'MBTI (16r) Profile'}</h1>
+          <p>${lang==='es'?'Fecha':'Date'}: ${new Date().toLocaleDateString()}</p>
+          <div class="badge">${localResults.mbtiType}</div>
+          <h2>${(arch as any).emoji||''} ${lang==='es'?(arch as any).es||'':( arch as any).en||''}</h2>
+          <p>${lang==='es'?(arch as any).desc_es||'':(arch as any).desc_en||''}</p></body></html>`;
+
+      } else if (localResults.type === 'aptitude') {
+        html = `<html><head><style>body{font-family:sans-serif;padding:32px;}.score{font-size:72px;font-weight:900;color:#3b82f6;}</style></head>
+          <body><h1>💡 ${lang==='es'?'Reporte de Aptitudes':'Aptitude Report'}</h1>
+          <p>${lang==='es'?'Fecha':'Date'}: ${new Date().toLocaleDateString()}</p>
+          <div class="score">${Math.round(localResults.score*100)}%</div>
+          <p>${lang==='es'?'Razonamiento lógico, numérico, verbal y espacial.':'Logical, numerical, verbal and spatial reasoning.'}</p></body></html>`;
+
+      } else if (localResults.type === 'vocational') {
+        const topLabels = (localResults.topTypes as string[]).map((t, idx) => {
+          const h = HOLLAND_LABELS[t];
+          return `<li style="margin:10px 0;${idx===0?'font-size:18px;':'font-size:15px;'}">${h?.emoji} <strong>${lang==='es'?h?.es:h?.en}</strong>${idx===0?` <span style="background:#f59e0b;color:#000;padding:2px 8px;border-radius:4px;font-size:11px;">${lang==='es'?'DOMINANTE':'DOMINANT'}</span>`:''}
+            <br><small style="color:#666;">${lang==='es'?h?.careers_es:h?.careers_en}</small></li>`;
+        }).join('');
+        html = `<html><head><style>body{font-family:sans-serif;padding:32px;}</style></head>
+          <body><h1>🎯 ${lang==='es'?'Reporte Vocacional (Holland)':'Vocational Report (Holland)'}</h1>
+          <p>${lang==='es'?'Fecha':'Date'}: ${new Date().toLocaleDateString()}</p>
+          <ul>${topLabels}</ul></body></html>`;
+
+      } else {
+        const pct = Math.round(localResults.score * 100);
+        const isAnxiety = localResults.type === 'anxiety';
+        const levelMap: Record<string, {en:string;es:string}> = {
+          minimal:{en:'Minimal',es:'Mínimo'}, mild:{en:'Mild',es:'Leve'},
+          moderate:{en:'Moderate',es:'Moderado'}, severe:{en:'Severe',es:'Severo'},
+        };
+        const levelLabel = localResults.level ? (lang==='es'?levelMap[localResults.level]?.es:levelMap[localResults.level]?.en)||'' : '';
+        html = `<html><head><style>body{font-family:sans-serif;padding:32px;}.score{font-size:72px;font-weight:900;color:#10b981;}</style></head>
+          <body><h1>${isAnxiety?'🌊':'🌿'} ${lang==='es'?(isAnxiety?'Balance Emocional':'Bienestar Emocional'):(isAnxiety?'Emotional Balance':'Emotional Well-being')}</h1>
+          <p>${lang==='es'?'Fecha':'Date'}: ${new Date().toLocaleDateString()}</p>
+          <div class="score">${pct}%</div>
+          ${levelLabel?`<p><strong>${lang==='es'?'Nivel':'Level'}:</strong> ${levelLabel}</p>`:''}
+          </body></html>`;
+      }
+
+      const Print   = await import('expo-print');
+      const Sharing = await import('expo-sharing');
+      const { uri } = await Print.printToFileAsync({ html });
+      await Sharing.shareAsync(uri);
+    } catch (e) { console.error('[PDF_RESULTS]', e); }
+  };
+
+  // ── Results screen renderer ─────────────────────────────────────────────────
+  const renderResults = () => {
+    if (!localResults) return null;
+    const accentColor = activeTest==='ocean'?'#a855f7': activeTest==='aptitude'?'#3b82f6':
+      activeTest==='vocational'?'#f59e0b': activeTest==='mbti'?'#ec4899':
+      activeTest==='anxiety'?'#06b6d4':'#10b981';
+
+    return (
+      <>
+        {/* ── Header ── */}
+        <View style={{ alignItems: 'center', paddingTop: 4, paddingBottom: 8 }}>
+          <Text style={{ fontSize: 38, marginBottom: 2 }}>✨</Text>
+          <Text style={{ color: accentColor, fontSize: 19, fontWeight: 'bold', textAlign: 'center' }}>
+            Ψ {lang==='es' ? 'Análisis Completado' : 'Analysis Complete'}
+          </Text>
+          <Text style={{ color: colors.textSecondary, fontSize: 12, marginTop: 3, textAlign: 'center' }}>
+            {lang==='es' ? 'Resultados guardados en tu perfil.' : 'Results saved to your profile.'}
+          </Text>
+        </View>
+
+        <ScrollView showsVerticalScrollIndicator={false} bounces={false} overScrollMode="never"
+          style={{ flex: 1, marginTop: 10 }} contentContainerStyle={{ paddingBottom: 8 }}>
+
+          {/* ══ OCEAN ══ */}
+          {localResults.type === 'ocean' && (
+            <View style={{ backgroundColor: colors.surfaceSecondary, borderRadius: 16, padding: 18 }}>
+              <Text style={{ color: colors.textPrimary, fontWeight: 'bold', fontSize: 16, marginBottom: 16, textAlign: 'center' }}>
+                🧠 {lang==='es' ? 'Perfil OCEAN+' : 'OCEAN+ Profile'}
+              </Text>
+              {Object.entries(localResults.scores as Record<string,number>).map(([key, val], i) => {
+                const meta = OCEAN_META[key]; if (!meta) return null;
+                return <AnimatedBar key={key} label={lang==='es'?meta.label_es:meta.label_en}
+                  emoji={meta.emoji} value={val} color={meta.color} colors={colors} delay={i*70} />;
+              })}
+            </View>
+          )}
+
+          {/* ══ MBTI ══ */}
+          {localResults.type === 'mbti' && (() => {
+            const arch = MBTI_ARCHETYPES[localResults.mbtiType] ||
+              { emoji: '🎭', en: localResults.mbtiType, es: localResults.mbtiType, desc_en: '', desc_es: '' };
+            return (
+              <View style={{ alignItems: 'center' }}>
+                <View style={{ backgroundColor: '#12002a', borderRadius: 20, padding: 24, marginBottom: 12,
+                  alignItems: 'center', width: '100%', borderWidth: 1, borderColor: '#ec4899' }}>
+                  <Text style={{ fontSize: 36, marginBottom: 6 }}>{arch.emoji}</Text>
+                  <View style={{ backgroundColor: '#ec4899', paddingHorizontal: 24, paddingVertical: 10,
+                    borderRadius: 12, marginBottom: 14,
+                    shadowColor: '#ec4899', shadowOpacity: 0.5, shadowRadius: 10, elevation: 8 }}>
+                    <Text style={{ color: '#fff', fontSize: 36, fontWeight: '900', letterSpacing: 6 }}>
+                      {localResults.mbtiType}
+                    </Text>
+                  </View>
+                  <Text style={{ color: '#fff', fontSize: 17, fontWeight: 'bold', marginBottom: 6 }}>
+                    {lang==='es' ? arch.es : arch.en}
+                  </Text>
+                  <Text style={{ color: '#bbb', fontSize: 13, textAlign: 'center', lineHeight: 20 }}>
+                    {lang==='es' ? arch.desc_es : arch.desc_en}
+                  </Text>
+                </View>
+                <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
+                  {['E/I','S/N','T/F','J/P'].map(pair => {
+                    const [a, b] = pair.split('/');
+                    const letter = localResults.mbtiType?.includes(a) ? a : b;
+                    return (
+                      <View key={pair} style={{ backgroundColor: colors.surfaceSecondary, borderRadius: 10,
+                        paddingHorizontal: 14, paddingVertical: 10, alignItems: 'center',
+                        borderWidth: 1, borderColor: '#ec4899' }}>
+                        <Text style={{ color: '#ec4899', fontSize: 18, fontWeight: 'bold' }}>{letter}</Text>
+                        <Text style={{ color: colors.textSecondary, fontSize: 10 }}>{pair}</Text>
+                      </View>
+                    );
+                  })}
+                </View>
+              </View>
+            );
+          })()}
+
+          {/* ══ Aptitude ══ */}
+          {localResults.type === 'aptitude' && (() => {
+            const pct = Math.round(localResults.score * 100);
+            const lv = pct>=85 ? { label_en:'Exceptional', label_es:'Excepcional', emoji:'🏆', color:'#f59e0b' }
+              : pct>=70 ? { label_en:'Advanced', label_es:'Avanzado', emoji:'🌟', color:'#3b82f6' }
+              : pct>=55 ? { label_en:'Solid', label_es:'Sólido', emoji:'💪', color:'#10b981' }
+              : { label_en:'Developing', label_es:'En Desarrollo', emoji:'📈', color:'#f97316' };
+            return (
+              <View style={{ backgroundColor: colors.surfaceSecondary, borderRadius: 16, padding: 18, alignItems: 'center' }}>
+                <Text style={{ fontSize: 36, marginBottom: 4 }}>{lv.emoji}</Text>
+                <GaugeIndicator score={localResults.score} color={lv.color}
+                  label={lang==='es'?lv.label_es:lv.label_en} colors={colors} />
+                <Text style={{ color: colors.textSecondary, fontSize: 13, textAlign: 'center', marginTop: 4, lineHeight: 18 }}>
+                  {lang==='es'?'Razonamiento lógico, numérico, verbal y espacial.':'Logical, numerical, verbal and spatial reasoning.'}
+                </Text>
+                <View style={{ flexDirection: 'row', gap: 8, marginTop: 14, flexWrap: 'wrap', justifyContent: 'center' }}>
+                  {[{l:lang==='es'?'Lógica':'Logic',e:'🔗'},{l:lang==='es'?'Numérica':'Numerical',e:'🔢'},
+                    {l:lang==='es'?'Verbal':'Verbal',e:'💬'},{l:lang==='es'?'Espacial':'Spatial',e:'🧩'}].map(s=>(
+                    <View key={s.l} style={{ backgroundColor: colors.surface, borderRadius: 10,
+                      paddingHorizontal: 12, paddingVertical: 8, alignItems: 'center',
+                      borderWidth: 1, borderColor: '#3b82f6' }}>
+                      <Text style={{ fontSize: 18 }}>{s.e}</Text>
+                      <Text style={{ color: colors.textPrimary, fontSize: 11, marginTop: 2 }}>{s.l}</Text>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            );
+          })()}
+
+          {/* ══ Vocational ══ */}
+          {localResults.type === 'vocational' && (() => {
+            const topTypes = localResults.topTypes as string[];
+            return (
+              <View style={{ backgroundColor: colors.surfaceSecondary, borderRadius: 16, padding: 18 }}>
+                <Text style={{ color: colors.textPrimary, fontWeight: 'bold', fontSize: 16, marginBottom: 14, textAlign: 'center' }}>
+                  🎯 {lang==='es' ? 'Tu Código Holland (RIASEC)' : 'Your Holland Code (RIASEC)'}
+                </Text>
+                {topTypes.map((t, idx) => {
+                  const h = HOLLAND_LABELS[t]; if (!h) return null;
+                  const highlight = idx === 0;
+                  return (
+                    <View key={t} style={{ backgroundColor: highlight?colors.surface:'transparent',
+                      borderRadius: 12, padding: 14, marginBottom: 10,
+                      borderWidth: highlight?1.5:1, borderColor: highlight?'#f59e0b':colors.border }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                        <Text style={{ fontSize: 26 }}>{h.emoji}</Text>
+                        <View style={{ flex: 1 }}>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                            <Text style={{ color: highlight?'#f59e0b':colors.textPrimary, fontWeight: 'bold', fontSize: 15 }}>
+                              {lang==='es'?h.es:h.en}
+                            </Text>
+                            {highlight && (
+                              <View style={{ backgroundColor: '#f59e0b', borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2 }}>
+                                <Text style={{ color: '#000', fontSize: 10, fontWeight: 'bold' }}>
+                                  {lang==='es'?'DOMINANTE':'DOMINANT'}
+                                </Text>
+                              </View>
+                            )}
+                          </View>
+                          <Text style={{ color: colors.textSecondary, fontSize: 12, marginTop: 3 }}>
+                            📌 {lang==='es'?h.careers_es:h.careers_en}
+                          </Text>
+                        </View>
+                      </View>
+                    </View>
+                  );
+                })}
+              </View>
+            );
+          })()}
+
+          {/* ══ Anxiety (Balance Emocional) ══ */}
+          {localResults.type === 'anxiety' && (() => {
+            const levelData: Record<string, {en:string;es:string;emoji:string;color:string;adv_en:string;adv_es:string}> = {
+              minimal: { en:'Minimal', es:'Mínimo',   emoji:'🌿', color:'#10b981', adv_en:'Very low anxiety. Keep up healthy habits!',       adv_es:'Ansiedad muy baja. ¡Mantén tus hábitos saludables!' },
+              mild:    { en:'Mild',    es:'Leve',     emoji:'😌', color:'#3b82f6', adv_en:'Mild signs. Mindfulness and exercise can help.',   adv_es:'Señales leves. La meditación y el ejercicio ayudan.' },
+              moderate:{ en:'Moderate',es:'Moderado', emoji:'🌊', color:'#f59e0b', adv_en:'Consider speaking to a professional.',            adv_es:'Considera hablar con un profesional.' },
+              severe:  { en:'Severe',  es:'Severo',   emoji:'⚠️', color:'#ef4444', adv_en:'Please reach out to a mental health professional.',adv_es:'Por favor contacta a un profesional de salud mental.' },
+            };
+            const lv = levelData[localResults.level] || levelData.minimal;
+            return (
+              <View style={{ backgroundColor: colors.surfaceSecondary, borderRadius: 16, padding: 18, alignItems: 'center' }}>
+                <Text style={{ fontSize: 36, marginBottom: 2 }}>{lv.emoji}</Text>
+                <Text style={{ color: lv.color, fontSize: 20, fontWeight: 'bold', marginBottom: 2 }}>
+                  {lang==='es'?lv.es:lv.en}
+                </Text>
+                <GaugeIndicator score={localResults.score} color={lv.color}
+                  label={lang==='es'?'Balance Emocional':'Emotional Balance'} colors={colors} />
+                <View style={{ backgroundColor: colors.surface, borderRadius: 12, padding: 14,
+                  borderWidth: 1, borderColor: lv.color, marginTop: 4 }}>
+                  <Text style={{ color: colors.textSecondary, fontSize: 13, textAlign: 'center', lineHeight: 20 }}>
+                    {lang==='es'?lv.adv_es:lv.adv_en}
+                  </Text>
+                </View>
+              </View>
+            );
+          })()}
+
+          {/* ══ Mood (Bienestar) ══ */}
+          {localResults.type === 'mood' && (() => {
+            const pct = Math.round(localResults.score * 100);
+            const moodColor = pct>=75?'#10b981':pct>=50?'#3b82f6':pct>=30?'#f59e0b':'#ef4444';
+            const moodLabel = pct>=75?{en:'Flourishing',es:'Floreciendo',emoji:'🌸'}
+              :pct>=50?{en:'Balanced',es:'Equilibrado',emoji:'🌿'}
+              :pct>=30?{en:'Struggling',es:'Con Dificultades',emoji:'🌦️'}
+              :{en:'Needs Attention',es:'Necesita Atención',emoji:'🆘'};
+            return (
+              <View style={{ backgroundColor: colors.surfaceSecondary, borderRadius: 16, padding: 18, alignItems: 'center' }}>
+                <Text style={{ fontSize: 36, marginBottom: 2 }}>{moodLabel.emoji}</Text>
+                <Text style={{ color: moodColor, fontSize: 20, fontWeight: 'bold', marginBottom: 2 }}>
+                  {lang==='es'?moodLabel.es:moodLabel.en}
+                </Text>
+                <GaugeIndicator score={localResults.score} color={moodColor}
+                  label={lang==='es'?'Bienestar Emocional':'Emotional Well-being'} colors={colors} />
+                <View style={{ flexDirection: 'row', gap: 10, justifyContent: 'center', marginTop: 8 }}>
+                  {['😔','😐','🙂','😊','🌟'].map((e, i) => {
+                    const active = Math.min(4, Math.round(pct / 25)) === i;
+                    return (
+                      <Text key={i} style={{ fontSize: 26, opacity: active ? 1 : 0.3,
+                        transform: [{ scale: active ? 1.3 : 1 }] }}>{e}</Text>
+                    );
+                  })}
+                </View>
+              </View>
+            );
+          })()}
+
+        </ScrollView>
+
+        {/* ── Action Buttons ─────────────────────────────────────────────────── */}
+        <View style={{ gap: 10, paddingTop: 10 }}>
+          <TouchableOpacity
+            style={{ backgroundColor: '#0d2b1a', borderRadius: 12, padding: 14,
+              alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8,
+              borderWidth: 1, borderColor: '#10b981' }}
+            onPress={handleExportResults}
+          >
+            <Text style={{ fontSize: 18 }}>📄</Text>
+            <Text style={{ color: '#10b981', fontWeight: 'bold', fontSize: 14 }}>
+              {lang==='es' ? 'EXPORTAR RESULTADOS (PDF)' : 'EXPORT RESULTS (PDF)'}
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={{ backgroundColor: colors.surfaceSecondary, borderRadius: 12, padding: 14,
+              alignItems: 'center', borderWidth: 1, borderColor: colors.border }}
+            onPress={onClose}
+          >
+            <Text style={{ color: colors.textPrimary, fontWeight: 'bold', fontSize: 14 }}>
+              {lang==='es' ? '✓  CERRAR' : '✓  CLOSE'}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </>
+    );
+  };
+
+  // ── Question screen ─────────────────────────────────────────────────────────
+  const testTitle: Record<TestType, string> = {
+    ocean:     lang==='es'?'Test OCEAN+':'OCEAN+ Test',
+    aptitude:  lang==='es'?'Test de Aptitudes':'Aptitude Test',
+    vocational:lang==='es'?'Test Vocacional':'Vocational Test',
+    anxiety:   lang==='es'?'Test de Balance Emocional':'Emotional Balance Test',
+    mood:      lang==='es'?'Test de Bienestar':'Well-being Test',
+    mbti:      lang==='es'?'Personalidad 16r':'16r Personality Test',
   };
 
   return (
-    <Modal 
-      visible={visible} 
-      animationType="slide" 
-      transparent={false} 
-      statusBarTranslucent={false}
-      onRequestClose={onClose}
-    >
-      <View 
-        style={{ 
-          flex: 1, 
-          width: '100%', 
-          height: '100%', 
-          backgroundColor: colors.background, 
-          margin: 0, 
-          padding: 0
-        }}
-      >
+    <Modal visible={visible} animationType="slide" transparent={false}
+      statusBarTranslucent={false} onRequestClose={onClose}>
+      <View style={{ flex: 1, width: '100%', height: '100%', backgroundColor: colors.background }}>
         <SafeAreaView style={{ flex: 1 }}>
           <View style={{ flex: 1, padding: 20, paddingBottom: Platform.OS === 'android' ? 85 : 20 }}>
-          {psyStep < totalQuestions ? (
-            <>
-              <Text style={[styles.modalTitle, { color: colors.primary, textAlign: 'center' }]}>
-                Ψ {activeTest === 'ocean' ? (lang === 'es' ? 'Test OCEAN+' : 'OCEAN+ Test') : 
-                   activeTest === 'aptitude' ? (lang === 'es' ? 'Test de Aptitudes' : 'Aptitude Test') :
-                   activeTest === 'vocational' ? (lang === 'es' ? 'Test Vocacional' : 'Vocational Test') :
-                   activeTest === 'anxiety' ? (lang === 'es' ? 'Test de Ansiedad' : 'Anxiety Test') :
-                   (lang === 'es' ? 'Test de Estado de Ánimo (Mood)' : 'Mood Balance Test')}
-              </Text>
-              <Text style={{ color: colors.textSecondary, textAlign: 'center', marginBottom: 5, fontSize: 12 }}>
-                {psyStep + 1} / {totalQuestions}
-              </Text>
 
-              <View style={{ backgroundColor: colors.surfaceSecondary, height: 4, borderRadius: 2, marginBottom: 20 }}>
-                <View style={{ backgroundColor: colors.primary, height: 4, borderRadius: 2, width: `${((psyStep + 1) / totalQuestions) * 100}%` }} />
-              </View>
-
-              <ScrollView 
-                showsVerticalScrollIndicator={false} 
-                bounces={false} 
-                overScrollMode="never"
-                style={{ flex: 1 }}
-                contentContainerStyle={{ paddingBottom: 20 }}
-              >
-                <Text style={{ color: colors.textPrimary, fontSize: 18, fontWeight: 'bold', marginBottom: 25, textAlign: 'center', lineHeight: 24 }}>
-                  {lang === 'es' ? questions[psyStep].q_es : questions[psyStep].q_en}
+            {psyStep < totalQuestions ? (
+              /* ── Question UI ── */
+              <>
+                <Text style={[styles.modalTitle, { color: colors.primary, textAlign: 'center' }]}>
+                  Ψ {testTitle[activeTest]}
                 </Text>
+                <Text style={{ color: colors.textSecondary, textAlign: 'center', marginBottom: 5, fontSize: 12 }}>
+                  {psyStep + 1} / {totalQuestions}
+                </Text>
+                <View style={{ backgroundColor: colors.surfaceSecondary, height: 4, borderRadius: 2, marginBottom: 20 }}>
+                  <View style={{ backgroundColor: colors.primary, height: 4, borderRadius: 2,
+                    width: `${((psyStep + 1) / totalQuestions) * 100}%` }} />
+                </View>
 
-                {questions[psyStep].opts.map((opt: any, idx: number) => (
-                  <TouchableOpacity
-                    key={idx}
-                    style={{
-                      padding: 16, borderWidth: 1, borderColor: colors.border,
-                      borderRadius: 10, marginBottom: 12, backgroundColor: colors.surfaceSecondary,
-                    }}
-                    onPress={() => {
-                      const newAnswers = [...psyAnswers, idx];
-                      setPsyAnswers(newAnswers);
-                      if (psyStep + 1 < totalQuestions) {
-                        setPsyStep(psyStep + 1);
-                      } else {
-                        setPsyStep(totalQuestions);
-                        scoreTest(activeTest, newAnswers);
-                      }
-                    }}
-                  >
-                    <Text style={{ color: colors.textPrimary, fontSize: 15 }}>
-                      {lang === 'es' ? opt.es : opt.en}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
+                <ScrollView showsVerticalScrollIndicator={false} bounces={false} overScrollMode="never"
+                  style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 20 }}>
+                  <Text style={{ color: colors.textPrimary, fontSize: 18, fontWeight: 'bold',
+                    marginBottom: 25, textAlign: 'center', lineHeight: 26 }}>
+                    {lang === 'es' ? questions[psyStep].q_es : questions[psyStep].q_en}
+                  </Text>
+                  {questions[psyStep].opts.map((opt: any, idx: number) => (
+                    <TouchableOpacity key={idx}
+                      style={{ padding: 16, borderWidth: 1, borderColor: colors.border,
+                        borderRadius: 10, marginBottom: 12, backgroundColor: colors.surfaceSecondary }}
+                      onPress={() => handleAnswer(idx)}>
+                      <Text style={{ color: colors.textPrimary, fontSize: 15 }}>
+                        {lang === 'es' ? opt.es : opt.en}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
 
-              <TouchableOpacity style={{ paddingVertical: 15, alignItems: 'center', marginTop: 10 }} onPress={onClose}>
-                <Text style={{ color: colors.textSecondary, fontSize: 15, fontWeight: 'bold' }}>{lang === 'es' ? 'Cancelar' : 'Cancel'}</Text>
-              </TouchableOpacity>
-            </>
-          ) : (
-            <>
-              <Text style={[styles.modalTitle, { color: colors.secondary, textAlign: 'center' }]}>
-                Ψ {lang === 'es' ? 'Análisis Completado' : 'Analysis Completed'}
-              </Text>
+                <TouchableOpacity style={{ paddingVertical: 15, alignItems: 'center' }} onPress={onClose}>
+                  <Text style={{ color: colors.textSecondary, fontSize: 15, fontWeight: 'bold' }}>
+                    {lang === 'es' ? 'Cancelar' : 'Cancel'}
+                  </Text>
+                </TouchableOpacity>
+              </>
+            ) : (
+              /* ── Results UI ── */
+              renderResults()
+            )}
 
-              <ScrollView 
-                showsVerticalScrollIndicator={false}
-                bounces={false}
-                overScrollMode="never"
-                style={{ flex: 1 }}
-                contentContainerStyle={{ paddingBottom: 20 }}
-              >
-                {activeTest === 'ocean' ? (
-                  Object.entries(psyProfile).filter(([k]) => ['O','C','E','A','N','D','L'].includes(k)).map(([key, val]) => (
-                    <View key={key} style={{ marginBottom: 16 }}>
-                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
-                        <Text style={{ color: colors.textPrimary, fontWeight: 'bold', fontSize: 14 }}>{psyDimensionLabel(key)}</Text>
-                        <Text style={{ color: colors.primary, fontSize: 14, fontWeight: 'bold' }}>{Math.round((val as number) * 100)}%</Text>
-                      </View>
-                      <View style={{ backgroundColor: colors.surfaceSecondary, height: 10, borderRadius: 5 }}>
-                        <View style={{ backgroundColor: colors.primary, height: 10, borderRadius: 5, width: `${(val as number) * 100}%` }} />
-                      </View>
-                    </View>
-                  ))
-                ) : activeTest === 'mbti' ? (
-                  <View style={{ padding: 20, alignItems: 'center' }}>
-                    <Text style={{ color: colors.textSecondary, fontSize: 15, marginBottom: 12 }}>{lang === 'es' ? 'Tu Arquetipo de Personalidad es:' : 'Your Personality Archetype is:'}</Text>
-                    <View style={{ backgroundColor: colors.primary, paddingHorizontal: 25, paddingVertical: 12, borderRadius: 12 }}>
-                      <Text style={{ color: '#FFF', fontSize: 36, fontWeight: 'bold', letterSpacing: 4 }}>{psyProfile.mbtiType || '----'}</Text>
-                    </View>
-                    <Text style={{ color: colors.textPrimary, fontSize: 18, marginTop: 25, textAlign: 'center', fontWeight: 'bold' }}>
-                      {lang === 'es' ? 'Perfil 16r Completado' : '16r Profile Completed'}
-                    </Text>
-                    <Text style={{ color: colors.textSecondary, textAlign: 'center', marginTop: 12, lineHeight: 20 }}>
-                      {lang === 'es' ? 'Este arquetipo ayudará a la IA a entender tus procesos de toma de decisiones y percepción.' : 'This archetype will help the AI understand your decision-making and perception processes.'}
-                    </Text>
-                  </View>
-                ) : (
-                  <View style={{ padding: 20, alignItems: 'center' }}>
-                    <IconSymbol name="checkmark.circle.fill" size={72} color={colors.secondary} />
-                    <Text style={{ color: colors.textPrimary, fontSize: 20, fontWeight: 'bold', marginTop: 25, textAlign: 'center' }}>
-                      {lang === 'es' ? 'Perfil Actualizado' : 'Profile Updated'}
-                    </Text>
-                    <Text style={{ color: colors.textSecondary, textAlign: 'center', marginTop: 12, lineHeight: 20 }}>
-                      {lang === 'es' ? 'Tu IA ha integrado estos nuevos datos en su núcleo de personalidad.' : 'Your AI has integrated this new data into its personality core.'}
-                    </Text>
-                  </View>
-                )}
-              </ScrollView>
-
-              <TouchableOpacity style={[styles.saveBtn, { backgroundColor: colors.primary, padding: 15, borderRadius: 10, marginTop: 10 }]} onPress={onClose}>
-                <Text style={styles.saveBtnText}>{lang === 'es' ? 'Finalizar' : 'Finish'}</Text>
-              </TouchableOpacity>
-            </>
-          )}
           </View>
         </SafeAreaView>
       </View>
@@ -677,19 +1042,5 @@ export const PsyTestModal: React.FC<PsyTestModalProps> = ({
 };
 
 const styles = StyleSheet.create({
-  modalOverlay: {
-    flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: 20
-  },
-  modalContent: {
-    width: '100%', borderRadius: 10, padding: 20, borderWidth: 1, borderColor: '#ccc'
-  },
-  modalTitle: {
-    fontSize: 18, fontWeight: 'bold', marginBottom: 15
-  },
-  saveBtn: {
-    padding: 12, borderRadius: 5, alignItems: 'center', marginTop: 10
-  },
-  saveBtnText: {
-    color: '#fff', fontWeight: 'bold', fontSize: 16
-  }
+  modalTitle: { fontSize: 18, fontWeight: 'bold', marginBottom: 15 },
 });
