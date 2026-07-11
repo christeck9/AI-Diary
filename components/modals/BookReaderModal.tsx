@@ -297,6 +297,22 @@ export const BookReaderModal: React.FC<BookReaderModalProps> = ({
       }
 
       console.log(`[READER] Speaking native fallback with language: ${targetLanguage}`);
+      if (Platform.OS === 'android') {
+        try {
+          await Audio.setAudioModeAsync({
+            allowsRecordingIOS: false,
+            playsInSilentModeIOS: true,
+            staysActiveInBackground: false,
+            shouldDuckAndroid: false,
+            interruptionModeAndroid: InterruptionModeAndroid.DoNotMix,
+            interruptionModeIOS: InterruptionModeIOS.DoNotMix,
+            playThroughEarpieceAndroid: false,
+          });
+        } catch (modeErr) {
+          console.warn('[READER] setAudioModeAsync pre-speech.speak() error:', modeErr);
+        }
+      }
+
       try {
         await Speech.stop(); // Reset Speech engine to clear any pending tasks
         Speech.speak(chunkText, {
