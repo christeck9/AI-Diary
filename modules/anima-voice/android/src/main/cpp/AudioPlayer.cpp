@@ -13,7 +13,7 @@ bool AudioPlayer::start() {
     oboe::AudioStreamBuilder builder;
     builder.setDirection(oboe::Direction::Output)
            ->setPerformanceMode(oboe::PerformanceMode::LowLatency)
-           ->setSharingMode(oboe::SharingMode::Exclusive)
+           ->setSharingMode(oboe::SharingMode::Shared) // Changed from Exclusive to allow mic/TTS coexistence
            ->setFormat(oboe::AudioFormat::Float)
            ->setChannelCount(1) // Mono
            ->setSampleRate(24000) // Inform Oboe that our DATA is 24kHz

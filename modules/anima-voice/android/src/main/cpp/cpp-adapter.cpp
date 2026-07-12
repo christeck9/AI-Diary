@@ -6,18 +6,26 @@
 using namespace facebook::jsi;
 
 static std::unique_ptr<AudioPlayer> player;
+static bool g_isJSIReady = false; // Global flag for JS to check
 
-extern "C" JNIEXPORT void JNICALL
+extern "C" JNIEXPORT jboolean JNICALL
 Java_com_christeck_animavoice_AnimaVoiceModule_nativeInstallJSI(JNIEnv *env, jobject thiz, jlong jsiPtr) {
     Runtime *runtime = reinterpret_cast<Runtime *>(jsiPtr);
-    if (!runtime) return;
+    if (!runtime) return false;
+
+    bool playerReady = false;
 
     if (!player) {
         player = std::make_unique<AudioPlayer>();
-        player->start();
+        if (!player->start()) {
+            __android_log_print(ANDROID_LOG_ERROR, "AnimaVoice", "❌ AudioPlayer start() FAILED - check logcat for Oboe error");
+            player.reset();
+            return false; // Signal failure to Kotlin
+        }
+        playerReady = true;
     }
 
-    // global.animaFeedAudioChunk(arrayBuffer)
+    // Install JSI APIs only if player is ready
     auto feedAudioChunk = Function::createFromHostFunction(
         *runtime,
         PropNameID::forAscii(*runtime, "animaFeedAudioChunk"),
@@ -81,6 +89,15 @@ Java_com_christeck_animavoice_AnimaVoiceModule_nativeInstallJSI(JNIEnv *env, job
         }
     );
     runtime->global().setProperty(*runtime, "animaInterruptAudio", std::move(interruptAudio));
+
+    // Expose global ready flag
+    g_isJSIReady = true;
+    auto readyValue = Boolean::createFromLiteral(*runtime, true);
+    runtime->global().setProperty(*runtime, "animaJSIReady", std::move(readyValue));
+
+    // Signal to JS that JSI audio is ready
+    __android_log_print(ANDROID_LOG_INFO, "AnimaVoice", "✅ JSI audio bridge ready");
+    return true;
 }
 
 // 🛡️ Cleanup JSI: Saneamiento nativo (KiloAuditC-JSI)
