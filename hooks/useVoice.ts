@@ -106,6 +106,7 @@ export function useVoice(lang: string = 'en', psyProfile?: { O: number, C: numbe
     }
     if (isEmulatorRef.current) { logTTS('SKIP', 'emulator'); return false; }
     if (typeof (global as any).animaFeedAudioChunk !== 'function') { logTTS('SKIP', 'no fn'); return false; }
+    if ((global as any).animaJSIReady !== true) { logTTS('SKIP', 'player not ready'); return false; }
     return true;
   }, [logTTS]);
 
