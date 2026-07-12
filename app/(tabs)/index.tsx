@@ -45,6 +45,7 @@ import { CognitiveNode } from '../../components/ui/CognitiveNode';
 import { VoiceNoteOverlay } from '../../components/VoiceNoteOverlay';
 import { ModelLoaderPanel } from '../../components/ModelLoaderPanel';
 import { ChatInputBar } from '../../components/ChatInputBar';
+import { chatBridge } from '../../lib/chatBridge';
 
 const VisionDownloadModal = React.lazy(() => import('../../components/VisionDownloadModal').then(m => ({ default: m.VisionDownloadModal })));
 
@@ -159,6 +160,9 @@ export default function NeuralLinkScreen() {
       try {
         const settings = await settingsService.get();
         if (settings.manualEcoMode) setManualEcoMode(true);
+        if (settings.consciousnessLevel !== undefined) {
+          setConsciousnessLevel(settings.consciousnessLevel);
+        }
       } catch (e) { console.log('Error loading settings', e); }
 
     };
@@ -201,6 +205,15 @@ export default function NeuralLinkScreen() {
     const showSub = Keyboard.addListener('keyboardDidShow', (e) => setKeyboardHeight(e.endCoordinates.height));
     const hideSub = Keyboard.addListener('keyboardDidHide', () => setKeyboardHeight(0));
     return () => { showSub.remove(); hideSub.remove(); };
+  }, []);
+
+  const changeConsciousnessLevel = useCallback(async (level: number) => {
+    setConsciousnessLevel(level);
+    try {
+      await settingsService.set({ consciousnessLevel: level });
+    } catch (e) {
+      console.log('Error saving consciousness level', e);
+    }
   }, []);
 
   const addSystemMessage = useCallback((text: string) => {
@@ -560,6 +573,16 @@ export default function NeuralLinkScreen() {
     prefillContextLlm,
     generateEmbeddings
   );
+
+  useEffect(() => {
+    chatBridge.registerHandler(async (request) => {
+      const userMsgId = `ai-desc-${Date.now()}`;
+      const userMsg = { id: userMsgId, role: 'user' as const, text: request.prompt, created_at: Date.now(), status: 'sent' as const };
+      setMessages(prev => [...prev, userMsg]);
+      const truncatedPrompt = request.prompt.length > 800 ? request.prompt.slice(0, 800) + '...' : request.prompt;
+      await processMessage(truncatedPrompt, userMsgId, setMessages, { forceTts: true });
+    });
+  }, [processMessage, setMessages]);
 
   const reversedFilteredMessages = useMemo(() => {
     const filtered = messages.filter(m => 
@@ -1642,7 +1665,7 @@ export default function NeuralLinkScreen() {
             setShowVoiceNoteModal={setShowVoiceNoteModal}
             dictation={dictation}
             consciousnessLevel={consciousnessLevel}
-            setConsciousnessLevel={setConsciousnessLevel}
+            setConsciousnessLevel={changeConsciousnessLevel}
             clearAttachment={handleClearAttachment}
             isSearchingWeb={isSearchingWeb}
             searchingStep={searchingStep}

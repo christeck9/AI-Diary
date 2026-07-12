@@ -1,5 +1,6 @@
 #include <jni.h>
 #include <jsi/jsi.h>
+#include <android/log.h>
 #include "AudioPlayer.h"
 #include <memory>
 
@@ -92,7 +93,7 @@ Java_com_christeck_animavoice_AnimaVoiceModule_nativeInstallJSI(JNIEnv *env, job
 
     // Expose global ready flag
     g_isJSIReady = true;
-    auto readyValue = Boolean::createFromLiteral(*runtime, true);
+    auto readyValue = Value(true);
     runtime->global().setProperty(*runtime, "animaJSIReady", std::move(readyValue));
 
     // Signal to JS that JSI audio is ready
