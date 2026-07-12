@@ -174,22 +174,43 @@ ${transitionQuestion}<end_of_turn>
 export const purifyThoughts = (text: string): string => {
   if (!text) return '';
 
+  const extractBounded = (startRegex: RegExp, endRegex: RegExp): string | null => {
+    const startMatch = text.match(startRegex);
+    if (!startMatch) return null;
+    const startIndex = startMatch.index! + startMatch[0].length;
+    const remainder = text.slice(startIndex);
+    const endMatch = remainder.match(endRegex);
+    
+    if (endMatch) {
+      return text.substring(startIndex, startIndex + endMatch.index!).replace(/^\s*>\s*/gm, '').trim();
+    }
+    return text.substring(startIndex).replace(/^\s*>\s*/gm, '').trim();
+  };
+
   // 1. Explicit tags (Angle Brackets) including Gemma 4 asymmetric delimiters
-  const tagMatch = text.match(/<(?:\|?thought\|?|\|?think\|?|\|channel>thought)>([\s\S]*?)(?:<\/(?:\|?thought\|?|\|?think\|?)>|<(?:thought|think|channel)\|>?|$)/i);
-  if (tagMatch) {
-    return tagMatch[1].replace(/^\s*>\s*/gm, '').trim();
-  }
+  let extracted = extractBounded(
+    /<(?:\|?thought\|?|\|?think\|?|\|channel>thought)>/i,
+    /<\/(?:\|?thought\|?|\|?think\|?)>|<(?:thought|think|channel)\|?>/i
+  );
+  if (extracted) return extracted;
 
   // 2. Explicit tags (Square Brackets used by some Gemma 4 instances)
-  const bracketMatch = text.match(/\[(?:thought|think|reasoning)\]([\s\S]*?)(?:\[\/(?:thought|think|reasoning)\]|$)/i);
-  if (bracketMatch) {
-    return bracketMatch[1].replace(/^\s*>\s*/gm, '').trim();
-  }
+  extracted = extractBounded(
+    /\[(?:thought|think|reasoning)\]/i,
+    /\[\/(?:thought|think|reasoning)\]/i
+  );
+  if (extracted) return extracted;
 
   // 3. Heuristic patterns (AI Slop detection/extraction)
-  const heuristicMatch = text.match(/^(?:> )?(?:\d+\.\s+)?(?:\*\*)?(?:Reason|Thought|Thinking(?: [pP]rocess)?|Analysis|Analyze|Explanation|Process|Step|Objective)(?:\*\*)?:?[\s\S]*?(?=<start_function|<call:|!!SEARCH|\{query:|\[SENTINEL_QUERY\]|$)/im);
-  if (heuristicMatch) {
-    return heuristicMatch[0].replace(/^\s*>\s*/gm, '').trim();
+  const heuristicStart = text.match(/^(?:> )?(?:\d+\.\s+)?(?:\*\*)?(?:Reason|Thought|Thinking(?: [pP]rocess)?|Analysis|Analyze|Explanation|Process|Step|Objective)(?:\*\*)?:?\s*/im);
+  if (heuristicStart) {
+    const startIndex = heuristicStart.index! + heuristicStart[0].length;
+    const remainder = text.slice(startIndex);
+    const endMatch = remainder.match(/<start_function|<call:|!!SEARCH|\{query:|\[SENTINEL_QUERY\]/i);
+    if (endMatch) {
+      return text.substring(startIndex, startIndex + endMatch.index!).replace(/^\s*>\s*/gm, '').trim();
+    }
+    return text.substring(startIndex).replace(/^\s*>\s*/gm, '').trim();
   }
 
   return '';
@@ -205,9 +226,6 @@ export const filterUI = (text: string, arch: 'gemma3' | 'gemma4' | 'llama' = 'ge
 
   let filtered = text
     // ── Vocabulary bleed-through guard ──────────────────────────────────────
-    // Gemma 3 multimodal projector can emit raw tile tokens ([multimodal],
-    // <unused12>, <pad>, etc.) during Round 2 when mmproj is initialized but
-    // no image is attached. Strip these before any other processing.
     .replace(/\[multimodal\]/gi, '')
     .replace(/<unused\d+>/gi, '')
     .replace(/<pad>/gi, '')
@@ -220,42 +238,75 @@ export const filterUI = (text: string, arch: 'gemma3' | 'gemma4' | 'llama' = 'ge
     .replace(/<\|begin_of_text\|>/gi, '')
     .replace(/<\|start_header_id\|>\s*(?:system|user|assistant|ipython)\s*<\|end_header_id\|>\s*\n?/gi, '')
     .replace(/<\|eot_id\|>|<\|eom_id\|>/gi, '')
-    // Gemma 3 & 4: strip turn-marker + role label combos to prevent control token residue in TTS.
-    // Pattern: <start_of_turn>model, <start_of_turn>user, <end_of_turn>, <|turn>user, <|turn>model, <|turn>system, <|turn>tool, <turn|>
-    // These must be removed BEFORE the generic tag stripper, which only removes the tag itself.
+    // Gemma 3 & 4: strip turn-marker + role label combos
     .replace(/<start_of_turn>\s*(?:model|user|system)\s*\n?/gi, '')
     .replace(/<end_of_turn>\s*\n?/gi, '')
     .replace(/<\|turn>\s*(?:model|user|system|tool)\s*\n?/gi, '')
     .replace(/<turn\|>\s*\n?/gi, '')
-    // Generic turn/boundary token stripper (covers Gemma 4 |turn| variants and leftovers)
+    // Generic turn/boundary token stripper
     .replace(/<\|?start_of_(?:of_)?turn\|?>|<\|?end_of_(?:of_)?turn\|?>|<\|?im_(?:start|end)\|?>|<\|eot_id\|>|<\|?turn\|?>|<turn\|>/gi, '')
     .replace(/<(?:start_function_call|end_function_call|start_function_response|end_function_response)>/gi, '')
-    .replace(/!!SEARCH[\s\S]*?(?=\n|$)/gi, '')
-    .replace(/\[SEARCH:\s*[^\]]*\]?/gi, '') // Strips Gemma 3 slim search tag
-    .replace(/<\|tool_call>[\s\S]*?(?:<tool_call\|>|$)/gi, '') // Strips Gemma 4 tool call tag
-    .replace(/\[SENTINEL_QUERY\]:?[\s\S]*?(?=\n|$)/gi, '')
-    .replace(/\{query:[\s\S]*?(?=\n|$)/gi, '')
-    .replace(/call:hybrid_search[\s\S]*?(?=\n|$)/gi, '')
-    .replace(/\[TOOL_RESULT\]:[\s\S]*?(?=\n\n|$)/gi, '')
-    .replace(/<\|tool_response>[\s\S]*?(?:<tool_response\|>|$)/gi, '');
+    // Tool calls - single line bounds
+    .replace(/!!SEARCH[^\n]*/gi, '')
+    .replace(/\[SEARCH:\s*[^\]]*\]?/gi, '')
+    .replace(/\[SENTINEL_QUERY\]:?[^\n]*/gi, '')
+    .replace(/\{query:[^\n]*/gi, '')
+    .replace(/call:hybrid_search[^\n]*/gi, '');
 
-  // Remove thought blocks (complete angle brackets including Gemma 4 asymmetric delimiters)
-  filtered = filtered.replace(/<(?:\|?\s*(?:thought|think|reasoning)\s*\|?|\|channel>thought)>[\s\S]*?(?:<\/(?:\|?thought\|?|\|?think\|?)>|<(?:thought|think|channel)\|>?)/gi, '');
-  // Remove thought blocks (complete square brackets)
-  filtered = filtered.replace(/\[(?:thought|think|reasoning)\][\s\S]*?\[\/(?:thought|think|reasoning)\]/gi, '');
+  // Helper for bounded blocks avoiding catastrophic backtracking
+  const stripBoundedBlock = (startR: RegExp, endR: RegExp, fallbackToEnd: boolean) => {
+    while (true) {
+      const startMatch = filtered.match(startR);
+      if (!startMatch) break;
+      const blockStart = startMatch.index!;
+      const afterStart = blockStart + startMatch[0].length;
+      
+      const endMatch = filtered.slice(afterStart).match(endR);
+      if (endMatch) {
+        const blockEnd = afterStart + endMatch.index! + endMatch[0].length;
+        filtered = filtered.substring(0, blockStart) + filtered.substring(blockEnd);
+      } else {
+        if (fallbackToEnd) {
+          filtered = filtered.substring(0, blockStart);
+        }
+        break;
+      }
+    }
+  };
 
-  // Remove unclosed thought blocks (model cut off mid-thought)
-  filtered = filtered.replace(/<(?:\|?\s*(?:thought|think|reasoning)\s*\|?)>[\s\S]*$/gi, '');
-  filtered = filtered.replace(/\[(?:thought|think|reasoning)\][\s\S]*$/gi, '');
+  // Strip multiline tool blocks
+  stripBoundedBlock(/<\|tool_call>/i, /<tool_call\|>/, true);
+  stripBoundedBlock(/<\|tool_response>/i, /<tool_response\|>/, true);
+  stripBoundedBlock(/\[TOOL_RESULT\]:/i, /\n\n/, true);
+  stripBoundedBlock(/\[\[RULE:/i, /\]\]/, true);
 
-  // 1. Regla Inequívoca: Palabras 100% slop de razonamiento (removido el |$ para evitar tragar la respuesta completa)
-  filtered = filtered.replace(/^\s*(?:\s*>\s*)?(?:\d+\.\s+)?(?:\*\*)?(?:Reason|Thought|Thinking(?: [pP]rocess)?|Analysis|Analyze|Explanation)(?:\*\*)?:?[\s\S]*?(?=\b!!SEARCH\b|\bcall:\b|\{query:|\[SENTINEL_QUERY\])/gi, '');
+  // Remove thought blocks safely
+  stripBoundedBlock(/<(?:\|?\s*(?:thought|think|reasoning)\s*\|?|\|channel>thought)>/i, /<\/(?:\|?thought\|?|\|?think\|?)>|<(?:thought|think|channel)\|?>/i, true);
+  stripBoundedBlock(/\[(?:thought|think|reasoning)\]/i, /\[\/(?:thought|think|reasoning)\]/i, true);
 
-  // 2. Regla Condicionada (Sin el |$): Palabras que podrían ser parte de un texto legítimo
-  filtered = filtered.replace(/^\s*(?:\s*>\s*)?(?:\d+\.\s+)?(?:\*\*)?(?:Acknowledge|Plan|Search|Verify|Report|Goal|Step|Process|Objective)(?:\*\*)?:?[\s\S]*?(?=\b!!SEARCH\b|\bcall:\b|\{query:|\[SENTINEL_QUERY\])/gi, '');
+  // Strip heuristic blocks to triggers
+  const stripHeuristicToTrigger = (heuristicR: RegExp) => {
+    const triggerRegex = /\b!!SEARCH\b|\bcall:\b|\{query:|\[SENTINEL_QUERY\]/i;
+    while (true) {
+      const startMatch = filtered.match(heuristicR);
+      if (!startMatch) break;
+      const blockStart = startMatch.index!;
+      const afterStart = blockStart + startMatch[0].length;
+      
+      const endMatch = filtered.slice(afterStart).match(triggerRegex);
+      if (endMatch) {
+        const blockEnd = afterStart + endMatch.index!;
+        filtered = filtered.substring(0, blockStart) + filtered.substring(blockEnd);
+      } else {
+        break; // Leave as is if no trigger
+      }
+    }
+  };
 
-  // Remove rule injections (persona leaks)
-  filtered = filtered.replace(/\[\[RULE:[\s\S]*?\]\]/gi, '');
+  // 1. Regla Inequívoca
+  stripHeuristicToTrigger(/^\s*(?:\s*>\s*)?(?:\d+\.\s+)?(?:\*\*)?(?:Reason|Thought|Thinking(?: [pP]rocess)?|Analysis|Analyze|Explanation)(?:\*\*)?:?/mi);
+  // 2. Regla Condicionada
+  stripHeuristicToTrigger(/^\s*(?:\s*>\s*)?(?:\d+\.\s+)?(?:\*\*)?(?:Acknowledge|Plan|Search|Verify|Report|Goal|Step|Process|Objective)(?:\*\*)?:?/mi);
 
   // Remove any leading markdown blockquote character or bullet left behind after stripping thought process
   filtered = filtered.trim().replace(/^(\s*>\s*)+/, '');

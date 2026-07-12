@@ -11,6 +11,7 @@ import {
   Modal, View, Text, TouchableOpacity, ScrollView, StyleSheet,
   Platform, SafeAreaView, Animated, Easing,
 } from 'react-native';
+import { TEST_PURPOSES, OCEAN_GUIDE, APTITUDE_LEVELS_TEXT, ANXIETY_LEVELS_TEXT, MOOD_LEVELS_TEXT, HOLLAND_EXT, MBTI_EXT } from './PsyTestContent';
 
 export interface PsyProfile {
   O: number; C: number; E: number; A: number; N: number; D: number; L: number;
@@ -31,13 +32,16 @@ interface PsyTestModalProps {
 // ─── Self-contained scoring (no async context dependency) ─────────────────────
 
 function scoreOcean(answers: number[], questions: any[]): Record<string, number> {
-  const dims: Record<string, number[]> = { O: [], C: [], E: [], A: [], N: [], D: [], L: [] };
+  const earned: Record<string, number> = { O: 0, C: 0, E: 0, A: 0, N: 0, D: 0, L: 0 };
   answers.forEach((ansIdx, i) => {
     const opt = questions[i]?.opts[ansIdx];
-    if (opt?.dim && dims[opt.dim] !== undefined) dims[opt.dim].push(opt.val ?? 0);
+    if (opt?.dim && earned[opt.dim] !== undefined) earned[opt.dim] += opt.val ?? 0;
   });
-  const avg = (arr: number[]) => arr.length > 0 ? arr.reduce((a, b) => a + b, 0) / arr.length : 0.5;
-  return { O: avg(dims.O), C: avg(dims.C), E: avg(dims.E), A: avg(dims.A), N: avg(dims.N), D: avg(dims.D), L: avg(dims.L) };
+  const res: Record<string, number> = {};
+  for (const dim in earned) {
+    res[dim] = Math.min(1.0, earned[dim] / 7.0);
+  }
+  return res;
 }
 
 function scoreAptitude(answers: number[], questions: any[]): number {
@@ -71,7 +75,12 @@ function scoreMood(answers: number[], questions: any[]): number {
 
 function scoreMbti(answers: number[], questions: any[]): string {
   const dims: Record<string, number> = { E: 0, I: 0, S: 0, N: 0, T: 0, F: 0, J: 0, P: 0 };
-  answers.forEach((ansIdx, i) => { const opt = questions[i]?.opts[ansIdx]; if (opt?.dim) dims[opt.dim]++; });
+  answers.forEach((ansIdx, i) => {
+    const opt = questions[i]?.opts[ansIdx];
+    if (opt?.dim && dims[opt.dim] !== undefined) {
+      dims[opt.dim] += opt.val ?? 1;
+    }
+  });
   return (dims.E >= dims.I ? 'E' : 'I') + (dims.S >= dims.N ? 'S' : 'N') +
     (dims.T >= dims.F ? 'T' : 'F') + (dims.J >= dims.P ? 'J' : 'P');
 }
@@ -97,7 +106,7 @@ const MBTI_ARCHETYPES: Record<string, { emoji: string; en: string; es: string; d
 };
 
 // ─── Holland Vocational Labels ────────────────────────────────────────────────
-const HOLLAND_LABELS: Record<string, { emoji: string; en: string; es: string; careers_en: string; careers_es: string; desc_en: string; desc_es: string }> = {
+export const HOLLAND_LABELS: Record<string, { emoji: string; en: string; es: string; careers_en: string; careers_es: string; desc_en: string; desc_es: string }> = {
   R: { emoji: '🔨', en: 'Realistic', es: 'Realista', careers_en: 'Engineering, Trades, Agriculture', careers_es: 'Ingeniería, Oficios, Agricultura', desc_en: 'Practical, hands-on, and mechanically inclined...', desc_es: 'Práctico, manual y mecánicamente inclinado...' },
   I: { emoji: '🔭', en: 'Investigative', es: 'Investigador', careers_en: 'Science, Research, Medicine', careers_es: 'Ciencia, Investigación, Medicina', desc_en: 'Analytical, curious, and intellectual explorer...', desc_es: 'Analítico, curioso y explorador intelectual de problemas complejos...' },
   A: { emoji: '🎨', en: 'Artistic', es: 'Artístico', careers_en: 'Design, Music, Writing', careers_es: 'Diseño, Música, Escritura', desc_en: 'Creative, expressive, and original thinker...', desc_es: 'Creativo, expresivo y pensador original que prospera en entornos no estructurados...' },
@@ -807,90 +816,210 @@ export const MOOD_QUESTIONS = [
 export const MBTI_QUESTIONS = [
   // E vs I (Energy & Attention)
   {
-    q_en: "When you are completely exhausted from a long, stressful week, what genuinely recharges your battery?", q_es: "Cuando estás completamente exhausto por una semana larga y estresante, ¿qué recarga genuinamente tu batería?",
-    opts: [{ en: "Being alone with zero social obligations or interruptions.", es: "Estar solo sin cero obligaciones sociales ni interrupciones.", val: 1, dim: 'I' }, { en: "Going out and doing something fun or engaging with people.", es: "Salir y hacer algo divertido o interactuar con personas.", val: 1, dim: 'E' }]
+    q_en: "After a stressful week, spending time alone recharges you more than going out.",
+    q_es: "Después de una semana estresante, pasar tiempo a solas te recarga más que salir a eventos.",
+    opts: [
+      { en: "Strongly Agree", es: "Muy de acuerdo", val: 2, dim: 'I' },
+      { en: "Agree", es: "De acuerdo", val: 1, dim: 'I' },
+      { en: "Disagree", es: "En desacuerdo", val: 1, dim: 'E' },
+      { en: "Strongly Disagree", es: "Muy en desacuerdo", val: 2, dim: 'E' }
+    ]
   },
   {
-    q_en: "If your phone rings unexpectedly from an unknown number, your involuntary reaction is usually...", q_es: "Si tu teléfono suena inesperadamente de un número desconocido, tu reacción involuntaria suele ser...",
-    opts: [{ en: "To ignore it and wait for a text or voicemail.", es: "Ignorarlo y esperar un mensaje de texto o de voz.", val: 1, dim: 'I' }, { en: "To answer it right away to see who it is.", es: "Contestar de inmediato para ver quién es.", val: 1, dim: 'E' }]
+    q_en: "You usually ignore unexpected phone calls from unknown numbers.",
+    q_es: "Sueles ignorar las llamadas telefónicas inesperadas de números desconocidos.",
+    opts: [
+      { en: "Strongly Agree", es: "Muy de acuerdo", val: 2, dim: 'I' },
+      { en: "Agree", es: "De acuerdo", val: 1, dim: 'I' },
+      { en: "Disagree", es: "En desacuerdo", val: 1, dim: 'E' },
+      { en: "Strongly Disagree", es: "Muy en desacuerdo", val: 2, dim: 'E' }
+    ]
   },
   {
-    q_en: "In a group setting where you don't know anyone, what is your historical track record?", q_es: "En un entorno grupal donde no conoces a nadie, ¿cuál es tu historial histórico?",
-    opts: [{ en: "I wait for others to approach me or stick to the edges.", es: "Espero a que otros se me acerquen o me quedo en los bordes.", val: 1, dim: 'I' }, { en: "I take the initiative to introduce myself and break the ice.", es: "Tomo la iniciativa de presentarme y romper el hielo.", val: 1, dim: 'E' }]
+    q_en: "In a group of strangers, you prefer to wait for others to approach you.",
+    q_es: "En un grupo de desconocidos, prefieres esperar a que otros se te acerquen.",
+    opts: [
+      { en: "Strongly Agree", es: "Muy de acuerdo", val: 2, dim: 'I' },
+      { en: "Agree", es: "De acuerdo", val: 1, dim: 'I' },
+      { en: "Disagree", es: "En desacuerdo", val: 1, dim: 'E' },
+      { en: "Strongly Disagree", es: "Muy en desacuerdo", val: 2, dim: 'E' }
+    ]
   },
   {
-    q_en: "When you have a complex problem to solve, do you process it better by...", q_es: "Cuando tienes un problema complejo que resolver, ¿lo procesas mejor al...",
-    opts: [{ en: "Thinking it through silently in your own head first.", es: "Pensarlo en silencio en tu propia cabeza primero.", val: 1, dim: 'I' }, { en: "Talking it out loud with someone else to hear your own thoughts.", es: "Hablarlo en voz alta con alguien más para escuchar tus propios pensamientos.", val: 1, dim: 'E' }]
+    q_en: "You process complex problems better by thinking silently in your head first.",
+    q_es: "Procesas mejor los problemas complejos pensando en silencio antes de hablar.",
+    opts: [
+      { en: "Strongly Agree", es: "Muy de acuerdo", val: 2, dim: 'I' },
+      { en: "Agree", es: "De acuerdo", val: 1, dim: 'I' },
+      { en: "Disagree", es: "En desacuerdo", val: 1, dim: 'E' },
+      { en: "Strongly Disagree", es: "Muy en desacuerdo", val: 2, dim: 'E' }
+    ]
   },
   {
-    q_en: "After a highly stimulating and noisy event, you typically feel...", q_es: "Después de un evento altamente estimulante y ruidoso, típicamente te sientes...",
-    opts: [{ en: "Drained, needing a quiet sanctuary to recover.", es: "Agotado, necesitando un santuario tranquilo para recuperarte.", val: 1, dim: 'I' }, { en: "Energized, feeling like you could keep going.", es: "Lleno de energía, sintiendo que podrías seguir adelante.", val: 1, dim: 'E' }]
+    q_en: "You feel drained after a noisy social event and need quiet time to recover.",
+    q_es: "Te sientes agotado después de un evento social ruidoso y necesitas tiempo a solas para recuperarte.",
+    opts: [
+      { en: "Strongly Agree", es: "Muy de acuerdo", val: 2, dim: 'I' },
+      { en: "Agree", es: "De acuerdo", val: 1, dim: 'I' },
+      { en: "Disagree", es: "En desacuerdo", val: 1, dim: 'E' },
+      { en: "Strongly Disagree", es: "Muy en desacuerdo", val: 2, dim: 'E' }
+    ]
   },
 
   // S vs N (Information gathering)
   {
-    q_en: "When assembling a new piece of furniture, your default instinct is to...", q_es: "Al armar un mueble nuevo, tu instinto por defecto es...",
-    opts: [{ en: "Follow the instruction manual step-by-step.", es: "Seguir el manual de instrucciones paso a paso.", val: 1, dim: 'S' }, { en: "Look at the picture and figure it out as you go.", es: "Mirar la foto e ir descifrándolo sobre la marcha.", val: 1, dim: 'N' }]
+    q_en: "You strictly follow instruction manuals step-by-step rather than figuring it out as you go.",
+    q_es: "Sigues estrictamente los manuales paso a paso al armar cosas en lugar de improvisar.",
+    opts: [
+      { en: "Strongly Agree", es: "Muy de acuerdo", val: 2, dim: 'S' },
+      { en: "Agree", es: "De acuerdo", val: 1, dim: 'S' },
+      { en: "Disagree", es: "En desacuerdo", val: 1, dim: 'N' },
+      { en: "Strongly Disagree", es: "Muy en desacuerdo", val: 2, dim: 'N' }
+    ]
   },
   {
-    q_en: "If you have to describe an event, do you tend to...", q_es: "Si tienes que describir un evento, tiendes a...",
-    opts: [{ en: "List the specific details, facts, and what actually happened.", es: "Listar los detalles específicos, hechos y lo que realmente pasó.", val: 1, dim: 'S' }, { en: "Summarize the overall theme, meaning, or 'vibe' of the event.", es: "Resumir el tema general, el significado o la 'vibra' del evento.", val: 1, dim: 'N' }]
+    q_en: "When describing an event, you focus on specific facts rather than the overall vibe.",
+    q_es: "Al describir un evento, te enfocas en los hechos específicos más que en la vibra general.",
+    opts: [
+      { en: "Strongly Agree", es: "Muy de acuerdo", val: 2, dim: 'S' },
+      { en: "Agree", es: "De acuerdo", val: 1, dim: 'S' },
+      { en: "Disagree", es: "En desacuerdo", val: 1, dim: 'N' },
+      { en: "Strongly Disagree", es: "Muy en desacuerdo", val: 2, dim: 'N' }
+    ]
   },
   {
-    q_en: "When listening to someone explain a concept, you get frustrated if they...", q_es: "Al escuchar a alguien explicar un concepto, te frustras si ellos...",
-    opts: [{ en: "Are too abstract and don't give concrete, real-world examples.", es: "Son demasiado abstractos y no dan ejemplos concretos del mundo real.", val: 1, dim: 'S' }, { en: "Get bogged down in specific details and miss the bigger picture.", es: "Se enredan en detalles específicos y pierden la visión general.", val: 1, dim: 'N' }]
+    q_en: "You get frustrated when people explain concepts abstractly without concrete examples.",
+    q_es: "Te frustra cuando la gente explica conceptos de forma abstracta sin dar ejemplos concretos.",
+    opts: [
+      { en: "Strongly Agree", es: "Muy de acuerdo", val: 2, dim: 'S' },
+      { en: "Agree", es: "De acuerdo", val: 1, dim: 'S' },
+      { en: "Disagree", es: "En desacuerdo", val: 1, dim: 'N' },
+      { en: "Strongly Disagree", es: "Muy en desacuerdo", val: 2, dim: 'N' }
+    ]
   },
   {
-    q_en: "You naturally trust...", q_es: "Naturalmente confías en...",
-    opts: [{ en: "Past experience and proven methods.", es: "La experiencia pasada y los métodos probados.", val: 1, dim: 'S' }, { en: "Gut instinct and future possibilities.", es: "El instinto y las posibilidades futuras.", val: 1, dim: 'N' }]
+    q_en: "You naturally trust past experience and proven methods more than gut instinct.",
+    q_es: "Confías más en la experiencia pasada y los métodos probados que en el instinto intuitivo.",
+    opts: [
+      { en: "Strongly Agree", es: "Muy de acuerdo", val: 2, dim: 'S' },
+      { en: "Agree", es: "De acuerdo", val: 1, dim: 'S' },
+      { en: "Disagree", es: "En desacuerdo", val: 1, dim: 'N' },
+      { en: "Strongly Disagree", es: "Muy en desacuerdo", val: 2, dim: 'N' }
+    ]
   },
   {
-    q_en: "When you read a book or watch a movie, you are mostly drawn to...", q_es: "Cuando lees un libro o ves una película, te atrae más...",
-    opts: [{ en: "The vivid world-building, realistic actions, and facts.", es: "La construcción vívida del mundo, las acciones realistas y los hechos.", val: 1, dim: 'S' }, { en: "The hidden symbols, metaphors, and underlying meaning.", es: "Los símbolos ocultos, las metáforas y el significado subyacente.", val: 1, dim: 'N' }]
+    q_en: "In books or movies, you prefer realistic actions and facts over hidden symbols or metaphors.",
+    q_es: "En libros o películas, prefieres los hechos y acciones realistas sobre los símbolos ocultos.",
+    opts: [
+      { en: "Strongly Agree", es: "Muy de acuerdo", val: 2, dim: 'S' },
+      { en: "Agree", es: "De acuerdo", val: 1, dim: 'S' },
+      { en: "Disagree", es: "En desacuerdo", val: 1, dim: 'N' },
+      { en: "Strongly Disagree", es: "Muy en desacuerdo", val: 2, dim: 'N' }
+    ]
   },
 
   // T vs F (Decision Making)
   {
-    q_en: "When a friend comes to you with a personal problem, your involuntary first response is to...", q_es: "Cuando un amigo acude a ti con un problema personal, tu primera respuesta involuntaria es...",
-    opts: [{ en: "Offer practical solutions and fix the root cause.", es: "Ofrecer soluciones prácticas y arreglar la causa raíz.", val: 1, dim: 'T' }, { en: "Offer emotional support, validation, and comfort.", es: "Ofrecer apoyo emocional, validación y consuelo.", val: 1, dim: 'F' }]
+    q_en: "When a friend has a problem, your first response is to offer practical solutions rather than emotional support.",
+    q_es: "Cuando un amigo tiene un problema, tu primera respuesta es ofrecer soluciones prácticas antes que consuelo emocional.",
+    opts: [
+      { en: "Strongly Agree", es: "Muy de acuerdo", val: 2, dim: 'T' },
+      { en: "Agree", es: "De acuerdo", val: 1, dim: 'T' },
+      { en: "Disagree", es: "En desacuerdo", val: 1, dim: 'F' },
+      { en: "Strongly Disagree", es: "Muy en desacuerdo", val: 2, dim: 'F' }
+    ]
   },
   {
-    q_en: "In a heated argument, you consider it a worse offense to be...", q_es: "En una discusión acalorada, consideras que es una ofensa peor ser...",
-    opts: [{ en: "Illogical, inconsistent, or factually incorrect.", es: "Ilógico, inconsistente o fácticamente incorrecto.", val: 1, dim: 'T' }, { en: "Cruel, dismissive, or emotionally hurtful.", es: "Cruel, despectivo o emocionalmente hiriente.", val: 1, dim: 'F' }]
+    q_en: "In an argument, you consider being illogical worse than being emotionally hurtful.",
+    q_es: "En una discusión, consideras que ser ilógico o inconsistente es peor que ser hiriente.",
+    opts: [
+      { en: "Strongly Agree", es: "Muy de acuerdo", val: 2, dim: 'T' },
+      { en: "Agree", es: "De acuerdo", val: 1, dim: 'T' },
+      { en: "Disagree", es: "En desacuerdo", val: 1, dim: 'F' },
+      { en: "Strongly Disagree", es: "Muy en desacuerdo", val: 2, dim: 'F' }
+    ]
   },
   {
-    q_en: "When you have to make a tough decision at work, you primarily base it on...", q_es: "Cuando tienes que tomar una decisión difícil en el trabajo, te basas principalmente en...",
-    opts: [{ en: "Objective metrics, fairness, and what makes the most logical sense.", es: "Métricas objetivas, justicia y lo que tiene más sentido lógico.", val: 1, dim: 'T' }, { en: "How it will impact the people involved and maintaining harmony.", es: "Cómo impactará a las personas involucradas y mantener la armonía.", val: 1, dim: 'F' }]
+    q_en: "You base tough decisions on objective metrics and logic rather than impact on people.",
+    q_es: "Tomas decisiones difíciles basadas en métricas objetivas y lógica en lugar del impacto en las personas.",
+    opts: [
+      { en: "Strongly Agree", es: "Muy de acuerdo", val: 2, dim: 'T' },
+      { en: "Agree", es: "De acuerdo", val: 1, dim: 'T' },
+      { en: "Disagree", es: "En desacuerdo", val: 1, dim: 'F' },
+      { en: "Strongly Disagree", es: "Muy en desacuerdo", val: 2, dim: 'F' }
+    ]
   },
   {
-    q_en: "You are more likely to be accused by others of being...", q_es: "Es más probable que otros te acusen de ser...",
-    opts: [{ en: "Too blunt, cold, or insensitive.", es: "Demasiado directo, frío o insensible.", val: 1, dim: 'T' }, { en: "Too sensitive, emotional, or taking things personally.", es: "Demasiado sensible, emocional o de tomar las cosas personales.", val: 1, dim: 'F' }]
+    q_en: "Others are more likely to accuse you of being too blunt rather than too sensitive.",
+    q_es: "Es más probable que los demás te acusen de ser demasiado frío o directo que de ser demasiado sensible.",
+    opts: [
+      { en: "Strongly Agree", es: "Muy de acuerdo", val: 2, dim: 'T' },
+      { en: "Agree", es: "De acuerdo", val: 1, dim: 'T' },
+      { en: "Disagree", es: "En desacuerdo", val: 1, dim: 'F' },
+      { en: "Strongly Disagree", es: "Muy en desacuerdo", val: 2, dim: 'F' }
+    ]
   },
   {
-    q_en: "If forced to choose a compliment, you would rather be called...", q_es: "Si te vieras obligado a elegir un cumplido, preferirías que te llamaran...",
-    opts: [{ en: "Highly competent, sharp, and rational.", es: "Altamente competente, agudo y racional.", val: 1, dim: 'T' }, { en: "Highly empathetic, kind, and supportive.", es: "Altamente empático, amable y solidario.", val: 1, dim: 'F' }]
+    q_en: "You would rather be praised for being highly competent and rational than highly empathetic and kind.",
+    q_es: "Prefieres que te elogien por ser altamente competente y racional que por ser empático y solido.",
+    opts: [
+      { en: "Strongly Agree", es: "Muy de acuerdo", val: 2, dim: 'T' },
+      { en: "Agree", es: "De acuerdo", val: 1, dim: 'T' },
+      { en: "Disagree", es: "En desacuerdo", val: 1, dim: 'F' },
+      { en: "Strongly Disagree", es: "Muy en desacuerdo", val: 2, dim: 'F' }
+    ]
   },
 
   // J vs P (Lifestyle / Execution)
   {
-    q_en: "When planning a trip, your habitual behavior is to...", q_es: "Al planear un viaje, tu comportamiento habitual es...",
-    opts: [{ en: "Book accommodations and create a clear itinerary in advance.", es: "Reservar alojamiento y crear un itinerario claro con anticipación.", val: 1, dim: 'J' }, { en: "Leave things open-ended and decide what to do day-by-day.", es: "Dejar las cosas abiertas y decidir qué hacer día a día.", val: 1, dim: 'P' }]
+    q_en: "You prefer booking accommodations and creating a clear itinerary in advance when traveling.",
+    q_es: "Prefieres reservar alojamientos y crear un itinerario claro con anticipación cuando viajas.",
+    opts: [
+      { en: "Strongly Agree", es: "Muy de acuerdo", val: 2, dim: 'J' },
+      { en: "Agree", es: "De acuerdo", val: 1, dim: 'J' },
+      { en: "Disagree", es: "En desacuerdo", val: 1, dim: 'P' },
+      { en: "Strongly Disagree", es: "Muy en desacuerdo", val: 2, dim: 'P' }
+    ]
   },
   {
-    q_en: "Your physical workspace or computer desktop is typically...", q_es: "Tu espacio de trabajo físico o escritorio de la computadora es típicamente...",
-    opts: [{ en: "Organized, categorized, and clear of clutter.", es: "Organizado, categorizado y libre de desorden.", val: 1, dim: 'J' }, { en: "A bit chaotic, but you know where everything is.", es: "Un poco caótico, pero sabes dónde está todo.", val: 1, dim: 'P' }]
+    q_en: "Your physical workspace is organized and clear of clutter.",
+    q_es: "Tu espacio de trabajo físico suele estar muy organizado y libre de desorden.",
+    opts: [
+      { en: "Strongly Agree", es: "Muy de acuerdo", val: 2, dim: 'J' },
+      { en: "Agree", es: "De acuerdo", val: 1, dim: 'J' },
+      { en: "Disagree", es: "En desacuerdo", val: 1, dim: 'P' },
+      { en: "Strongly Disagree", es: "Muy en desacuerdo", val: 2, dim: 'P' }
+    ]
   },
   {
-    q_en: "When working on a deadline, your historical pattern is...", q_es: "Al trabajar con una fecha límite, tu patrón histórico es...",
-    opts: [{ en: "To start early and finish ahead of time to avoid stress.", es: "Empezar temprano y terminar antes de tiempo para evitar estrés.", val: 1, dim: 'J' }, { en: "To rely on a burst of last-minute adrenaline to get it done.", es: "Depender de una racha de adrenalina de último minuto para terminar.", val: 1, dim: 'P' }]
+    q_en: "You start tasks early to avoid deadline stress rather than relying on a last-minute rush.",
+    q_es: "Empiezas las tareas temprano para evitar el estrés del límite de entrega en lugar de depender de la prisa final.",
+    opts: [
+      { en: "Strongly Agree", es: "Muy de acuerdo", val: 2, dim: 'J' },
+      { en: "Agree", es: "De acuerdo", val: 1, dim: 'J' },
+      { en: "Disagree", es: "En desacuerdo", val: 1, dim: 'P' },
+      { en: "Strongly Disagree", es: "Muy en desacuerdo", val: 2, dim: 'P' }
+    ]
   },
   {
-    q_en: "You feel more anxiety when...", q_es: "Sientes mayor ansiedad cuando...",
-    opts: [{ en: "Things are left undecided, vague, or up in the air.", es: "Las cosas se dejan sin decidir, vagas o en el aire.", val: 1, dim: 'J' }, { en: "You are locked into a strict commitment with no flexibility.", es: "Estás atrapado en un compromiso estricto sin flexibilidad.", val: 1, dim: 'P' }]
+    q_en: "You feel more anxious when things are left undecided and vague than when locked into a strict schedule.",
+    q_es: "Sientes más ansiedad cuando las cosas quedan sin decidir que cuando estás atado a un horario estricto.",
+    opts: [
+      { en: "Strongly Agree", es: "Muy de acuerdo", val: 2, dim: 'J' },
+      { en: "Agree", es: "De acuerdo", val: 1, dim: 'J' },
+      { en: "Disagree", es: "En desacuerdo", val: 1, dim: 'P' },
+      { en: "Strongly Disagree", es: "Muy en desacuerdo", val: 2, dim: 'P' }
+    ]
   },
   {
-    q_en: "In your day-to-day life, you prefer...", q_es: "En tu vida diaria, prefieres...",
-    opts: [{ en: "Routine, structure, and knowing what to expect.", es: "Rutina, estructura y saber qué esperar.", val: 1, dim: 'J' }, { en: "Spontaneity, variety, and keeping your options open.", es: "Espontaneidad, variedad y mantener tus opciones abiertas.", val: 1, dim: 'P' }]
+    q_en: "In daily life, you prefer routine and structure over spontaneity and keeping options open.",
+    q_es: "En tu vida diaria, prefieres la rutina y la estructura sobre la espontaneidad y la flexibilidad.",
+    opts: [
+      { en: "Strongly Agree", es: "Muy de acuerdo", val: 2, dim: 'J' },
+      { en: "Agree", es: "De acuerdo", val: 1, dim: 'J' },
+      { en: "Disagree", es: "En desacuerdo", val: 1, dim: 'P' },
+      { en: "Strongly Disagree", es: "Muy en desacuerdo", val: 2, dim: 'P' }
+    ]
   }
 ];
 
@@ -1067,12 +1196,13 @@ export const PsyTestModal: React.FC<PsyTestModalProps> = ({
 
       } else if (localResults.type === 'mbti') {
         const arch = MBTI_ARCHETYPES[localResults.mbtiType] || {};
+        const ext = MBTI_EXT[localResults.mbtiType] || { en: '', es: '' };
         html = `<html><head><style>body{font-family:sans-serif;padding:32px;}.badge{font-size:52px;font-weight:900;letter-spacing:8px;color:#fff;background:#ec4899;padding:16px 32px;border-radius:12px;display:inline-block;}</style></head>
           <body><h1>🎭 ${lang === 'es' ? 'Perfil MBTI (16r)' : 'MBTI (16r) Profile'}</h1>
           <p>${lang === 'es' ? 'Fecha' : 'Date'}: ${new Date().toLocaleDateString()}</p>
           <div class="badge">${localResults.mbtiType}</div>
           <h2>${(arch as any).emoji || ''} ${lang === 'es' ? (arch as any).es || '' : (arch as any).en || ''}</h2>
-          <p>${lang === 'es' ? (arch as any).desc_es || '' : (arch as any).desc_en || ''}</p></body></html>`;
+          <p style="text-align: justify; line-height: 1.6; font-size: 15px;">${lang === 'es' ? ext.es : ext.en}</p></body></html>`;
 
       } else if (localResults.type === 'aptitude') {
         html = `<html><head><style>body{font-family:sans-serif;padding:32px;}.score{font-size:72px;font-weight:900;color:#3b82f6;}</style></head>
@@ -1084,13 +1214,15 @@ export const PsyTestModal: React.FC<PsyTestModalProps> = ({
       } else if (localResults.type === 'vocational') {
         const topLabels = (localResults.topTypes as string[]).map((t, idx) => {
           const h = HOLLAND_LABELS[t];
-          return `<li style="margin:10px 0;${idx === 0 ? 'font-size:18px;' : 'font-size:15px;'}">${h?.emoji} <strong>${lang === 'es' ? h?.es : h?.en}</strong>${idx === 0 ? ` <span style="background:#f59e0b;color:#000;padding:2px 8px;border-radius:4px;font-size:11px;">${lang === 'es' ? 'DOMINANTE' : 'DOMINANT'}</span>` : ''}
-            <br><small style="color:#666;">${lang === 'es' ? h?.careers_es : h?.careers_en}</small></li>`;
+          const ext = HOLLAND_EXT[t] || { en: '', es: '' };
+          return `<li style="margin:20px 0;${idx === 0 ? 'font-size:18px;' : 'font-size:15px;'}">${h?.emoji} <strong>${lang === 'es' ? h?.es : h?.en}</strong>${idx === 0 ? ` <span style="background:#f59e0b;color:#000;padding:2px 8px;border-radius:4px;font-size:11px;">${lang === 'es' ? 'DOMINANTE' : 'DOMINANT'}</span>` : ''}
+            <br><small style="color:#666;">${lang === 'es' ? h?.careers_es : h?.careers_en}</small>
+            <br><p style="margin-top: 8px; font-size: 14px; text-align: justify; line-height: 1.5; color: #333; font-weight: normal;">${lang === 'es' ? ext.es : ext.en}</p></li>`;
         }).join('');
         html = `<html><head><style>body{font-family:sans-serif;padding:32px;}</style></head>
           <body><h1>🎯 ${lang === 'es' ? 'Reporte Vocacional (Holland)' : 'Vocational Report (Holland)'}</h1>
           <p>${lang === 'es' ? 'Fecha' : 'Date'}: ${new Date().toLocaleDateString()}</p>
-          <ul>${topLabels}</ul></body></html>`;
+          <ul style="list-style: none; padding-left: 0;">${topLabels}</ul></body></html>`;
 
       } else {
         const pct = Math.round(localResults.score * 100);
@@ -1156,6 +1288,16 @@ export const PsyTestModal: React.FC<PsyTestModalProps> = ({
                   </View>
                 );
               })}
+              
+              {/* ── Extended Result Analysis ── */}
+              <View style={{ marginTop: 16, padding: 12, backgroundColor: 'rgba(59, 130, 246, 0.1)', borderRadius: 10, borderWidth: 1, borderColor: '#3b82f6', width: '100%' }}>
+                <Text style={{ color: colors.textPrimary, fontSize: 13, fontWeight: 'bold', marginBottom: 4, textAlign: 'center' }}>
+                  {lang === 'es' ? 'Guía del Perfil OCEAN+' : 'OCEAN+ Profile Guide'}
+                </Text>
+                <Text style={{ color: colors.textSecondary, fontSize: 12, textAlign: 'justify', lineHeight: 18 }}>
+                  {lang === 'es' ? OCEAN_GUIDE.es : OCEAN_GUIDE.en}
+                </Text>
+              </View>
             </View>
           )}
 
@@ -1179,12 +1321,29 @@ export const PsyTestModal: React.FC<PsyTestModalProps> = ({
                       {localResults.mbtiType}
                     </Text>
                   </View>
+                  {/* ── Purpouse of the Test ── */}
+                  <View style={{ marginTop: 14, padding: 12, backgroundColor: 'rgba(59, 130, 246, 0.1)', borderRadius: 10, borderWidth: 1, borderColor: '#3b82f6', width: '100%', marginBottom: 12 }}>
+                    <Text style={{ color: colors.textPrimary, fontSize: 13, fontWeight: 'bold', marginBottom: 4, textAlign: 'center' }}>
+                      {lang === 'es' ? 'Propósito del Test' : 'Test Purpose'}
+                    </Text>
+                    <Text style={{ color: colors.textSecondary, fontSize: 12, textAlign: 'justify', lineHeight: 18 }}>
+                      {lang === 'es' ? TEST_PURPOSES.mbti.es : TEST_PURPOSES.mbti.en}
+                    </Text>
+                  </View>
+
                   <Text style={{ color: '#fff', fontSize: 17, fontWeight: 'bold', marginBottom: 6 }}>
                     {lang === 'es' ? arch.es : arch.en}
                   </Text>
-                  <Text style={{ color: '#bbb', fontSize: 13, textAlign: 'center', lineHeight: 20 }}>
+                  <Text style={{ color: '#bbb', fontSize: 13, textAlign: 'justify', lineHeight: 20, marginBottom: 12 }}>
                     {lang === 'es' ? arch.desc_es : arch.desc_en}
                   </Text>
+
+                  {/* ── Extended Archetype Description ── */}
+                  <View style={{ padding: 12, backgroundColor: colors.surface, borderRadius: 10, width: '100%' }}>
+                    <Text style={{ color: colors.textSecondary, fontSize: 12, textAlign: 'justify', lineHeight: 18 }}>
+                      {lang === 'es' ? (MBTI_EXT[localResults.mbtiType]?.es || '') : (MBTI_EXT[localResults.mbtiType]?.en || '')}
+                    </Text>
+                  </View>
                 </View>
                 <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
                   {['E/I', 'S/N', 'T/F', 'J/P'].map(pair => {
@@ -1209,10 +1368,10 @@ export const PsyTestModal: React.FC<PsyTestModalProps> = ({
           {/* ══ Aptitude ══ */}
           {localResults.type === 'aptitude' && (() => {
             const pct = Math.round(localResults.score * 100);
-            const lv = pct >= 85 ? { label_en: 'Exceptional', label_es: 'Excepcional', emoji: '🏆', color: '#f59e0b', desc_en: 'Outstanding reasoning across logic, math, verbal and spatial domains. You process complex patterns rapidly and solve abstract problems with ease. Careers in STEM, law, data science or strategic planning align with your analytical strengths.', desc_es: 'Razonamiento excepcional en lógica, matemáticas, verbal y espacial. Procesas patrones complejos rápidamente y resuelves problemas abstractos con facilidad. Carreras en STEM, derecho, ciencia de datos o planificación estratégica se alinean con tus fortalezas analíticas.' }
-              : pct >= 70 ? { label_en: 'Advanced', label_es: 'Avanzado', emoji: '🌟', color: '#3b82f6', desc_en: 'Strong reasoning abilities across multiple domains. You grasp new concepts efficiently and think critically under pressure. Continued practice will further sharpen your analytical edge for advanced roles.', desc_es: 'Fuertes habilidades de razonamiento en múltiples dominios. Captas conceptos nuevos eficientemente y piensas críticamente bajo presión. La práctica continuada afilará aún más tu edge analítico.' }
-                : pct >= 55 ? { label_en: 'Solid', label_es: 'Sólido', emoji: '💪', color: '#10b981', desc_en: 'Reliable foundational reasoning skills. You understand logical structures and solve most standard problems with moderate effort. Targeted practice in pattern recognition and verbal reasoning will strengthen your analytical toolkit over time.', desc_es: 'Habilidades de razonamiento fundamentales fiables. Entiendes estructuras lógicas y resuelves la mayoría de problemas estándar con esfuerzo moderado. La práctica dirigida fortalecerá tu toolkit analítico con el tiempo.' }
-                  : { label_en: 'Developing', label_es: 'En Desarrollo', emoji: '📈', color: '#f97316', desc_en: 'Your reasoning skills are still forming. Focus on breaking problems into smaller steps, practicing logic puzzles, and reading analytically. Growth comes from consistent mental exercise and patience with yourself.', desc_es: 'Tus habilidades de razonamiento aún se están formando. Concéntrate en descomponer problemas en pasos pequeños, practicar rompecabezas lógicos y leer analíticamente. El crecimiento viene del ejercicio mental constante y la paciencia.' };
+            const lv = pct >= 85 ? { label_en: 'Exceptional', label_es: 'Excepcional', emoji: '🏆', color: '#f59e0b', desc_en: APTITUDE_LEVELS_TEXT.Exceptional.en, desc_es: APTITUDE_LEVELS_TEXT.Exceptional.es }
+              : pct >= 70 ? { label_en: 'Advanced', label_es: 'Avanzado', emoji: '🌟', color: '#3b82f6', desc_en: APTITUDE_LEVELS_TEXT.Advanced.en, desc_es: APTITUDE_LEVELS_TEXT.Advanced.es }
+                : pct >= 55 ? { label_en: 'Solid', label_es: 'Sólido', emoji: '💪', color: '#10b981', desc_en: APTITUDE_LEVELS_TEXT.Solid.en, desc_es: APTITUDE_LEVELS_TEXT.Solid.es }
+                  : { label_en: 'Developing', label_es: 'En Desarrollo', emoji: '📈', color: '#f97316', desc_en: APTITUDE_LEVELS_TEXT.Developing.en, desc_es: APTITUDE_LEVELS_TEXT.Developing.es };
             return (
               <View style={{ backgroundColor: colors.surfaceSecondary, borderRadius: 16, padding: 18, alignItems: 'center' }}>
                 <Text style={{ fontSize: 36, marginBottom: 4 }}>{lv.emoji}</Text>
@@ -1221,10 +1380,28 @@ export const PsyTestModal: React.FC<PsyTestModalProps> = ({
                 <Text style={{ color: colors.textSecondary, fontSize: 13, textAlign: 'center', marginTop: 4, lineHeight: 18 }}>
                   {lang === 'es' ? 'Razonamiento lógico, numérico, verbal y espacial.' : 'Logical, numerical, verbal and spatial reasoning.'}
                 </Text>
-                <Text style={{ color: colors.textSecondary, fontSize: 12, textAlign: 'center', marginTop: 8, lineHeight: 17 }}>
-                  {lang === 'es' ? lv.desc_es : lv.desc_en}
-                </Text>
-                <View style={{ flexDirection: 'row', gap: 8, marginTop: 14, flexWrap: 'wrap', justifyContent: 'center' }}>
+                
+                {/* ── Purpouse of the Test ── */}
+                <View style={{ marginTop: 16, padding: 12, backgroundColor: 'rgba(59, 130, 246, 0.1)', borderRadius: 10, borderWidth: 1, borderColor: '#3b82f6' }}>
+                  <Text style={{ color: colors.textPrimary, fontSize: 13, fontWeight: 'bold', marginBottom: 4, textAlign: 'center' }}>
+                    {lang === 'es' ? 'Propósito del Test' : 'Test Purpose'}
+                  </Text>
+                  <Text style={{ color: colors.textSecondary, fontSize: 12, textAlign: 'justify', lineHeight: 18 }}>
+                    {lang === 'es' ? TEST_PURPOSES.aptitude.es : TEST_PURPOSES.aptitude.en}
+                  </Text>
+                </View>
+
+                {/* ── Extended Result Analysis ── */}
+                <View style={{ marginTop: 16, padding: 12, backgroundColor: colors.surface, borderRadius: 10 }}>
+                  <Text style={{ color: lv.color, fontSize: 14, fontWeight: 'bold', marginBottom: 6, textAlign: 'center' }}>
+                    {lang === 'es' ? 'Análisis de tu Nivel' : 'Level Analysis'}
+                  </Text>
+                  <Text style={{ color: colors.textSecondary, fontSize: 12, textAlign: 'justify', lineHeight: 17 }}>
+                    {lang === 'es' ? lv.desc_es : lv.desc_en}
+                  </Text>
+                </View>
+
+                <View style={{ flexDirection: 'row', gap: 8, marginTop: 16, flexWrap: 'wrap', justifyContent: 'center' }}>
                   {[{ l: lang === 'es' ? 'Lógica' : 'Logic', e: '🔗' }, { l: lang === 'es' ? 'Numérica' : 'Numerical', e: '🔢' },
                   { l: lang === 'es' ? 'Verbal' : 'Verbal', e: '💬' }, { l: lang === 'es' ? 'Espacial' : 'Spatial', e: '🧩' }].map(s => (
                     <View key={s.l} style={{
@@ -1249,8 +1426,19 @@ export const PsyTestModal: React.FC<PsyTestModalProps> = ({
                 <Text style={{ color: colors.textPrimary, fontWeight: 'bold', fontSize: 16, marginBottom: 14, textAlign: 'center' }}>
                   🎯 {lang === 'es' ? 'Tu Código Holland (RIASEC)' : 'Your Holland Code (RIASEC)'}
                 </Text>
+
+                {/* ── Purpouse of the Test ── */}
+                <View style={{ marginBottom: 16, padding: 12, backgroundColor: 'rgba(59, 130, 246, 0.1)', borderRadius: 10, borderWidth: 1, borderColor: '#3b82f6', width: '100%' }}>
+                  <Text style={{ color: colors.textPrimary, fontSize: 13, fontWeight: 'bold', marginBottom: 4, textAlign: 'center' }}>
+                    {lang === 'es' ? 'Propósito del Test' : 'Test Purpose'}
+                  </Text>
+                  <Text style={{ color: colors.textSecondary, fontSize: 12, textAlign: 'justify', lineHeight: 18 }}>
+                    {lang === 'es' ? TEST_PURPOSES.vocational.es : TEST_PURPOSES.vocational.en}
+                  </Text>
+                </View>
                 {topTypes.map((t, idx) => {
                   const h = HOLLAND_LABELS[t]; if (!h) return null;
+                  const ext = HOLLAND_EXT[t] || { en: h.desc_en, es: h.desc_es };
                   const highlight = idx === 0;
                   return (
                     <View key={t} style={{
@@ -1276,11 +1464,11 @@ export const PsyTestModal: React.FC<PsyTestModalProps> = ({
                           <Text style={{ color: colors.textSecondary, fontSize: 12, marginTop: 3 }}>
                             📌 {lang === 'es' ? h.careers_es : h.careers_en}
                           </Text>
-                          <Text style={{ color: colors.textSecondary, fontSize: 11, marginTop: 4, lineHeight: 15 }}>
-                            {lang === 'es' ? h.desc_es : h.desc_en}
-                          </Text>
                         </View>
                       </View>
+                      <Text style={{ color: colors.textSecondary, fontSize: 12, marginTop: 8, lineHeight: 17, textAlign: 'justify' }}>
+                        {lang === 'es' ? ext.es : ext.en}
+                      </Text>
                     </View>
                   );
                 })}
@@ -1290,13 +1478,14 @@ export const PsyTestModal: React.FC<PsyTestModalProps> = ({
 
           {/* ══ Anxiety (Balance Emocional) ══ */}
           {localResults.type === 'anxiety' && (() => {
-            const levelData: Record<string, { en: string; es: string; emoji: string; color: string; adv_en: string; adv_es: string }> = {
-              minimal: { en: 'Minimal', es: 'Mínimo', emoji: '🌿', color: '#10b981', adv_en: 'Very low anxiety. Keep up healthy habits! You handle stress with resilience and emotional balance. Continue exercising, sleeping well, and nurturing social connections to maintain this positive state. Periodic self-check-ins help you catch early warning signs before they grow.', adv_es: 'Ansiedad muy baja. ¡Mantén tus hábitos saludables! Manejas el estrés con resiliencia y equilibrio emocional. Continúa ejercitándote, durmiendo bien y nutriendo conexiones sociales para mantener este estado positivo.' },
-              mild: { en: 'Mild', es: 'Leve', emoji: '😌', color: '#3b82f6', adv_en: 'Mild signs detected. Mindfulness meditation, regular physical activity, and consistent sleep can significantly reduce these symptoms. Talking to trusted friends or journaling may help you process worries before they escalate. Consider setting aside 10 minutes daily for worry-time containment.', adv_es: 'Señales leves detectadas. La meditación mindfulness, la actividad física regular y el sueño consistente pueden reducir estos síntomas significativamente. Hablar con amigos de confianza o escribir un diario puede ayudarte a procesar preocupaciones antes de que escalen.' },
-              moderate: { en: 'Moderate', es: 'Moderado', emoji: '🌊', color: '#f59e0b', adv_en: 'Noticeable anxiety is affecting your daily life. You may experience physical tension, racing thoughts, or avoidance behaviors. Professional support from a therapist or counselor can provide effective tools like CBT or structured breathing techniques. Regular exercise, sleep hygiene, and limiting caffeine are evidence-based strategies to implement now.', adv_es: 'Ansiedad notable está afectando tu vida diaria. Puedes experimentar tensión física, pensamientos acelerados o conductas de evitación. El apoyo profesional de un terapeuta puede proporcionar herramientas efectivas como TCC o técnicas de respiración estructuradas.' },
-              severe: { en: 'Severe', es: 'Severo', emoji: '⚠️', color: '#ef4444', adv_en: 'High anxiety is significantly impairing your functioning. Please reach out to a mental health professional promptly. Therapy, medication, or support groups can make a profound difference. You do not have to manage this alone. Crisis lines and trusted confidants are available. Your well-being is the absolute priority right now.', adv_es: 'Alta ansiedad está perjudicando significativamente tu funcionamiento. Por favor contacta a un profesional de salud mental de inmediato. La terapia, medicación o grupos de apoyo pueden marcar una diferencia profunda. No tienes que manejar esto solo/a.' },
+            const levelData: Record<string, { en: string; es: string; emoji: string; color: string }> = {
+              minimal: { en: 'Minimal', es: 'Mínimo', emoji: '🌿', color: '#10b981' },
+              mild: { en: 'Mild', es: 'Leve', emoji: '😌', color: '#3b82f6' },
+              moderate: { en: 'Moderate', es: 'Moderado', emoji: '🌊', color: '#f59e0b' },
+              severe: { en: 'Severe', es: 'Severo', emoji: '⚠️', color: '#ef4444' },
             };
             const lv = levelData[localResults.level] || levelData.minimal;
+            const textData = ANXIETY_LEVELS_TEXT[localResults.level] || ANXIETY_LEVELS_TEXT.minimal;
             return (
               <View style={{ backgroundColor: colors.surfaceSecondary, borderRadius: 16, padding: 18, alignItems: 'center' }}>
                 <Text style={{ fontSize: 36, marginBottom: 2 }}>{lv.emoji}</Text>
@@ -1305,12 +1494,24 @@ export const PsyTestModal: React.FC<PsyTestModalProps> = ({
                 </Text>
                 <GaugeIndicator score={localResults.score} color={lv.color}
                   label={lang === 'es' ? 'Balance Emocional' : 'Emotional Balance'} colors={colors} />
-                <View style={{
-                  backgroundColor: colors.surface, borderRadius: 12, padding: 14,
-                  borderWidth: 1, borderColor: lv.color, marginTop: 4
-                }}>
-                  <Text style={{ color: colors.textSecondary, fontSize: 13, textAlign: 'center', lineHeight: 20 }}>
-                    {lang === 'es' ? lv.adv_es : lv.adv_en}
+                
+                {/* ── Purpouse of the Test ── */}
+                <View style={{ marginTop: 16, padding: 12, backgroundColor: 'rgba(59, 130, 246, 0.1)', borderRadius: 10, borderWidth: 1, borderColor: '#3b82f6' }}>
+                  <Text style={{ color: colors.textPrimary, fontSize: 13, fontWeight: 'bold', marginBottom: 4, textAlign: 'center' }}>
+                    {lang === 'es' ? 'Propósito del Test' : 'Test Purpose'}
+                  </Text>
+                  <Text style={{ color: colors.textSecondary, fontSize: 12, textAlign: 'justify', lineHeight: 18 }}>
+                    {lang === 'es' ? TEST_PURPOSES.anxiety.es : TEST_PURPOSES.anxiety.en}
+                  </Text>
+                </View>
+
+                {/* ── Extended Result Analysis ── */}
+                <View style={{ marginTop: 16, padding: 12, backgroundColor: colors.surface, borderRadius: 10, width: '100%' }}>
+                  <Text style={{ color: lv.color, fontSize: 14, fontWeight: 'bold', marginBottom: 6, textAlign: 'center' }}>
+                    {lang === 'es' ? 'Análisis de tu Nivel' : 'Level Analysis'}
+                  </Text>
+                  <Text style={{ color: colors.textSecondary, fontSize: 12, textAlign: 'justify', lineHeight: 17 }}>
+                    {lang === 'es' ? textData.es : textData.en}
                   </Text>
                 </View>
               </View>
@@ -1321,10 +1522,15 @@ export const PsyTestModal: React.FC<PsyTestModalProps> = ({
           {localResults.type === 'mood' && (() => {
             const pct = Math.round(localResults.score * 100);
             const moodColor = pct >= 75 ? '#10b981' : pct >= 50 ? '#3b82f6' : pct >= 30 ? '#f59e0b' : '#ef4444';
-            const moodLabel = pct >= 75 ? { en: 'Flourishing', es: 'Floreciendo', emoji: '🌸', desc_en: 'You are experiencing high psychological well-being. You feel engaged, optimistic, and socially connected. Leverage this positive state toward meaningful goals, strengthen relationships, and practice gratitude. Maintain healthy routines and notice what sustains this flourishing state so you can return to it during harder times.', desc_es: 'Estás experimentando alto bienestar psicológico. Te sientes comprometido, optimista y socialmente conectado. Aprovecha este estado positivo hacia metas significativas, fortalece relaciones y practica la gratitud.' }
-              : pct >= 50 ? { en: 'Balanced', es: 'Equilibrado', emoji: '🌿', desc_en: 'Your mood is generally stable with occasional fluctuations. You function well in most areas but have room for growth. Regular exercise, social interaction, and creative outlets can lift your baseline. Tracking small daily wins and gratitude moments may help build momentum toward greater well-being.', desc_es: 'Tu ánimo es generalmente estable con fluctuaciones ocasionales. Funcionas bien en la mayoría de áreas pero tienes espacio para crecer. El ejercicio regular, interacción social y salidas creativas pueden elevar tu base.' }
-                : pct >= 30 ? { en: 'Struggling', es: 'Con Dificultades', emoji: '🌦️', desc_en: 'You are facing some emotional challenges. Low motivation, social withdrawal, or negative thoughts may be present. Small actionable steps like a short walk, consistent sleep schedule, or reaching out to one trusted person can create positive ripple effects. Be patient with yourself — recovery is incremental and every small step counts.', desc_es: 'Estás enfrentando algunos retos emocionales. Pueden estar presentes baja motivación, aislamiento social o pensamientos negativos. Pequeños pasos como una caminata corta, horario de sueño consistente o contactar a una persona de confianza pueden crear efectos positivos.' }
-                  : { en: 'Needs Attention', es: 'Necesita Atención', emoji: '🆘', desc_en: 'Your well-being score suggests significant distress. Low energy, persistent sadness, or hopelessness may be present. Please consider speaking with a mental health professional. Even small acts of self-care — hydration, fresh air, or a brief call to someone you trust — can be starting points. You deserve support and things can improve with the right help.', desc_es: 'Tu puntaje de bienestar sugiere malestar significativo. Pueden estar presentes baja energía, tristeza persistente o desesperanza. Por favor considera hablar con un profesional de salud mental. Incluso pequeños actos de autocuidado pueden ser puntos de partida.' };
+            const moodLabel = pct >= 75 ? { en: 'Flourishing', es: 'Floreciendo', emoji: '🌸' }
+              : pct >= 50 ? { en: 'Balanced', es: 'Equilibrado', emoji: '🌿' }
+                : pct >= 30 ? { en: 'Struggling', es: 'Con Dificultades', emoji: '🌦️' }
+                  : { en: 'Needs Attention', es: 'Necesita Atención', emoji: '🆘' };
+
+            const textData = pct >= 75 ? MOOD_LEVELS_TEXT.Flourishing
+                           : pct >= 50 ? MOOD_LEVELS_TEXT.Balanced
+                           : pct >= 30 ? MOOD_LEVELS_TEXT.Struggling
+                           : MOOD_LEVELS_TEXT.NeedsAttention;
             return (
               <View style={{ backgroundColor: colors.surfaceSecondary, borderRadius: 16, padding: 18, alignItems: 'center' }}>
                 <Text style={{ fontSize: 36, marginBottom: 2 }}>{moodLabel.emoji}</Text>
@@ -1333,9 +1539,26 @@ export const PsyTestModal: React.FC<PsyTestModalProps> = ({
                 </Text>
                 <GaugeIndicator score={localResults.score} color={moodColor}
                   label={lang === 'es' ? 'Bienestar Emocional' : 'Emotional Well-being'} colors={colors} />
-                <Text style={{ color: colors.textSecondary, fontSize: 12, textAlign: 'center', marginTop: 8, lineHeight: 17 }}>
-                  {lang === 'es' ? moodLabel.desc_es : moodLabel.desc_en}
-                </Text>
+                
+                {/* ── Purpouse of the Test ── */}
+                <View style={{ marginTop: 16, padding: 12, backgroundColor: 'rgba(59, 130, 246, 0.1)', borderRadius: 10, borderWidth: 1, borderColor: '#3b82f6', width: '100%' }}>
+                  <Text style={{ color: colors.textPrimary, fontSize: 13, fontWeight: 'bold', marginBottom: 4, textAlign: 'center' }}>
+                    {lang === 'es' ? 'Propósito del Test' : 'Test Purpose'}
+                  </Text>
+                  <Text style={{ color: colors.textSecondary, fontSize: 12, textAlign: 'justify', lineHeight: 18 }}>
+                    {lang === 'es' ? TEST_PURPOSES.mood.es : TEST_PURPOSES.mood.en}
+                  </Text>
+                </View>
+
+                {/* ── Extended Result Analysis ── */}
+                <View style={{ marginTop: 16, padding: 12, backgroundColor: colors.surface, borderRadius: 10, width: '100%' }}>
+                  <Text style={{ color: moodColor, fontSize: 14, fontWeight: 'bold', marginBottom: 6, textAlign: 'center' }}>
+                    {lang === 'es' ? 'Análisis de tu Nivel' : 'Level Analysis'}
+                  </Text>
+                  <Text style={{ color: colors.textSecondary, fontSize: 12, textAlign: 'justify', lineHeight: 17 }}>
+                    {lang === 'es' ? textData.es : textData.en}
+                  </Text>
+                </View>
                 <View style={{ flexDirection: 'row', gap: 10, justifyContent: 'center', marginTop: 8 }}>
                   {['😔', '😐', '🙂', '😊', '🌟'].map((e, i) => {
                     const active = Math.min(4, Math.round(pct / 25)) === i;
@@ -1357,9 +1580,9 @@ export const PsyTestModal: React.FC<PsyTestModalProps> = ({
         <View style={{ gap: 10, paddingTop: 10 }}>
           <TouchableOpacity
             style={{
-              backgroundColor: '#0d2b1a', borderRadius: 12, padding: 14,
+              backgroundColor: colors.surfaceSecondary, borderRadius: 12, padding: 14,
               alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8,
-              borderWidth: 1, borderColor: '#10b981'
+              borderWidth: 1, borderColor: 'rgba(16, 185, 129, 0.5)'
             }}
             onPress={handleExportResults}
           >
@@ -1396,8 +1619,8 @@ export const PsyTestModal: React.FC<PsyTestModalProps> = ({
 
           <TouchableOpacity
             style={{
-              backgroundColor: '#3b1c1c', borderRadius: 12, padding: 14,
-              alignItems: 'center', borderWidth: 1, borderColor: '#ef4444'
+              backgroundColor: colors.surfaceSecondary, borderRadius: 12, padding: 14,
+              alignItems: 'center', borderWidth: 1, borderColor: 'rgba(239, 68, 68, 0.5)'
             }}
             onPress={handleRetake}
           >
