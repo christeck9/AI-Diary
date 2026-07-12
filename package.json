@@ -1,7 +1,7 @@
 {
   "name": "ai-diary",
   "version": "1.9.6",
-  "main": "index.js",
+  "main": "expo-router/entry",
   "scripts": {
     "start": "expo start",
     "android": "expo run:android",

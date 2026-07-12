@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View, Alert, Platform, StatusBar, Dimensions } from 'react-native';
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View, Alert, Platform, StatusBar, Dimensions } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAppTheme } from '../../contexts/ThemeContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useProfile } from '../../contexts/ProfileContext';
@@ -10,7 +11,8 @@ import { useRouter } from 'expo-router';
 const SnowflakeChart = React.lazy(() => import('../../components/ui/SnowflakeChart').then(m => ({ default: m.SnowflakeChart })));
 const ProfileModal = React.lazy(() => import('../../components/modals/ProfileModal').then(m => ({ default: m.ProfileModal })));
 const PsyTestModal = React.lazy(() => import('../../components/modals/PsyTestModal').then(m => ({ default: m.PsyTestModal })));
-import { MBTI_QUESTIONS, PSY_QUESTIONS, ANXIETY_QUESTIONS, APTITUDE_QUESTIONS, VOCATIONAL_QUESTIONS } from '../../components/modals/PsyTestModal';
+import { MBTI_QUESTIONS, PSY_QUESTIONS, ANXIETY_QUESTIONS, APTITUDE_QUESTIONS, VOCATIONAL_QUESTIONS, HOLLAND_LABELS } from '../../components/modals/PsyTestModal';
+import { MBTI_EXT, HOLLAND_EXT } from '../../components/modals/PsyTestContent';
 import { SanctuaryHeader } from '../../components/SanctuaryHeader';
 // expo-print and expo-sharing are dynamically imported
 import Svg, { Line } from 'react-native-svg';
@@ -594,9 +596,29 @@ export default function SelfKnowScreen() {
               <div class="section-title">${lang === 'es' ? 'Indicadores Adicionales' : 'Additional Metrics'}</div>
               <div class="grid">
                 <div class="row"><span class="label">MBTI:</span><span class="val">${mbti}</span></div>
-                <div class="row"><span class="label">${lang === 'es' ? 'Balance Emocional' : 'Emotional Balance'}:</span><span class="val">${mood}</span></div>
+                ${mbti && mbti !== 'N/A' && MBTI_EXT[mbti as keyof typeof MBTI_EXT] ? `<div style="margin-top: 10px; font-size: 14px; color: #444; line-height: 1.5; text-align: justify; padding: 10px; background: #f9f9f9; border-left: 3px solid #5c84a8;">${lang === 'es' ? MBTI_EXT[mbti as keyof typeof MBTI_EXT].es : MBTI_EXT[mbti as keyof typeof MBTI_EXT].en}</div>` : ''}
+                <div class="row" style="margin-top: 15px;"><span class="label">${lang === 'es' ? 'Bienestar Emocional' : 'Emotional Well-being'}:</span><span class="val">${mood}</span></div>
+                ${completedTests.anxiety ? `<div class="row" style="margin-top: 15px;"><span class="label">${lang === 'es' ? 'Balance Emocional' : 'Emotional Balance'}:</span><span class="val">${Math.round(completedTests.anxiety.score * 100)}% - ${completedTests.anxiety.label}</span></div>` : ''}
+                ${completedTests.aptitude ? `<div class="row" style="margin-top: 15px;"><span class="label">${lang === 'es' ? 'Aptitudes Cognitivas' : 'Cognitive Aptitudes'}:</span><span class="val">${Math.round(completedTests.aptitude.score * 100)}% - ${completedTests.aptitude.label}</span></div>` : ''}
               </div>
             </div>
+
+            ${completedTests.vocational ? `
+            <div class="section">
+              <div class="section-title">${lang === 'es' ? 'Perfil Vocacional (Holland)' : 'Vocational Profile (Holland)'}</div>
+              <div class="grid">
+                ${(completedTests.vocational.topTypes as string[]).map((t, idx) => {
+                  const h = HOLLAND_LABELS[t];
+                  const ext = HOLLAND_EXT[t] || { en: '', es: '' };
+                  if (!h) return '';
+                  return `<div style="margin-bottom: 15px;">
+                    <div style="font-weight: bold; font-size: 15px;">${h.emoji} ${lang === 'es' ? h.es : h.en} ${idx === 0 ? `<span style="background:#f59e0b;color:#000;padding:2px 8px;border-radius:4px;font-size:11px;">${lang === 'es' ? 'DOMINANTE' : 'DOMINANT'}</span>` : ''}</div>
+                    <div style="color: #666; font-size: 12px; margin-top: 4px;">${lang === 'es' ? h.careers_es : h.careers_en}</div>
+                    <div style="margin-top: 8px; font-size: 13px; color: #444; line-height: 1.5; text-align: justify;">${lang === 'es' ? ext.es : ext.en}</div>
+                  </div>`;
+                }).join('')}
+              </div>
+            </div>` : ''}
           </body>
         </html>
       `;
@@ -719,7 +741,9 @@ export default function SelfKnowScreen() {
                 <div class="row"><span class="label">${lang === 'es' ? 'Velocidad de Decisión (D)' : 'Decision Speed (D)'}:</span><span class="val">${getVal(psy.D)}</span></div>
                 <div class="row"><span class="label">${lang === 'es' ? 'Estilo de Aprendizaje (L)' : 'Learning Style (L)'}:</span><span class="val">${getVal(psy.L)}</span></div>
                 <div class="row"><span class="label">MBTI:</span><span class="val">${mbti}</span></div>
-                <div class="row"><span class="label">${lang === 'es' ? 'Balance Emocional' : 'Emotional Balance'}:</span><span class="val">${mood}</span></div>
+                <div class="row"><span class="label">${lang === 'es' ? 'Bienestar Emocional' : 'Emotional Well-being'}:</span><span class="val">${mood}</span></div>
+                ${completedTests.anxiety ? `<div class="row"><span class="label">${lang === 'es' ? 'Balance Emocional' : 'Emotional Balance'}:</span><span class="val">${Math.round(completedTests.anxiety.score * 100)}% - ${completedTests.anxiety.label}</span></div>` : ''}
+                ${completedTests.aptitude ? `<div class="row"><span class="label">${lang === 'es' ? 'Aptitudes Cognitivas' : 'Cognitive Aptitudes'}:</span><span class="val">${Math.round(completedTests.aptitude.score * 100)}% - ${completedTests.aptitude.label}</span></div>` : ''}
               </div>
               ` : `<p style="font-style: italic; color: #777;">${lang === 'es' ? 'Sin datos de tests de personalidad aún.' : 'No personality test data available yet.'}</p>`}
             </div>

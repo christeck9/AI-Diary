@@ -140,6 +140,60 @@ class AnimaVoiceModule : Module(), TextToSpeech.OnInitListener {
 
     AsyncFunction("uninstallJSI") {
       nativeUninstallJSI()
+      // Reset the JS global flag to force re-initialization
+      // Note: On New Arch, we set animaJSIReady to false via the C++ cleanup
+    }
+
+    // Re-install JSI after cleanup (call when tab regains focus)
+    AsyncFunction("reinstallJSI") {
+      try {
+        val reactContext = appContext.reactContext as? com.facebook.react.bridge.ReactContext
+            ?: return@AsyncFunction null
+        
+        val jsQueueThread = try {
+          val config = reactContext.javaClass.getMethod("getReactQueueConfiguration").invoke(reactContext)
+          config?.javaClass?.getMethod("getJSQueueThread")?.invoke(config)
+        } catch (e: Exception) {
+          null
+        }
+
+        val runOnJS = { runnable: Runnable ->
+          if (jsQueueThread != null) {
+            try {
+              jsQueueThread.javaClass.getMethod("runOnQueue", Runnable::class.java).invoke(jsQueueThread, runnable)
+            } catch (e: Exception) {
+              reactContext.runOnJSQueueThread(runnable)
+            }
+          } else {
+            reactContext.runOnJSQueueThread(runnable)
+          }
+        }
+
+        runOnJS(Runnable {
+          var runtimePtr: Long = 0L
+
+          try {
+            val holder = reactContext.javaClass.getMethod("getJavaScriptContextHolder").invoke(reactContext)
+            runtimePtr = holder?.javaClass?.getMethod("get")?.invoke(holder) as? Long ?: 0L
+          } catch (e: Exception) {
+            android.util.Log.w("AnimaVoice", "Re-install JSI access failed: ${e.message}")
+          }
+
+          if (runtimePtr != 0L) {
+            nativeInstallJSI(runtimePtr)
+            android.util.Log.i("AnimaVoice", "✅ JSI audio bridge re-installed (ptr=$runtimePtr)")
+          } else {
+            android.util.Log.w("AnimaVoice", "⚠️ JSI runtime pointer is 0 on re-install")
+          }
+        })
+      } catch (e: Exception) {
+        android.util.Log.e("AnimaVoice", "Failed to schedule JSI re-install", e)
+      }
+    }
+
+    // Check if AudioPlayer is alive and healthy (native check)
+    AsyncFunction("isAudioPlayerReady") {
+      isAudioPlayerReady()
     }
 
     AsyncFunction("synthesizeNativeToPCM") { text: String, lang: String, promise: Promise ->
@@ -175,6 +229,16 @@ class AnimaVoiceModule : Module(), TextToSpeech.OnInitListener {
     }
   }
 
-  private external fun nativeInstallJSI(jsiPtr: Long)
-  private external fun nativeUninstallJSI()
+private external fun nativeInstallJSI(jsiPtr: Long)
+   private external fun nativeUninstallJSI()
+   private external fun nativeIsAudioPlayerReady(): Boolean
+   
+   // Check if the AudioPlayer is alive and healthy
+   fun isAudioPlayerReady(): Boolean {
+     return try {
+       nativeIsAudioPlayerReady()
+     } catch (e: Exception) {
+       false
+     }
+   }
 }

@@ -108,4 +108,12 @@ Java_com_christeck_animavoice_AnimaVoiceModule_nativeUninstallJSI(JNIEnv *env, j
         player->stop();
         player.reset();
     }
+    // Reset the ready flag so JS knows it needs to re-initialize
+    g_isJSIReady = false;
+}
+
+// Check if the AudioPlayer is alive and healthy
+extern "C" JNIEXPORT jboolean JNICALL
+Java_com_christeck_animavoice_AnimaVoiceModule_nativeIsAudioPlayerReady(JNIEnv *env, jobject thiz) {
+    return player != nullptr && g_isJSIReady ? JNI_TRUE : JNI_FALSE;
 }
