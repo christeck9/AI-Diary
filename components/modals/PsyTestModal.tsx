@@ -885,7 +885,7 @@ export const MBTI_QUESTIONS = [
     opts: [{ en: "To start early and finish ahead of time to avoid stress.", es: "Empezar temprano y terminar antes de tiempo para evitar estrés.", val: 1, dim: 'J' }, { en: "To rely on a burst of last-minute adrenaline to get it done.", es: "Depender de una racha de adrenalina de último minuto para terminar.", val: 1, dim: 'P' }]
   },
   {
-    q_en: "You feel the most underlying psychological anxiety when...", q_es: "Sientes la mayor ansiedad psicológica subyacente cuando...",
+    q_en: "You feel more anxiety when...", q_es: "Sientes mayor ansiedad cuando...",
     opts: [{ en: "Things are left undecided, vague, or up in the air.", es: "Las cosas se dejan sin decidir, vagas o en el aire.", val: 1, dim: 'J' }, { en: "You are locked into a strict commitment with no flexibility.", es: "Estás atrapado en un compromiso estricto sin flexibilidad.", val: 1, dim: 'P' }]
   },
   {
@@ -1390,8 +1390,8 @@ export const PsyTestModal: React.FC<PsyTestModalProps> = ({
           )}
           <Text style={{ color: colors.textSecondary, fontSize: 10, textAlign: 'center', marginTop: 2, lineHeight: 14 }}>
             {lang === 'es'
-              ? '¡Ve que te dice la IA! Puede ser tardado. La IA tiene que estar cargada. Ve a IA Base. Sugerencia: ponla en el modo Profundo o Creativo antes de presionar el botón.'
-              : 'See what the AI tells you! It may take a while. The AI must be loaded. Go to AI Base. Suggestion: set it to Deep or Creative mode before pressing the button.'}
+              ? 'Ver que te dice la IA puede ser tardado, aun asi se recomienda que este en el modo Profundo o Creativo para que te de mejor respuesta. Puedes volver aqui y presionar el boton.'
+              : 'Seeing what the AI tells you can take a while, even so it is recommended to be in Deep or Creative mode for a better response. You can return here and press the button.'}
           </Text>
 
           <TouchableOpacity
