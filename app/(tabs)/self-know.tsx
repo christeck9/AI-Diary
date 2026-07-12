@@ -6,15 +6,17 @@ import { useProfile } from '../../contexts/ProfileContext';
 import { useSQLiteContext } from 'expo-sqlite';
 import { IconSymbol } from '../../components/ui/icon-symbol';
 import { PsiIcon } from '../../components/ui/PsiIcon';
+import { useRouter } from 'expo-router';
 const SnowflakeChart = React.lazy(() => import('../../components/ui/SnowflakeChart').then(m => ({ default: m.SnowflakeChart })));
 const ProfileModal = React.lazy(() => import('../../components/modals/ProfileModal').then(m => ({ default: m.ProfileModal })));
 const PsyTestModal = React.lazy(() => import('../../components/modals/PsyTestModal').then(m => ({ default: m.PsyTestModal })));
-import { MBTI_QUESTIONS, PSY_QUESTIONS } from '../../components/modals/PsyTestModal';
+import { MBTI_QUESTIONS, PSY_QUESTIONS, ANXIETY_QUESTIONS, APTITUDE_QUESTIONS, VOCATIONAL_QUESTIONS } from '../../components/modals/PsyTestModal';
 import { SanctuaryHeader } from '../../components/SanctuaryHeader';
 // expo-print and expo-sharing are dynamically imported
 import Svg, { Line } from 'react-native-svg';
 import { useLlmState } from '../../contexts/LlmContext';
 import { useBadgeTracker } from '../../hooks/useBadgeTracker';
+import { chatBridge } from '../../lib/chatBridge';
 
 export default function SelfKnowScreen() {
   const { colors, activeTheme } = useAppTheme();
@@ -22,6 +24,7 @@ export default function SelfKnowScreen() {
   const { psyProfile, setPsyProfile, setPsyCompleted, userProfile, setUserProfile } = useProfile();
   const db = useSQLiteContext();
   const { status, activeModel } = useLlmState();
+  const router = useRouter();
 
   const { markAction: markAwarenessAction } = useBadgeTracker('awareness');
 
@@ -36,6 +39,19 @@ export default function SelfKnowScreen() {
   const [activeTestType, setActiveTestType] = useState<'ocean' | 'aptitude' | 'vocational' | 'anxiety' | 'mood' | 'mbti'>('ocean');
   const [localPsyStep, setLocalPsyStep] = useState(0);
   const [localPsyAnswers, setLocalPsyAnswers] = useState<number[]>([]);
+  const [completedTests, setCompletedTests] = useState<Record<string, any>>({});
+
+  useEffect(() => {
+    let mounted = true;
+    const load = async () => {
+      const results = await loadCompletedTests();
+      if (mounted) {
+        setCompletedTests(results);
+      }
+    };
+    load();
+    return () => { mounted = false; };
+  }, [db]);
 
   const [isProfileVisible, setIsProfileVisible] = useState(false);
   const [isProfileMounted, setIsProfileMounted] = useState(false);
@@ -51,20 +67,82 @@ export default function SelfKnowScreen() {
   };
 
   const handleOpenTest = (type: typeof activeTestType) => {
+    const isSwitching = activeTestType !== type;
     setActiveTestType(type);
-    setLocalPsyStep(0);
-    setLocalPsyAnswers([]);
-    setIsPsyTestMounted(true);
-    setTimeout(() => {
+    if (isSwitching || !completedTests[type]) {
+      setIsPsyTestMounted(false);
+      setLocalPsyStep(0);
+      setLocalPsyAnswers([]);
+      setTimeout(() => {
+        setIsPsyTestMounted(true);
+        setIsPsyTestVisible(true);
+      }, 50);
+    } else {
       setIsPsyTestVisible(true);
-    }, 50);
+    }
   };
 
   const handleCloseTest = () => {
     setIsPsyTestVisible(false);
     setTimeout(() => {
-      setIsPsyTestMounted(false);
+      if (!completedTests[activeTestType]) {
+        setIsPsyTestMounted(false);
+      }
     }, 500);
+  };
+
+  const handleRetakeTest = () => {
+    setCompletedTests(prev => {
+      const next = { ...prev };
+      delete next[activeTestType];
+      return next;
+    });
+    setLocalPsyStep(0);
+    setLocalPsyAnswers([]);
+  };
+
+  const handleAiDescription = async (prompt: string) => {
+    handleCloseTest();
+    await new Promise(resolve => setTimeout(resolve, 400));
+    try {
+      await chatBridge.sendTestDescription({ prompt, testType: activeTestType, results: completedTests[activeTestType] });
+    } catch (e) {
+      console.error('[AI_DESC] Error sending test description:', e);
+    }
+  };
+
+  const saveTestResult = async (type: string, resultData: any) => {
+    if (!db) return;
+    try {
+      const json = JSON.stringify(resultData);
+      const row = await db.getFirstAsync<{ id: number }>('SELECT id FROM psy_test_results WHERE test_type = ?', [type]);
+      if (row) {
+        await db.runAsync('UPDATE psy_test_results SET results = ?, completed_at = ? WHERE test_type = ?', [json, Date.now(), type]);
+      } else {
+        await db.runAsync('INSERT INTO psy_test_results (test_type, results, completed_at) VALUES (?, ?, ?)', [type, json, Date.now()]);
+      }
+    } catch (e) {
+      console.error('[DB] Error saving test result:', e);
+    }
+  };
+
+  const loadCompletedTests = async (): Promise<Record<string, any>> => {
+    if (!db) return {};
+    try {
+      const rows: any[] = await db.getAllAsync('SELECT test_type, results FROM psy_test_results');
+      const map: Record<string, any> = {};
+      rows.forEach(row => {
+        try {
+          map[row.test_type] = JSON.parse(row.results);
+        } catch (e) {
+          console.error('[DB] Error parsing test result:', e);
+        }
+      });
+      return map;
+    } catch (e) {
+      console.error('[DB] Error loading test results:', e);
+      return {};
+    }
   };
 
   const handleScoreTest = async (type: string, answers: number[]) => {
@@ -91,9 +169,12 @@ export default function SelfKnowScreen() {
       };
       setPsyProfile(scores);
       setPsyCompleted(true);
+      const oceanResult = { type: 'ocean', scores: { O: scores.O, C: scores.C, E: scores.E, A: scores.A, N: scores.N, D: scores.D, L: scores.L } };
+      setCompletedTests(prev => ({ ...prev, ocean: oceanResult }));
       if (db) {
         await db.runAsync('INSERT OR REPLACE INTO psy_profile (id, O, C, E, A, N, D, L, mood_balance, mbti_type) VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
           [scores.O, scores.C, scores.E, scores.A, scores.N, scores.D, scores.L, scores.moodBalance, scores.mbtiType]);
+        await saveTestResult('ocean', oceanResult);
       }
     } else if (type === 'mbti') {
       const dims: Record<string, number> = { E: 0, I: 0, S: 0, N: 0, T: 0, F: 0, J: 0, P: 0 };
@@ -105,11 +186,14 @@ export default function SelfKnowScreen() {
         (dims.S >= dims.N ? 'S' : 'N') +
         (dims.T >= dims.F ? 'T' : 'F') +
         (dims.J >= dims.P ? 'J' : 'P');
+      const mbtiResult = { type: 'mbti', mbtiType: res };
       setPsyProfile((prev: any) => {
         const newProfile = { ...prev, mbtiType: res };
+        setCompletedTests(prevTests => ({ ...prevTests, mbti: mbtiResult }));
         if (db) {
           db.runAsync('INSERT OR REPLACE INTO psy_profile (id, O, C, E, A, N, D, L, mood_balance, mbti_type) VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
             [newProfile.O, newProfile.C, newProfile.E, newProfile.A, newProfile.N, newProfile.D, newProfile.L, newProfile.moodBalance, newProfile.mbtiType]).catch((err: any) => console.log('[DB_ERROR]', err));
+          saveTestResult('mbti', mbtiResult);
         }
         return newProfile;
       });
@@ -117,11 +201,84 @@ export default function SelfKnowScreen() {
     } else if (type === 'mood') {
       const sum = answers.reduce((a, b) => a + b, 0);
       const normalized = sum / (answers.length * 3); // 25 questions * max 3 = 75
+      const pct = Math.round(normalized * 100);
+      const moodLabel = pct>=75 ? { en: 'Flourishing', es: 'Floreciendo' }
+        : pct>=50 ? { en: 'Balanced', es: 'Equilibrado' }
+        : pct>=30 ? { en: 'Struggling', es: 'Con Dificultades' }
+        : { en: 'Needs Attention', es: 'Necesita Atención' };
+      const moodResult = { type: 'mood', score: normalized, label: moodLabel[lang as 'en' | 'es'] || moodLabel.en };
       setPsyProfile((prev: any) => {
         const newProfile = { ...prev, moodBalance: normalized };
+        setCompletedTests(prevTests => ({ ...prevTests, mood: moodResult }));
         if (db) {
           db.runAsync('INSERT OR REPLACE INTO psy_profile (id, O, C, E, A, N, D, L, mood_balance, mbti_type) VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
             [newProfile.O, newProfile.C, newProfile.E, newProfile.A, newProfile.N, newProfile.D, newProfile.L, newProfile.moodBalance, newProfile.mbtiType]).catch((err: any) => console.log('[DB_ERROR]', err));
+          saveTestResult('mood', moodResult);
+        }
+        return newProfile;
+      });
+      markAwarenessAction();
+    } else if (type === 'anxiety') {
+      const total = answers.reduce((sum, ansIdx, i) => sum + (ANXIETY_QUESTIONS[i]?.opts[ansIdx]?.val ?? 0), 0);
+      const pct = total / (answers.length * 3);
+      const level = pct < 0.2 ? 'minimal' : pct < 0.4 ? 'mild' : pct < 0.6 ? 'moderate' : 'severe';
+      const score = 1 - pct;
+      const levelLabel = lang === 'es'
+        ? (level === 'minimal' ? 'Mínimo' : level === 'mild' ? 'Leve' : level === 'moderate' ? 'Moderado' : 'Severo')
+        : (level === 'minimal' ? 'Minimal' : level === 'mild' ? 'Mild' : level === 'moderate' ? 'Moderate' : 'Severe');
+      const anxietyResult = { type: 'anxiety', score, level, label: levelLabel };
+      setPsyProfile((prev: any) => {
+        const newProfile = { ...prev, N: score };
+        setCompletedTests(prevTests => ({ ...prevTests, anxiety: anxietyResult }));
+        if (db) {
+          db.runAsync('INSERT OR REPLACE INTO psy_profile (id, O, C, E, A, N, D, L, mood_balance, mbti_type) VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            [newProfile.O, newProfile.C, newProfile.E, newProfile.A, newProfile.N, newProfile.D, newProfile.L, newProfile.moodBalance, newProfile.mbtiType]).catch((err: any) => console.log('[DB_ERROR]', err));
+          saveTestResult('anxiety', anxietyResult);
+        }
+        return newProfile;
+      });
+      markAwarenessAction();
+    } else if (type === 'aptitude') {
+      let correct = 0;
+      answers.forEach((ansIdx, i) => { if (APTITUDE_QUESTIONS[i]?.opts[ansIdx]?.correct === true) correct++; });
+      const score = correct / Math.max(APTITUDE_QUESTIONS.length, 1);
+      const pct = Math.round(score * 100);
+      const lv = pct>=85 ? { en:'Exceptional', es:'Excepcional' }
+        : pct>=70 ? { en:'Advanced', es:'Avanzado' }
+        : pct>=55 ? { en:'Solid', es:'Sólido' }
+        : { en:'Developing', es:'En Desarrollo' };
+      const aptitudeResult = { type: 'aptitude', score, label: lv[lang as 'en' | 'es'] || lv.en };
+      setPsyProfile((prev: any) => {
+        const newProfile = { ...prev, C: Math.max(prev.C, score), D: Math.max(prev.D, score) };
+        setCompletedTests(prevTests => ({ ...prevTests, aptitude: aptitudeResult }));
+        if (db) {
+          db.runAsync('INSERT OR REPLACE INTO psy_profile (id, O, C, E, A, N, D, L, mood_balance, mbti_type) VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            [newProfile.O, newProfile.C, newProfile.E, newProfile.A, newProfile.N, newProfile.D, newProfile.L, newProfile.moodBalance, newProfile.mbtiType]).catch((err: any) => console.log('[DB_ERROR]', err));
+          saveTestResult('aptitude', aptitudeResult);
+        }
+        return newProfile;
+      });
+      markAwarenessAction();
+    } else if (type === 'vocational') {
+      const dims: Record<string, number> = { R: 0, I: 0, A: 0, S: 0, E: 0, C: 0 };
+      answers.forEach((ansIdx, i) => {
+        const qType = VOCATIONAL_QUESTIONS[i]?.opts[0]?.type as string;
+        if (qType && dims[qType] !== undefined) {
+          dims[qType] += ansIdx === 0 ? 1 : ansIdx === 1 ? 0.7 : ansIdx === 2 ? 0.4 : 0;
+        }
+      });
+      const sorted = Object.entries(dims).sort(([, a], [, b]) => b - a);
+      const topTypes = sorted.slice(0, 3).map(([k]) => k);
+      const topScore = sorted[0]?.[1] ?? 0;
+      const topType = topTypes[0] || 'R';
+      const vocationalResult = { type: 'vocational', topTypes, topType, dims };
+      setPsyProfile((prev: any) => {
+        const newProfile = { ...prev, O: Math.max(prev.O, topScore / 25) };
+        setCompletedTests(prevTests => ({ ...prevTests, vocational: vocationalResult }));
+        if (db) {
+          db.runAsync('INSERT OR REPLACE INTO psy_profile (id, O, C, E, A, N, D, L, mood_balance, mbti_type) VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            [newProfile.O, newProfile.C, newProfile.E, newProfile.A, newProfile.N, newProfile.D, newProfile.L, newProfile.moodBalance, newProfile.mbtiType]).catch((err: any) => console.log('[DB_ERROR]', err));
+          saveTestResult('vocational', vocationalResult);
         }
         return newProfile;
       });
@@ -179,8 +336,77 @@ export default function SelfKnowScreen() {
     });
   }
 
+  // 5. Mood
+  if (completedTests.mood) {
+    const moodLabel = completedTests.mood.label || (lang === 'es' ? 'Estado de ánimo' : 'Mood');
+    surroundingNodes.push({
+      label: `🌿 ${moodLabel}`,
+      color: '#10b981',
+      type: 'mood'
+    });
+  }
+
+  // 6. Anxiety / Emotional Balance
+  if (completedTests.anxiety) {
+    const anxietyLabel = completedTests.anxiety.label || (lang === 'es' ? 'Balance' : 'Balance');
+    surroundingNodes.push({
+      label: `🌊 ${anxietyLabel}`,
+      color: '#06b6d4',
+      type: 'anxiety'
+    });
+  }
+
+  // 7. Aptitude
+  if (completedTests.aptitude) {
+    const aptLabel = completedTests.aptitude.label || (lang === 'es' ? 'Aptitud' : 'Aptitude');
+    surroundingNodes.push({
+      label: `💡 ${aptLabel}`,
+      color: '#3b82f6',
+      type: 'aptitude'
+    });
+  }
+
+  // 8. Vocational
+  if (completedTests.vocational) {
+    const vocLabel = completedTests.vocational.topType || (lang === 'es' ? 'Vocacional' : 'Vocational');
+    surroundingNodes.push({
+      label: `🎯 ${vocLabel}`,
+      color: '#f59e0b',
+      type: 'vocational'
+    });
+  }
+
+  // 9. OCEAN+ (show dominant dimensions)
+  if (completedTests.ocean) {
+    const oceanScores = completedTests.ocean.scores as Record<string, number> | undefined;
+    if (oceanScores) {
+      const topDims = Object.entries(oceanScores)
+        .sort(([, a], [, b]) => b - a)
+        .slice(0, 2)
+        .map(([k]) => k);
+      topDims.forEach(dim => {
+        const meta = {
+          O: { label: lang === 'es' ? 'Apertura' : 'Openness', color: '#a855f7' },
+          C: { label: lang === 'es' ? 'Responsabilidad' : 'Conscientiousness', color: '#3b82f6' },
+          E: { label: lang === 'es' ? 'Extraversión' : 'Extraversion', color: '#f59e0b' },
+          A: { label: lang === 'es' ? 'Amabilidad' : 'Agreeableness', color: '#10b981' },
+          N: { label: lang === 'es' ? 'Estabilidad' : 'Stability', color: '#06b6d4' },
+          D: { label: lang === 'es' ? 'Vel. Decisión' : 'Decision Speed', color: '#f97316' },
+          L: { label: lang === 'es' ? 'Est. Aprendizaje' : 'Learning Style', color: '#8b5cf6' },
+        }[dim];
+        if (meta) {
+          surroundingNodes.push({
+            label: meta.label,
+            color: meta.color,
+            type: 'ocean'
+          });
+        }
+      });
+    }
+  }
+
   // Default placeholders if empty
-  const nodesToRender = surroundingNodes.length > 0 ? surroundingNodes : [
+  const nodesToRender = surroundingNodes.length > 0 ? surroundingNodes.slice(0, 10) : [
     { label: lang === 'es' ? 'Valores' : 'Values', color: colors.border, type: 'default' },
     { label: lang === 'es' ? 'Intereses' : 'Interests', color: colors.border, type: 'default' },
     { label: 'MBTI', color: colors.border, type: 'default' },
@@ -578,7 +804,7 @@ export default function SelfKnowScreen() {
             style={[styles.testButton, { backgroundColor: colors.surfaceSecondary, borderColor: colors.border, borderLeftColor: '#4ade80' }]}
             onPress={() => handleOpenTest('aptitude')}
           >
-            <Text style={[styles.buttonTitle, { color: colors.textPrimary }]}>{lang === 'es' ? '2. Test de Aptitudes [25 Q]' : '2. Aptitude Test [25 Q]'}</Text>
+            <Text style={[styles.buttonTitle, { color: colors.textPrimary }]}>{lang === 'es' ? '2. Test de Aptitudes Cognitivas [25 Q]' : '2. Cognitive Aptitudes Test [25 Q]'}</Text>
             <Text style={[styles.buttonDesc, { color: colors.textSecondary }]}>{lang === 'es' ? 'Descubre tus habilidades naturales.' : 'Discover your natural skills.'}</Text>
           </TouchableOpacity>
 
@@ -610,7 +836,7 @@ export default function SelfKnowScreen() {
             style={[styles.testButton, { backgroundColor: colors.surfaceSecondary, borderColor: colors.border, borderLeftColor: '#a855f7' }]}
             onPress={() => handleOpenTest('mbti')}
           >
-            <Text style={[styles.buttonTitle, { color: colors.textPrimary }]}>{lang === 'es' ? '6. Test de Personalidad 16r [25 Q]' : '6. 16r Personality Test [25 Q]'}</Text>
+            <Text style={[styles.buttonTitle, { color: colors.textPrimary }]}>{lang === 'es' ? '6. Test 16 Tipos de Personalidad [25Q]' : '6. Personality 16 Types Test [25Q]'}</Text>
             <Text style={[styles.buttonDesc, { color: colors.textSecondary }]}>{lang === 'es' ? 'Arquetipo de personalidad (Jung).' : 'Personality archetype (Jung).'}</Text>
           </TouchableOpacity>
         </View>
@@ -623,12 +849,12 @@ export default function SelfKnowScreen() {
           <React.Suspense fallback={null}>
             <SnowflakeChart 
               data={{
-                O: psyProfile.O || 0,
-                C: psyProfile.C || 0,
-                E: psyProfile.E || 0,
-                A: psyProfile.A || 0,
-                S: 1 - (psyProfile.N || 0),
-                M: psyProfile.moodBalance || 0
+                O: completedTests.ocean ? (psyProfile.O || 0) : (psyProfile.mbtiType?.includes('N') ? 0.7 : psyProfile.mbtiType ? 0.3 : 0),
+                C: completedTests.ocean ? (psyProfile.C || 0) : (completedTests.aptitude ? completedTests.aptitude.score : (psyProfile.mbtiType?.includes('J') ? 0.7 : psyProfile.mbtiType?.includes('P') ? 0.3 : 0)),
+                E: completedTests.ocean ? (psyProfile.E || 0) : (psyProfile.mbtiType?.includes('E') ? 0.7 : psyProfile.mbtiType?.includes('I') ? 0.3 : 0),
+                A: completedTests.ocean ? (psyProfile.A || 0) : (psyProfile.mbtiType?.includes('F') ? 0.7 : psyProfile.mbtiType?.includes('T') ? 0.3 : 0),
+                S: completedTests.ocean ? (1 - (psyProfile.N || 0)) : (1 - (completedTests.anxiety ? completedTests.anxiety.score : (completedTests.mood ? completedTests.mood.score : 0))),
+                M: completedTests.ocean ? (psyProfile.moodBalance || 0) : (completedTests.mood ? completedTests.mood.score : 0)
               }}
               size={220}
               colors={colors}
@@ -781,23 +1007,26 @@ export default function SelfKnowScreen() {
       </ScrollView>
     </SafeAreaView>
 
-    {isPsyTestMounted && (
-      <React.Suspense fallback={null}>
-        <PsyTestModal
-          visible={isPsyTestVisible}
-          onClose={handleCloseTest}
-          lang={lang}
-          colors={colors}
-          psyProfile={psyProfile}
-          psyStep={localPsyStep}
-          setPsyStep={setLocalPsyStep}
-          psyAnswers={localPsyAnswers}
-          setPsyAnswers={setLocalPsyAnswers}
-          activeTest={activeTestType}
-          scoreTest={handleScoreTest}
-        />
-      </React.Suspense>
-    )}
+      {isPsyTestMounted && (
+        <React.Suspense fallback={null}>
+          <PsyTestModal
+            visible={isPsyTestVisible}
+            onClose={handleCloseTest}
+            lang={lang}
+            colors={colors}
+            psyProfile={psyProfile}
+            psyStep={localPsyStep}
+            setPsyStep={setLocalPsyStep}
+            psyAnswers={localPsyAnswers}
+            setPsyAnswers={setLocalPsyAnswers}
+            activeTest={activeTestType}
+            scoreTest={handleScoreTest}
+            savedResults={completedTests[activeTestType]}
+            onRetake={handleRetakeTest}
+            onAiDescription={handleAiDescription}
+          />
+        </React.Suspense>
+      )}
 
     {isProfileMounted && (
       <React.Suspense fallback={null}>

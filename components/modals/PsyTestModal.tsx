@@ -1076,7 +1076,7 @@ export const PsyTestModal: React.FC<PsyTestModalProps> = ({
 
       } else if (localResults.type === 'aptitude') {
         html = `<html><head><style>body{font-family:sans-serif;padding:32px;}.score{font-size:72px;font-weight:900;color:#3b82f6;}</style></head>
-          <body><h1>💡 ${lang === 'es' ? 'Reporte de Aptitudes' : 'Aptitude Report'}</h1>
+          <body><h1>💡 ${lang === 'es' ? 'Reporte de Aptitudes Cognitivas' : 'Cognitive Aptitudes Report'}</h1>
           <p>${lang === 'es' ? 'Fecha' : 'Date'}: ${new Date().toLocaleDateString()}</p>
           <div class="score">${Math.round(localResults.score * 100)}%</div>
           <p>${lang === 'es' ? 'Razonamiento lógico, numérico, verbal y espacial.' : 'Logical, numerical, verbal and spatial reasoning.'}</p></body></html>`;
@@ -1390,8 +1390,8 @@ export const PsyTestModal: React.FC<PsyTestModalProps> = ({
           )}
           <Text style={{ color: colors.textSecondary, fontSize: 10, textAlign: 'center', marginTop: 2, lineHeight: 14 }}>
             {lang === 'es'
-              ? 'Ver que te dice la IA puede ser tardado, aun asi se recomienda que este en el modo Profundo o Creativo para que te de mejor respuesta. Puedes volver aqui y presionar el boton.'
-              : 'Seeing what the AI tells you can take a while, even so it is recommended to be in Deep or Creative mode for a better response. You can return here and press the button.'}
+              ? 'Se recomienda tener la IA en modo Deep o Creative para obtener una mejor respuesta. Ve a IA Base para ver que te dice o cambiar de modo. Vuelve aqui si gustas intentar de nuevo.'
+              : 'It is recommended to have the AI in Deep or Creative mode to get a better response. Go to AI Base to see what it tells you or change the mode. Return here if you want to try again.'}
           </Text>
 
           <TouchableOpacity
@@ -1425,7 +1425,7 @@ export const PsyTestModal: React.FC<PsyTestModalProps> = ({
   // ── Question screen ─────────────────────────────────────────────────────────
   const testTitle: Record<TestType, string> = {
     ocean: lang === 'es' ? 'Test OCEAN+' : 'OCEAN+ Test',
-    aptitude: lang === 'es' ? 'Test de Aptitudes' : 'Aptitude Test',
+    aptitude: lang === 'es' ? 'Test de Aptitudes Cognitivas' : 'Cognitive Aptitudes Test',
     vocational: lang === 'es' ? 'Test Vocacional' : 'Vocational Test',
     anxiety: lang === 'es' ? 'Test de Balance Emocional' : 'Emotional Balance Test',
     mood: lang === 'es' ? 'Test de Bienestar' : 'Well-being Test',
