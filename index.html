@@ -1557,7 +1557,7 @@
           <p class="en">To start and re-start press Restart AI-Core. Select a new AI, download it and Activate it.</p>
           <div class="section-divider"></div>
         </div>
-        <div class="steps-grid">
+        <div class="steps-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
 
           <!-- Step 1 -->
           <div class="step-card">
@@ -1598,9 +1598,13 @@
             </div>
           </div>
 
+        </div>
+
+        <!-- Step 3 container below -->
+        <div style="margin-top: 24px; max-width: 600px; margin-left: auto; margin-right: auto;">
           <!-- Step 3 -->
           <div class="step-card">
-            <div class="step-img-wrap">
+            <div class="step-img-wrap" style="height: 380px;">
               <img src="images/en/step3.png" alt="Start talking or scripting" class="en" loading="lazy">
               <img src="images/es/step3.png" alt="Comenzar a hablar o crear proyectos" class="es" loading="lazy">
             </div>
@@ -1615,7 +1619,6 @@
                 through text, create interactive projects with AI, or use calendar and PDF tools.</p>
             </div>
           </div>
-
         </div>
 
 
@@ -2045,6 +2048,8 @@
         <div class="section-title">
           <h2 class="es">Elige tu Motor de Inteligencia Artificial</h2>
           <h2 class="en">Choose Your AI Engine</h2>
+          <p class="es" style="margin-top: 10px; font-size: 1.1rem; opacity: 0.85;">Especificaciones de Modelos y Requisitos</p>
+          <p class="en" style="margin-top: 10px; font-size: 1.1rem; opacity: 0.85;">Model Specifications &amp; Requirements</p>
         </div>
 
         <div class="models-grid"
@@ -2073,33 +2078,6 @@
               </li>
             </ul>
           </div>
-
-          <!-- Gemma 3 (4B) [SUSPENDIDO] -->
-          <div class="model-card" style="opacity: 0.6; position: relative;">
-            <div
-              style="position: absolute; top: 12px; right: 12px; background: #ea4335; color: #fff; font-size: 0.75rem; font-weight: 700; padding: 2px 8px; border-radius: 12px;">
-              <span class="es">SUSPENDIDO</span><span class="en">SUSPENDED</span>
-            </div>
-            <div class="model-name">Gemma 3 (4B)</div>
-            <div class="model-sub es">Anima Balance · Suspendido temporalmente</div>
-            <div class="model-sub en">Anima Balance · Temporarily suspended</div>
-            <ul class="spec-list">
-              <li class="spec-item">
-                <div class="spec-dot" style="background: #ea4335;"></div><span class="es">Desactivado temporalmente por
-                  optimizaciones</span><span class="en">Temporarily disabled for optimizations</span>
-              </li>
-              <li class="spec-item">
-                <div class="spec-dot"></div><span class="es">Excelente ventana de contexto de 128k</span><span
-                  class="en">Excellent 128k context window</span>
-              </li>
-              <li class="spec-item">
-                <div class="spec-dot"></div><span class="es">~2.4 GB de almacenamiento</span><span class="en">~2.4 GB
-                  storage</span>
-              </li>
-            </ul>
-          </div>
-
-
 
           <div class="model-card featured">
             <div class="model-badge">⭐ <span class="es">Recomendado</span><span class="en">Recommended</span></div>
@@ -2132,10 +2110,8 @@
       </section>
 
       <!-- ——— SPECS ——— -->
-      <section id="specs">
-        <div class="section-title">
-          <h2 class="es">Especificaciones de Modelos y Requisitos</h2>
-          <h2 class="en">Model Specifications & Requirements</h2>
+      <section id="specs" style="padding-top: 24px;">
+        <div class="container">
           <p class="es"
             style="max-width: 800px; margin: 15px auto 0; font-size: 1.05rem; line-height: 1.8; color: var(--text-mid); text-align: justify;">
             <strong>⚡ Llama 3.2 1B (Light Core):</strong> Este modelo ultra-ligero está diseñado para funcionar con una
