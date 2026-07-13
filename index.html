@@ -413,13 +413,16 @@
       align-items: center;
       justify-content: center;
       font-size: 1.5rem;
-      margin-bottom: 18px;
       border: 1px solid var(--border);
+      float: left;
+      margin-right: 14px;
+      margin-bottom: 6px;
     }
 
     .feature-card h3 {
       font-size: 1.05rem;
       font-weight: 700;
+      margin-top: 0;
       margin-bottom: 9px;
     }
 
@@ -427,6 +430,14 @@
       color: var(--text-muted);
       font-size: 0.88rem;
       line-height: 1.65;
+      margin-top: 0;
+    }
+
+    /* Clearfix for feature card since it uses float */
+    .feature-card::after {
+      content: "";
+      display: table;
+      clear: both;
     }
 
     /* ============================================================  STEP GUIDE  */
@@ -1331,7 +1342,8 @@
           <a href="https://play.google.com/apps/internaltest/4701699304938671354" target="_blank"
             class="btn btn-primary" id="btn-google-play"
             style="width: 100%; display: flex; justify-content: center; align-items: center;">
-            <span style="color: #f59e0b;">▶</span> &nbsp;<span class="es">Google Play Store</span><span class="en">Google Play Store</span>
+            <span style="color: #f7fa50;">▶</span> &nbsp;<span class="es">Google Play Store</span><span
+              class="en">Google Play Store</span>
           </a>
           <span style="font-size: 0.8rem; opacity: 0.7; color: var(--text-muted); line-height: 1.4;">Right now in Close
             Tests in Google Waiting for Comercial Release.</span>
@@ -2076,7 +2088,8 @@
                   class="en">Smooth conversational responses</span>
               </li>
               <li class="spec-item">
-                <div class="spec-dot"></div><span class="es">2 GB de almacenamiento en disco</span><span class="en">2 GB disk storage</span>
+                <div class="spec-dot"></div><span class="es">2 GB de almacenamiento en disco</span><span class="en">2 GB
+                  disk storage</span>
               </li>
             </ul>
           </div>
@@ -2128,7 +2141,8 @@
                   class="en">Native Tool Call support (Sentinel AI)</span>
               </li>
               <li class="spec-item">
-                <div class="spec-dot"></div><span class="es">5 GB de almacenamiento en disco</span><span class="en">5 GB disk
+                <div class="spec-dot"></div><span class="es">5 GB de almacenamiento en disco</span><span class="en">5 GB
+                  disk
                   storage</span>
               </li>
             </ul>
@@ -2148,14 +2162,17 @@
             velocidad excepcional incluso en dispositivos de gama media o de generaciones anteriores. Requiere un
             procesador básico de 64 bits (como Snapdragon 7 Gen 1 o Apple A14), al menos <strong>4 GB de memoria
               RAM</strong> (con un consumo real en ejecución de apenas ~1 GB de VRAM virtualizada en RAM) y requiere
-            <strong>2 GB de espacio libre en disco</strong> para almacenamiento de modelos, cachés y base de datos local. Es ideal para respuestas rápidas, resúmenes al instante y traducciones fluidas,
+            <strong>2 GB de espacio libre en disco</strong> para almacenamiento de modelos, cachés y base de datos
+            local. Es ideal para respuestas rápidas, resúmenes al instante y traducciones fluidas,
             aunque no se recomienda para razonamiento matemático complejo o análisis de lógica estructurada profunda.
             <br><br>
             <strong>🚀 Gemma 4 E2B (Anima Deepmind):</strong> Nuestro núcleo de inteligencia más avanzado, optimizado
             mediante tecnología QAT por Google DeepMind. Para desbloquear todo su potencial, se recomienda un procesador
             de alto rendimiento (como Snapdragon 8 Gen 2 o Apple A16 o superior), un mínimo de <strong>6 GB de
               RAM</strong> libres (donde reserva cerca de ~2.2 GB de RAM compartida para inferencia unificada de texto y
-            visión en GPU) y un espacio disponible de <strong>5 GB en disco</strong> (para el modelo base, proyector multimodal, proyectos interactivos e indexación de archivos locales mediante RAG). Es perfecto para análisis introspectivos avanzados, lógica estructurada, razonamiento de
+            visión en GPU) y un espacio disponible de <strong>5 GB en disco</strong> (para el modelo base, proyector
+            multimodal, proyectos interactivos e indexación de archivos locales mediante RAG). Es perfecto para análisis
+            introspectivos avanzados, lógica estructurada, razonamiento de
             proyectos y llamadas de herramientas con Sentinel AI.
           </p>
           <p class="en"
@@ -2163,14 +2180,17 @@
             <strong>⚡ Llama 3.2 1B (Light Core):</strong> This ultra-lightweight model is designed to perform with
             exceptional speed even on mid-range or older-generation devices. It requires a standard 64-bit processor
             (such as Snapdragon 7 Gen 1 or Apple A14), at least <strong>4 GB of RAM</strong> (consuming only ~1 GB of
-            virtualized VRAM in system RAM during runtime), and requires <strong>2 GB of free disk storage</strong> for local database, cache and model files. It is ideal for rapid
+            virtualized VRAM in system RAM during runtime), and requires <strong>2 GB of free disk storage</strong> for
+            local database, cache and model files. It is ideal for rapid
             responses, instant summaries, and smooth translations, though it is not recommended for complex mathematical
             reasoning or deep structured logical analysis.
             <br><br>
             <strong>🚀 Gemma 4 E2B (Anima Deepmind):</strong> Our most advanced intelligence core, optimized via QAT
             technology by Google DeepMind. To unlock its full potential, we recommend a high-performance processor (such
             as Snapdragon 8 Gen 2, Apple A16 or newer), a minimum of <strong>6 GB of RAM</strong> (reserving about ~2.2
-            GB of shared RAM for unified GPU vision and text inference), and <strong>5 GB of free disk storage</strong> (for the base model, vision project, interactive projects, and local RAG indexing). It is perfect for advanced introspective analysis, structured
+            GB of shared RAM for unified GPU vision and text inference), and <strong>5 GB of free disk storage</strong>
+            (for the base model, vision project, interactive projects, and local RAG indexing). It is perfect for
+            advanced introspective analysis, structured
             logic, project reasoning, and tool calling with Sentinel AI.
           </p>
           <div class="section-divider"></div>
@@ -2429,7 +2449,8 @@
                 <a href="https://opensource.org/licenses/MIT" target="_blank"
                   style="color: var(--primary); text-decoration: underline;">MIT License</a>. Copyright © OpenAI /
                 Georgi
-                Gerganov.</p>
+                Gerganov.
+              </p>
 
               <h4 class="es">3. Acuerdos y Librerías de Inferencia</h4>
               <h4 class="en">3. Inference Engines and Libraries</h4>
