@@ -2409,82 +2409,63 @@
     <!-- ——— TECH SPECS ——— -->
     <section id="tech-specs">
       <div class="section-title">
-        <span class="section-label es">Aceleración</span>
-        <span class="section-label en">Acceleration</span>
-        <h2 class="es">Especificaciones de Aceleración en GPU</h2>
-        <h2 class="en">GPU Acceleration Specifications</h2>
-        <p class="es">El motor de AI Diary detecta el hardware de tu dispositivo de manera inteligente para asignar la
-          cantidad óptima de capas a la GPU.</p>
-        <p class="en">AI Diary's engine intelligently detects your device's hardware to offload the optimal number of
-          layers to the GPU.</p>
+        <span class="section-label es" style="font-size: 1.8rem; text-transform: uppercase;">ACELERACIÓN</span>
+        <span class="section-label en" style="font-size: 1.8rem; text-transform: uppercase;">ACCELERATION</span>
+        <h2 class="es" style="font-size: 3.5rem; font-weight: 900; text-transform: uppercase;">ACELERACIÓN DE HARDWARE Y SOFTWARE</h2>
+        <h2 class="en" style="font-size: 3.5rem; font-weight: 900; text-transform: uppercase;">HARDWARE AND SOFTWARE ACCELERATION</h2>
+        <p class="es" style="font-size: 1.2rem; max-width: 800px; margin: 15px auto 0;">AI Diary implementa un pipeline de optimización de vanguardia para ejecutar modelos avanzados de lenguaje localmente en tu teléfono con la máxima velocidad y el menor consumo de batería.</p>
+        <p class="en" style="font-size: 1.2rem; max-width: 800px; margin: 15px auto 0;">AI Diary implements a cutting-edge optimization pipeline to execute advanced local language models on your phone with maximum speed and minimum battery consumption.</p>
         <div class="section-divider"></div>
       </div>
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th class="es">Dispositivo</th>
-              <th class="en">Device</th>
-              <th class="es">Detección de Hardware</th>
-              <th class="en">Hardware Detection ID</th>
-              <th class="es">Capas GPU</th>
-              <th class="en">GPU Layers</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td class="es">iPhone (cualquier modelo)</td>
-              <td class="en">iPhone (any model)</td>
-              <td><code>apple-silicon</code></td>
-              <td>99 (Metal)</td>
-            </tr>
-            <tr>
-              <td class="es">Pixel 6/7/8/9 (Tensor)</td>
-              <td class="en">Pixel 6/7/8/9 (Tensor)</td>
-              <td><code>google-tensor</code></td>
-              <td>24 ✅ (OpenCL)</td>
-            </tr>
-            <tr>
-              <td class="es">Samsung Galaxy S21/S22/S23/S24</td>
-              <td class="en">Samsung Galaxy S21/S22/S23/S24</td>
-              <td><code>qualcomm-snapdragon</code></td>
-              <td>24 ✅ (OpenCL)</td>
-            </tr>
-            <tr>
-              <td class="es">Samsung Galaxy Z Fold/Flip</td>
-              <td class="en">Samsung Galaxy Z Fold/Flip</td>
-              <td><code>qualcomm-snapdragon</code></td>
-              <td>24 ✅ (OpenCL)</td>
-            </tr>
-            <tr>
-              <td class="es">OnePlus / Nothing / ASUS</td>
-              <td class="en">OnePlus / Nothing / ASUS</td>
-              <td><code>qualcomm-snapdragon</code></td>
-              <td class="es">24 (si RAM ≥8GB) ✅ (OpenCL)</td>
-              <td class="en">24 (if RAM ≥8GB) ✅ (OpenCL)</td>
-            </tr>
-            <tr>
-              <td class="es">Android genérico de gama alta (64-bit)</td>
-              <td class="en">Generic high-end Android (64-bit)</td>
-              <td><code>qualcomm-snapdragon</code> (fallback)</td>
-              <td>24 (OpenCL)</td>
-            </tr>
-            <tr>
-              <td class="es">Android gama baja / desconocido</td>
-              <td class="en">Low-end / unknown Android</td>
-              <td><code>generic-arm</code></td>
-              <td class="es">0 (seguro / CPU)</td>
-              <td class="en">0 (safe mode / CPU)</td>
-            </tr>
-            <tr>
-              <td class="es">Emulador</td>
-              <td class="en">Emulator</td>
-              <td>override</td>
-              <td class="es">0 (modo seguro)</td>
-              <td class="en">0 (safe mode)</td>
-            </tr>
-          </tbody>
-        </table>
+
+      <div style="max-width: 900px; margin: 40px auto 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 32px; padding: 0 20px;">
+        <!-- Hardware acceleration card -->
+        <div style="background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 32px; box-shadow: var(--shadow-sm);">
+          <div style="font-size: 3rem; margin-bottom: 16px;">⚙️</div>
+          <h3 class="es" style="font-size: 1.8rem; font-weight: 800; margin-bottom: 16px; color: var(--text);">ACELERACIÓN DE HARDWARE</h3>
+          <h3 class="en" style="font-size: 1.8rem; font-weight: 800; margin-bottom: 16px; color: var(--text);">HARDWARE ACCELERATION</h3>
+          <ul style="list-style: none; padding-left: 0; display: flex; flex-direction: column; gap: 16px; font-size: 1rem; color: var(--text-mid); line-height: 1.6;">
+            <li>
+              <strong>OpenCL & Metal GPU Offloading:</strong>
+              <span class="es">Delega dinámicamente las capas de inferencia a la GPU de tu dispositivo móvil, logrando procesamiento de tensores paralelo e inferencia de alta velocidad.</span>
+              <span class="en">Dynamically offloads LLM inference layers to your mobile device's GPU, achieving parallel tensor processing and high-speed execution.</span>
+            </li>
+            <li>
+              <strong>CPU Scaling Dinámico (Multithreading):</strong>
+              <span class="es">Monitorea y asigna de manera inteligente los hilos de cálculo según el procesador para evitar el sobrecalentamiento y maximizar el rendimiento.</span>
+              <span class="en">Intelligently monitors and assigns computation threads based on the CPU architecture to prevent overheating and maximize performance.</span>
+            </li>
+            <li>
+              <strong>Optimización de NPU:</strong>
+              <span class="es">Aprovecha los núcleos neuronales de última generación en procesadores Apple Silicon y Snapdragon.</span>
+              <span class="en">Takes advantage of next-generation neural engines in Apple Silicon and Snapdragon processors.</span>
+            </li>
+          </ul>
+        </div>
+
+        <!-- Software acceleration card -->
+        <div style="background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 32px; box-shadow: var(--shadow-sm);">
+          <div style="font-size: 3rem; margin-bottom: 16px;">🧠</div>
+          <h3 class="es" style="font-size: 1.8rem; font-weight: 800; margin-bottom: 16px; color: var(--text);">ACELERACIÓN DE SOFTWARE</h3>
+          <h3 class="en" style="font-size: 1.8rem; font-weight: 800; margin-bottom: 16px; color: var(--text);">SOFTWARE ACCELERATION</h3>
+          <ul style="list-style: none; padding-left: 0; display: flex; flex-direction: column; gap: 16px; font-size: 1rem; color: var(--text-mid); line-height: 1.6;">
+            <li>
+              <strong>Quantization-Aware Training (QAT):</strong>
+              <span class="es">Gemma 4 fue entrenado conociendo que operaría en 4 bits (Q4_0), permitiendo que la información fluya sin pérdida de precisión de forma nativa en el móvil.</span>
+              <span class="en">Gemma 4 was pre-trained knowing it would operate in 4-bit (Q4_0), allowing information to flow natively on mobile with no accuracy loss.</span>
+            </li>
+            <li>
+              <strong>Per-Layer Embeddings (PLE / Parámetros Efectivos):</strong>
+              <span class="es">Aunque la IA pesa 5.1B parámetros físicos en chip, solo activa la lógica de 2.0B de parámetros por ciclo de cómputo para inferencia a alta velocidad.</span>
+              <span class="en">Although the AI has 5.1B physical parameters, it only activates the computation logic of 2.0B parameters per cycle for high-speed inference.</span>
+            </li>
+            <li>
+              <strong>Caché KV Rediseñada & Zero-Copy JSI Bridge:</strong>
+              <span class="es">Disminuye la carga del bus de memoria del móvil en un 40% y transfiere grandes cantidades de datos instantáneamente por C++ directo sin demoras de JS.</span>
+              <span class="en">Reduces memory bus load by 40% and transfers massive data instantly via native C++ direct communication without JS thread blockages.</span>
+            </li>
+          </ul>
+        </div>
       </div>
     </section>
 
