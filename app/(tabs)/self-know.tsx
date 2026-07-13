@@ -981,6 +981,11 @@ export default function SelfKnowScreen() {
             </Text>
           </View>
         </View>
+        <Text style={{ color: colors.textSecondary, fontSize: 11, textAlign: 'center', marginTop: -10, marginBottom: 10 }}>
+          {lang === 'es' 
+            ? 'Gráfica que describe tus metas, intereses y aptitudes.' 
+            : 'Chart describing your goals, interests, and aptitudes.'}
+        </Text>
 
         {/* Banner de Calibración */}
         <View style={[styles.bannerCard, { backgroundColor: colors.surfaceSecondary, borderColor: colors.border }]}>
