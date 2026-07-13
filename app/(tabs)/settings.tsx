@@ -760,6 +760,26 @@ export default function SettingsScreen() {
               <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: colors.surfaceSecondary, padding: 15, borderRadius: 12, borderWidth: 1, borderColor: colors.border, marginBottom: 15 }}>
                 <View style={{ flex: 1, paddingRight: 10 }}>
                   <Text style={{ color: colors.textPrimary, fontWeight: 'bold', fontSize: 16, marginBottom: 5 }}>
+                    {lang === 'es' ? 'Activa Voces Naturales (API)' : 'Activate Natural Voices (API)'}
+                  </Text>
+                  <Text style={{ color: colors.textSecondary, fontSize: 12 }}>
+                    {lang === 'es' ? 'Voces naturales y fluidas online (no necesarias pero pudieran ser mejores y con acento regional).' : 'Natural and fluid voices online (not necessary but could be better and with regional accent).'}
+                  </Text>
+                </View>
+                <Switch
+                  trackColor={{ false: colors.border, true: colors.primary }}
+                  thumbColor={useCloudTTS ? '#FFF' : '#f4f3f4'}
+                  onValueChange={async (val) => {
+                    setUseCloudTTS(val);
+                    await saveSettings({ useCloudTTS: val });
+                  }}
+                  value={useCloudTTS}
+                />
+              </View>
+
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: colors.surfaceSecondary, padding: 15, borderRadius: 12, borderWidth: 1, borderColor: colors.border, marginBottom: 15 }}>
+                <View style={{ flex: 1, paddingRight: 10 }}>
+                  <Text style={{ color: colors.textPrimary, fontWeight: 'bold', fontSize: 16, marginBottom: 5 }}>
                     {lang === 'es' ? 'Silenciar Voz de la IA' : 'Mute AI Voice'}
                   </Text>
                   <Text style={{ color: colors.textSecondary, fontSize: 12 }}>
@@ -774,26 +794,6 @@ export default function SettingsScreen() {
                     voice.toggleMute();
                   }}
                   value={voice.isMuted}
-                />
-              </View>
-
-              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: colors.surfaceSecondary, padding: 15, borderRadius: 12, borderWidth: 1, borderColor: colors.border, marginBottom: 15 }}>
-                <View style={{ flex: 1, paddingRight: 10 }}>
-                  <Text style={{ color: colors.textPrimary, fontWeight: 'bold', fontSize: 16, marginBottom: 5 }}>
-                    {lang === 'es' ? 'Voces Naturales (Internet)' : 'Natural Voices (Internet)'}
-                  </Text>
-                  <Text style={{ color: colors.textSecondary, fontSize: 12 }}>
-                    {lang === 'es' ? 'Envía la respuesta final a la nube para generar voces fluidas. Bajo riesgo de privacidad.' : 'Sends the final AI response to the cloud to generate fluid human voice. Low privacy risk.'}
-                  </Text>
-                </View>
-                <Switch
-                  trackColor={{ false: colors.border, true: colors.primary }}
-                  thumbColor={useCloudTTS ? '#FFF' : '#f4f3f4'}
-                  onValueChange={async (val) => {
-                    setUseCloudTTS(val);
-                    await saveSettings({ useCloudTTS: val });
-                  }}
-                  value={useCloudTTS}
                 />
               </View>
 
