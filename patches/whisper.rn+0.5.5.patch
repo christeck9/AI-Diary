@@ -1,3 +1,320 @@
+diff --git a/node_modules/whisper.rn/android/bin/build.gradle b/node_modules/whisper.rn/android/bin/build.gradle
+new file mode 100644
+index 0000000..4658456
+--- /dev/null
++++ b/node_modules/whisper.rn/android/bin/build.gradle
+@@ -0,0 +1,176 @@
++buildscript {
++  repositories {
++    google()
++    mavenCentral()
++  }
++
++  dependencies {
++    classpath "com.android.tools.build:gradle:7.2.1"
++  }
++}
++
++def isNewArchitectureEnabled() {
++  return rootProject.hasProperty("newArchEnabled") && rootProject.getProperty("newArchEnabled") == "true"
++}
++
++apply plugin: "com.android.library"
++
++
++def appProject = rootProject.allprojects.find { it.plugins.hasPlugin('com.android.application') }
++
++if (isNewArchitectureEnabled()) {
++  apply plugin: "com.facebook.react"
++}
++
++def getExtOrDefault(name) {
++  return rootProject.ext.has(name) ? rootProject.ext.get(name) : project.properties["RNWhisper_" + name]
++}
++
++def getExtOrIntegerDefault(name) {
++  return rootProject.ext.has(name) ? rootProject.ext.get(name) : (project.properties["RNWhisper_" + name]).toInteger()
++}
++
++def reactNativeArchitectures() {
++  def value = project.getProperties().get("reactNativeArchitectures")
++  return value ? value.split(",") : ["armeabi-v7a", "x86", "x86_64", "arm64-v8a"]
++}
++
++// Detect RN Version as done here:
++// https://github.com/software-mansion/react-native-reanimated/blob/66a6bd0e3a819ca7ae46751d36e405fe32b68b71/packages/react-native-reanimated/android/build.gradle#L73
++def resolveReactNativeDirectory() {
++  def reactNativeLocation = rootProject.ext.has("REACT_NATIVE_NODE_MODULES_DIR") ? rootProject.ext.get("REACT_NATIVE_NODE_MODULES_DIR") : null
++  if (reactNativeLocation != null) {
++    return file(reactNativeLocation)
++  }
++
++  // Fallback to node resolver for custom directory structures like monorepos.
++  def reactNativePackage = file(["node", "--print", "require.resolve('react-native/package.json')"].execute(null, rootDir).text.trim())
++  if(reactNativePackage.exists()) {
++    return reactNativePackage.parentFile
++  }
++
++  throw new GradleException(
++          "[Reanimated] Unable to resolve react-native location in node_modules. You should project extension property (in `app/build.gradle`) `REACT_NATIVE_NODE_MODULES_DIR` with path to react-native."
++  )
++}
++
++def reactNativeRootDir = resolveReactNativeDirectory()
++
++def reactProperties = new Properties()
++file("$reactNativeRootDir/ReactAndroid/gradle.properties").withInputStream { reactProperties.load(it) }
++
++def REACT_NATIVE_VERSION = reactProperties.getProperty("VERSION_NAME")
++def REACT_NATIVE_MINOR_VERSION = REACT_NATIVE_VERSION.startsWith("0.0.0-") ? 1000 : REACT_NATIVE_VERSION.split("\\.")[1].toInteger()
++
++android {
++  def agpVersion = com.android.Version.ANDROID_GRADLE_PLUGIN_VERSION
++  if (agpVersion.tokenize('.')[0].toInteger() >= 7) {
++    namespace "com.rnwhisper"
++  }
++  ndkVersion getExtOrDefault("ndkVersion")
++  compileSdkVersion getExtOrIntegerDefault("compileSdkVersion")
++
++  defaultConfig {
++    minSdkVersion getExtOrIntegerDefault("minSdkVersion")
++    targetSdkVersion getExtOrIntegerDefault("targetSdkVersion")
++    buildConfigField "boolean", "IS_NEW_ARCHITECTURE_ENABLED", isNewArchitectureEnabled().toString()
++    externalNativeBuild {
++      cmake {
++        abiFilters (*reactNativeArchitectures())
++        // Configure STL to be compatible with ReactAndroid JSI libraries
++        arguments "-DANDROID_STL=c++_shared",
++                  "-DREACT_NATIVE_MINOR_VERSION=${REACT_NATIVE_MINOR_VERSION}",
++                  "-DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON"
++      }
++    }
++    ndk {
++      // Ensure shared STL is used for JSI compatibility
++      abiFilters (*reactNativeArchitectures())
++    }
++  }
++
++  packagingOptions {
++    doNotStrip resolveBuildType() == "debug" ? "**/**/*.so" : ""
++    excludes = [
++      "META-INF",
++      "META-INF/**",
++      "**/libc++_shared.so",
++      "**/libfbjni.so",
++      "**/libjsi.so",
++      "**/libfolly_json.so",
++      "**/libfolly_runtime.so",
++      "**/libglog.so",
++      "**/libreactnative.so",
++      "**/libreactnativejni.so",
++      "**/libturbomodulejsijni.so",
++      "**/libreact_nativemodule_core.so",
++    ]
++  }
++
++  buildFeatures {
++    prefab = true
++  }
++  externalNativeBuild {
++    cmake {
++      path = file('src/main/CMakeLists.txt')
++    }
++  }
++  // Exclude jniLibs when building from source
++  sourceSets {
++    main {
++      jniLibs.srcDirs = []
++    }
++  }
++  buildTypes {
++    release {
++      minifyEnabled false
++    }
++  }
++
++  lintOptions {
++    disable "GradleCompatible"
++  }
++
++  compileOptions {
++    sourceCompatibility JavaVersion.VERSION_1_8
++    targetCompatibility JavaVersion.VERSION_1_8
++  }
++
++  sourceSets {
++    main {
++      if (isNewArchitectureEnabled()) {
++        java.srcDirs += ['src/newarch']
++      } else {
++        java.srcDirs += ['src/oldarch']
++      }
++    }
++  }
++}
++
++repositories {
++  mavenCentral()
++  google()
++}
++
++
++dependencies {
++  // For < 0.71, this will be from the local maven repo
++  // For > 0.71, this will be replaced by `com.facebook.react:react-android:$version` by react gradle plugin
++  //noinspection GradleDynamicVersion
++  implementation "com.facebook.react:react-native:+"
++}
++
++if (isNewArchitectureEnabled()) {
++  react {
++    jsRootDir = file("../src/")
++    libraryName = "RNWhisper"
++    codegenJavaPackageName = "com.rnwhisper"
++  }
++}
++
++def resolveBuildType() {
++    Gradle gradle = getGradle()
++    String tskReqStr = gradle.getStartParameter().getTaskRequests()["args"].toString()
++
++    return tskReqStr.contains("Release") ? "release" : "debug"
++}
+diff --git a/node_modules/whisper.rn/android/bin/src/main/java/com/rnwhisper/AudioUtils.class b/node_modules/whisper.rn/android/bin/src/main/java/com/rnwhisper/AudioUtils.class
+new file mode 100644
+index 0000000..e11afb4
+Binary files /dev/null and b/node_modules/whisper.rn/android/bin/src/main/java/com/rnwhisper/AudioUtils.class differ
+diff --git a/node_modules/whisper.rn/android/bin/src/main/java/com/rnwhisper/Downloader.class b/node_modules/whisper.rn/android/bin/src/main/java/com/rnwhisper/Downloader.class
+new file mode 100644
+index 0000000..9feea0c
+Binary files /dev/null and b/node_modules/whisper.rn/android/bin/src/main/java/com/rnwhisper/Downloader.class differ
+diff --git a/node_modules/whisper.rn/android/bin/src/main/java/com/rnwhisper/JSCallInvokerResolver.class b/node_modules/whisper.rn/android/bin/src/main/java/com/rnwhisper/JSCallInvokerResolver.class
+new file mode 100644
+index 0000000..c0c3a52
+Binary files /dev/null and b/node_modules/whisper.rn/android/bin/src/main/java/com/rnwhisper/JSCallInvokerResolver.class differ
+diff --git a/node_modules/whisper.rn/android/bin/src/main/java/com/rnwhisper/RNWhisper.class b/node_modules/whisper.rn/android/bin/src/main/java/com/rnwhisper/RNWhisper.class
+new file mode 100644
+index 0000000..e07bf0b
+Binary files /dev/null and b/node_modules/whisper.rn/android/bin/src/main/java/com/rnwhisper/RNWhisper.class differ
+diff --git a/node_modules/whisper.rn/android/bin/src/main/java/com/rnwhisper/RNWhisperPackage.class b/node_modules/whisper.rn/android/bin/src/main/java/com/rnwhisper/RNWhisperPackage.class
+new file mode 100644
+index 0000000..0d111a3
+Binary files /dev/null and b/node_modules/whisper.rn/android/bin/src/main/java/com/rnwhisper/RNWhisperPackage.class differ
+diff --git a/node_modules/whisper.rn/android/bin/src/main/java/com/rnwhisper/WhisperContext$Callback.class b/node_modules/whisper.rn/android/bin/src/main/java/com/rnwhisper/WhisperContext$Callback.class
+new file mode 100644
+index 0000000..dcbfb9f
+Binary files /dev/null and b/node_modules/whisper.rn/android/bin/src/main/java/com/rnwhisper/WhisperContext$Callback.class differ
+diff --git a/node_modules/whisper.rn/android/bin/src/main/java/com/rnwhisper/WhisperContext$NativeLogCallback.class b/node_modules/whisper.rn/android/bin/src/main/java/com/rnwhisper/WhisperContext$NativeLogCallback.class
+new file mode 100644
+index 0000000..e93143a
+Binary files /dev/null and b/node_modules/whisper.rn/android/bin/src/main/java/com/rnwhisper/WhisperContext$NativeLogCallback.class differ
+diff --git a/node_modules/whisper.rn/android/bin/src/main/java/com/rnwhisper/WhisperContext.class b/node_modules/whisper.rn/android/bin/src/main/java/com/rnwhisper/WhisperContext.class
+new file mode 100644
+index 0000000..4509809
+Binary files /dev/null and b/node_modules/whisper.rn/android/bin/src/main/java/com/rnwhisper/WhisperContext.class differ
+diff --git a/node_modules/whisper.rn/android/bin/src/main/java/com/rnwhisper/WhisperVadContext.class b/node_modules/whisper.rn/android/bin/src/main/java/com/rnwhisper/WhisperVadContext.class
+new file mode 100644
+index 0000000..2ef328c
+Binary files /dev/null and b/node_modules/whisper.rn/android/bin/src/main/java/com/rnwhisper/WhisperVadContext.class differ
+diff --git a/node_modules/whisper.rn/android/bin/src/main/jni-utils.h b/node_modules/whisper.rn/android/bin/src/main/jni-utils.h
+new file mode 100644
+index 0000000..f4cf1a9
+--- /dev/null
++++ b/node_modules/whisper.rn/android/bin/src/main/jni-utils.h
+@@ -0,0 +1,76 @@
++#include <jni.h>
++
++// ReadableMap utils
++
++namespace readablemap {
++
++bool hasKey(JNIEnv *env, jobject readableMap, const char *key) {
++    jclass mapClass = env->GetObjectClass(readableMap);
++    jmethodID hasKeyMethod = env->GetMethodID(mapClass, "hasKey", "(Ljava/lang/String;)Z");
++    jstring jKey = env->NewStringUTF(key);
++    jboolean result = env->CallBooleanMethod(readableMap, hasKeyMethod, jKey);
++    env->DeleteLocalRef(jKey);
++    return result;
++}
++
++int getInt(JNIEnv *env, jobject readableMap, const char *key, jint defaultValue) {
++    if (!hasKey(env, readableMap, key)) {
++        return defaultValue;
++    }
++    jclass mapClass = env->GetObjectClass(readableMap);
++    jmethodID getIntMethod = env->GetMethodID(mapClass, "getInt", "(Ljava/lang/String;)I");
++    jstring jKey = env->NewStringUTF(key);
++    jint result = env->CallIntMethod(readableMap, getIntMethod, jKey);
++    env->DeleteLocalRef(jKey);
++    return result;
++}
++
++bool getBool(JNIEnv *env, jobject readableMap, const char *key, jboolean defaultValue) {
++    if (!hasKey(env, readableMap, key)) {
++        return defaultValue;
++    }
++    jclass mapClass = env->GetObjectClass(readableMap);
++    jmethodID getBoolMethod = env->GetMethodID(mapClass, "getBoolean", "(Ljava/lang/String;)Z");
++    jstring jKey = env->NewStringUTF(key);
++    jboolean result = env->CallBooleanMethod(readableMap, getBoolMethod, jKey);
++    env->DeleteLocalRef(jKey);
++    return result;
++}
++
++long getLong(JNIEnv *env, jobject readableMap, const char *key, jlong defaultValue) {
++    if (!hasKey(env, readableMap, key)) {
++        return defaultValue;
++    }
++    jclass mapClass = env->GetObjectClass(readableMap);
++    jmethodID getLongMethod = env->GetMethodID(mapClass, "getLong", "(Ljava/lang/String;)J");
++    jstring jKey = env->NewStringUTF(key);
++    jlong result = env->CallLongMethod(readableMap, getLongMethod, jKey);
++    env->DeleteLocalRef(jKey);
++    return result;
++}
++
++float getFloat(JNIEnv *env, jobject readableMap, const char *key, jfloat defaultValue) {
++    if (!hasKey(env, readableMap, key)) {
++        return defaultValue;
++    }
++    jclass mapClass = env->GetObjectClass(readableMap);
++    jmethodID getFloatMethod = env->GetMethodID(mapClass, "getDouble", "(Ljava/lang/String;)D");
++    jstring jKey = env->NewStringUTF(key);
++    jfloat result = env->CallDoubleMethod(readableMap, getFloatMethod, jKey);
++    env->DeleteLocalRef(jKey);
++    return result;
++}
++
++jstring getString(JNIEnv *env, jobject readableMap, const char *key, jstring defaultValue) {
++    if (!hasKey(env, readableMap, key)) {
++        return defaultValue;
++    }
++    jclass mapClass = env->GetObjectClass(readableMap);
++    jmethodID getStringMethod = env->GetMethodID(mapClass, "getString", "(Ljava/lang/String;)Ljava/lang/String;");
++    jstring jKey = env->NewStringUTF(key);
++    jstring result = (jstring) env->CallObjectMethod(readableMap, getStringMethod, jKey);
++    env->DeleteLocalRef(jKey);
++    return result;
++}
++
++}
+\ No newline at end of file
+diff --git a/node_modules/whisper.rn/android/bin/src/main/jniLibs/arm64-v8a/librnwhisper_v8fp16_va_2.so b/node_modules/whisper.rn/android/bin/src/main/jniLibs/arm64-v8a/librnwhisper_v8fp16_va_2.so
+new file mode 100644
+index 0000000..a2b30f8
+Binary files /dev/null and b/node_modules/whisper.rn/android/bin/src/main/jniLibs/arm64-v8a/librnwhisper_v8fp16_va_2.so differ
+diff --git a/node_modules/whisper.rn/android/bin/src/main/jniLibs/armeabi-v7a/librnwhisper_vfpv4.so b/node_modules/whisper.rn/android/bin/src/main/jniLibs/armeabi-v7a/librnwhisper_vfpv4.so
+new file mode 100644
+index 0000000..ee0f427
+Binary files /dev/null and b/node_modules/whisper.rn/android/bin/src/main/jniLibs/armeabi-v7a/librnwhisper_vfpv4.so differ
+diff --git a/node_modules/whisper.rn/android/bin/src/newarch/java/com/rnwhisper/RNWhisperModule.class b/node_modules/whisper.rn/android/bin/src/newarch/java/com/rnwhisper/RNWhisperModule.class
+new file mode 100644
+index 0000000..a460745
+Binary files /dev/null and b/node_modules/whisper.rn/android/bin/src/newarch/java/com/rnwhisper/RNWhisperModule.class differ
+diff --git a/node_modules/whisper.rn/android/bin/src/oldarch/java/com/rnwhisper/RNWhisperModule.class b/node_modules/whisper.rn/android/bin/src/oldarch/java/com/rnwhisper/RNWhisperModule.class
+new file mode 100644
+index 0000000..88d26c1
+Binary files /dev/null and b/node_modules/whisper.rn/android/bin/src/oldarch/java/com/rnwhisper/RNWhisperModule.class differ
 diff --git a/node_modules/whisper.rn/lib/commonjs/realtime-transcription/RealtimeTranscriber.js b/node_modules/whisper.rn/lib/commonjs/realtime-transcription/RealtimeTranscriber.js
 index 118ae8e..daafc96 100644
 --- a/node_modules/whisper.rn/lib/commonjs/realtime-transcription/RealtimeTranscriber.js
