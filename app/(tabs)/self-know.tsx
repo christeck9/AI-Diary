@@ -360,9 +360,9 @@ export default function SelfKnowScreen() {
 
   // 7. Aptitude
   if (completedTests.aptitude) {
-    const aptLabel = completedTests.aptitude.label || (lang === 'es' ? 'Aptitud' : 'Aptitude');
+    const pct = Math.round((completedTests.aptitude.score || 0) * 100);
     surroundingNodes.push({
-      label: `💡 ${aptLabel}`,
+      label: `💡 ${pct}% ${lang === 'es' ? 'Cognición' : 'Cognition'}`,
       color: '#3b82f6',
       type: 'aptitude'
     });
