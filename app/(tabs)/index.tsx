@@ -580,7 +580,7 @@ export default function NeuralLinkScreen() {
       const userMsg = { id: userMsgId, role: 'user' as const, text: request.prompt, created_at: Date.now(), status: 'sent' as const };
       setMessages(prev => [...prev, userMsg]);
       const truncatedPrompt = request.prompt.length > 800 ? request.prompt.slice(0, 800) + '...' : request.prompt;
-      await processMessage(truncatedPrompt, userMsgId, setMessages, { forceTts: true });
+      await processMessage(truncatedPrompt, userMsgId, setMessages);
     });
   }, [processMessage, setMessages]);
 

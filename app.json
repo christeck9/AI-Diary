@@ -21,12 +21,15 @@
     },
     "ios": {
       "bundleIdentifier": "com.christeck.aidiary",
-      "buildNumber": "33",
+      "buildNumber": "34",
       "appleTeamId": "5BSRSHBRR6",
       "supportsTablet": true,
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
-        "UIBackgroundModes": ["audio"]
+        "UIBackgroundModes": ["audio"],
+        "NSMicrophoneUsageDescription": "AI Diary necesita acceso al micrófono para que puedas hablar con la IA en modo Walkie-Talkie.",
+        "NSCameraUsageDescription": "AI Diary necesita la cámara para que puedas enviarle fotos a la IA y analizarlas.",
+        "NSPhotoLibraryUsageDescription": "AI Diary necesita acceso a tus fotos para que puedas seleccionar imágenes para análisis visual."
       }
     },
     "extra": {
@@ -43,7 +46,7 @@
             "newArchEnabled": true
           },
           "ios": {
-            "newArchEnabled": true
+            "newArchEnabled": false
           }
         }
       ],
