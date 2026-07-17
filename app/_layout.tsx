@@ -13,15 +13,19 @@ import 'react-native-reanimated';
 // (which calls abort() → EXC_CRASH / SIGABRT on iOS). Apple requires the app
 // NOT to crash silently — this boundary catches the exception and renders a
 // recoverable error screen instead.
-interface ErrorBoundaryState { hasError: boolean; errorMessage: string; }
+interface ErrorBoundaryState { hasError: boolean; errorMessage: string; errorStack: string; }
 class AppErrorBoundary extends React.Component<{ children: React.ReactNode }, ErrorBoundaryState> {
   constructor(props: { children: React.ReactNode }) {
     super(props);
-    this.state = { hasError: false, errorMessage: '' };
+    this.state = { hasError: false, errorMessage: '', errorStack: '' };
   }
 
   static getDerivedStateFromError(error: Error): ErrorBoundaryState {
-    return { hasError: true, errorMessage: error?.message ?? 'Unknown error' };
+    return { 
+      hasError: true, 
+      errorMessage: error?.message ?? 'Unknown error',
+      errorStack: error?.stack ?? ''
+    };
   }
 
   componentDidCatch(error: Error, info: React.ErrorInfo) {
@@ -40,9 +44,14 @@ class AppErrorBoundary extends React.Component<{ children: React.ReactNode }, Er
           <RNText style={{ color: '#888', fontSize: 12, textAlign: 'center', marginBottom: 16 }}>
             Please close and reopen the app. If the issue persists, check your connection settings.
           </RNText>
-          <RNText style={{ color: '#ff4444', fontSize: 11, textAlign: 'center', fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace' }}>
+          <RNText style={{ color: '#ff4444', fontSize: 11, textAlign: 'center', fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace', marginBottom: 8 }}>
             Error details: {this.state.errorMessage}
           </RNText>
+          {this.state.errorStack ? (
+            <RNText style={{ color: '#aaaaaa', fontSize: 9, textAlign: 'left', fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace', padding: 8, backgroundColor: '#111111', borderRadius: 4, width: '100%', maxHeight: 200 }}>
+              {this.state.errorStack.split('\n').slice(0, 15).join('\n')}
+            </RNText>
+          ) : null}
         </View>
       );
     }
