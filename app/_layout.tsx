@@ -1,4 +1,16 @@
 import 'react-native-get-random-values';
+
+// ─── Initialization Breadcrumbs Tracer ───
+if (typeof (global as any).__init_breadcrumbs === 'undefined') {
+  (global as any).__init_breadcrumbs = [];
+}
+export function addBreadcrumb(msg: string) {
+  const ts = new Date().toLocaleTimeString();
+  (global as any).__init_breadcrumbs.push(`[${ts}] ${msg}`);
+  console.log(`[INIT_TRACE] ${msg}`);
+}
+addBreadcrumb('app/_layout.tsx module evaluated');
+
 import { DarkTheme, ThemeProvider } from '@react-navigation/native';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
@@ -48,8 +60,13 @@ class AppErrorBoundary extends React.Component<{ children: React.ReactNode }, Er
             Error details: {this.state.errorMessage}
           </RNText>
           {this.state.errorStack ? (
-            <RNText style={{ color: '#aaaaaa', fontSize: 9, textAlign: 'left', fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace', padding: 8, backgroundColor: '#111111', borderRadius: 4, width: '100%', maxHeight: 200 }}>
+            <RNText style={{ color: '#aaaaaa', fontSize: 9, textAlign: 'left', fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace', padding: 8, backgroundColor: '#111111', borderRadius: 4, width: '100%', maxHeight: 150, marginBottom: 8 }}>
               {this.state.errorStack.split('\n').slice(0, 15).join('\n')}
+            </RNText>
+          ) : null}
+          {(global as any).__init_breadcrumbs && (global as any).__init_breadcrumbs.length > 0 ? (
+            <RNText style={{ color: '#00FF41', fontSize: 9, textAlign: 'left', fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace', padding: 8, backgroundColor: '#051105', borderRadius: 4, width: '100%', maxHeight: 150 }}>
+              Trace:\n{(global as any).__init_breadcrumbs.join('\n')}
             </RNText>
           ) : null}
         </View>
@@ -157,17 +174,33 @@ import { ProfileProvider } from '../contexts/ProfileContext';
 
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
+function TraceAppTheme() { addBreadcrumb('AppThemeProvider rendered'); return null; }
+function TraceLanguage() { addBreadcrumb('LanguageProvider rendered'); return null; }
+function TraceVoice() { addBreadcrumb('VoiceProvider rendered'); return null; }
+function TraceMemory() { addBreadcrumb('MemoryProvider rendered'); return null; }
+function TraceProfile() { addBreadcrumb('ProfileProvider rendered'); return null; }
+function TraceLlm() { addBreadcrumb('LlmProvider rendered'); return null; }
+function TraceRootThemeContainer() { addBreadcrumb('RootThemeContainer rendering'); return null; }
+
 export default function RootLayout() {
+  addBreadcrumb('RootLayout rendering');
   return (
     <AppErrorBoundary>
       <GestureHandlerRootView style={{ flex: 1 }}>
         <AppThemeProvider>
+          <TraceAppTheme />
           <LanguageProvider>
+            <TraceLanguage />
             <AppErrorBoundary>
               <VoiceProvider>
+                <TraceVoice />
                 <MemoryProvider>
+                  <TraceMemory />
                   <ProfileProvider>
+                    <TraceProfile />
                     <LlmProvider>
+                      <TraceLlm />
+                      <TraceRootThemeContainer />
                       <RootThemeContainer />
                       <GlobalDownloadBanner />
                     </LlmProvider>
