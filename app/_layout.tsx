@@ -37,8 +37,11 @@ class AppErrorBoundary extends React.Component<{ children: React.ReactNode }, Er
           <RNText style={{ color: '#ffffff', fontSize: 15, textAlign: 'center', marginBottom: 8 }}>
             The app encountered an issue on startup.
           </RNText>
-          <RNText style={{ color: '#888', fontSize: 12, textAlign: 'center' }}>
+          <RNText style={{ color: '#888', fontSize: 12, textAlign: 'center', marginBottom: 16 }}>
             Please close and reopen the app. If the issue persists, check your connection settings.
+          </RNText>
+          <RNText style={{ color: '#ff4444', fontSize: 11, textAlign: 'center', fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace' }}>
+            Error details: {this.state.errorMessage}
           </RNText>
         </View>
       );
@@ -50,6 +53,15 @@ class AppErrorBoundary extends React.Component<{ children: React.ReactNode }, Er
 
 // Prevent splash screen from auto-hiding until database is ready
 SplashScreen.preventAutoHideAsync().catch(() => { });
+
+// Safety timeout: force hide splash screen after 5 seconds to prevent getting stuck
+// if any provider initialization blocks or throws before RootThemeContainer mounts.
+if (Platform.OS !== 'web') {
+  setTimeout(() => {
+    console.log('[DEBUG] Safety timeout triggered: hiding splash screen');
+    SplashScreen.hideAsync().catch(() => { });
+  }, 5000);
+}
 
 // Compatibility shim for React 19 + RN 0.81 + Reanimated 3
 // Ensures Text component is treated correctly by createAnimatedComponent
