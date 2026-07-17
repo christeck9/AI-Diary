@@ -51,6 +51,7 @@
         }
       ],
       "./plugins/withIosCxxStandard",
+      "./plugins/withLlamaBuildFromSource",
       "./plugins/withIosEntitlements",
       [
         "expo-splash-screen",
