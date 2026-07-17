@@ -60,12 +60,12 @@ class AppErrorBoundary extends React.Component<{ children: React.ReactNode }, Er
             Error details: {this.state.errorMessage}
           </RNText>
           {this.state.errorStack ? (
-            <RNText style={{ color: '#aaaaaa', fontSize: 9, textAlign: 'left', fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace', padding: 8, backgroundColor: '#111111', borderRadius: 4, width: '100%', maxHeight: 150, marginBottom: 8 }}>
-              {this.state.errorStack.split('\n').slice(0, 15).join('\n')}
+            <RNText style={{ color: '#aaaaaa', fontSize: 8, textAlign: 'left', fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace', padding: 8, backgroundColor: '#111111', borderRadius: 4, width: '100%', maxHeight: 200, marginBottom: 8 }}>
+              {this.state.errorStack.split('\n').slice(0, 20).join('\n')}
             </RNText>
           ) : null}
           {(global as any).__init_breadcrumbs && (global as any).__init_breadcrumbs.length > 0 ? (
-            <RNText style={{ color: '#00FF41', fontSize: 9, textAlign: 'left', fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace', padding: 8, backgroundColor: '#051105', borderRadius: 4, width: '100%', maxHeight: 150 }}>
+            <RNText style={{ color: '#00FF41', fontSize: 8, textAlign: 'left', fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace', padding: 8, backgroundColor: '#051105', borderRadius: 4, width: '100%', maxHeight: 300 }}>
               Trace:\n{(global as any).__init_breadcrumbs.join('\n')}
             </RNText>
           ) : null}
@@ -174,6 +174,84 @@ import { ProfileProvider } from '../contexts/ProfileContext';
 
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
+// ─── DIAGNOSTIC: Per-Provider Error Boundary ───────────────────────────────
+// Each provider is wrapped in its own error boundary so we can pinpoint
+// EXACTLY which provider crashes and capture the full native stack trace.
+interface SafeProviderState { error: Error | null; }
+class SafeProviderBoundary extends React.Component<
+  { name: string; children: React.ReactNode },
+  SafeProviderState
+> {
+  constructor(props: { name: string; children: React.ReactNode }) {
+    super(props);
+    this.state = { error: null };
+  }
+  static getDerivedStateFromError(error: Error): SafeProviderState {
+    return { error };
+  }
+  componentDidCatch(error: Error, info: React.ErrorInfo) {
+    addBreadcrumb(`💀 CRASH in <${this.props.name}>: ${error.message}`);
+    if (info.componentStack) {
+      addBreadcrumb(`Component stack: ${info.componentStack.split('\n').slice(0, 5).join(' > ')}`);
+    }
+  }
+  render() {
+    if (this.state.error) {
+      // Re-throw so the outer AppErrorBoundary catches it with full diagnostics
+      throw this.state.error;
+    }
+    return this.props.children;
+  }
+}
+
+// ─── DIAGNOSTIC: Native Module Probe ───────────────────────────────────────
+// This component runs BEFORE any heavy provider and reports what native
+// modules are actually available in the runtime.
+function NativeModuleProbe() {
+  try {
+    addBreadcrumb('NativeModuleProbe: starting');
+    
+    // Check TurboModuleRegistry availability
+    const TurboModuleRegistry = require('react-native').TurboModuleRegistry;
+    addBreadcrumb(`TurboModuleRegistry exists: ${!!TurboModuleRegistry}`);
+    
+    // Probe if RNLlama TurboModule is registered
+    let rnllamaModule = null;
+    try {
+      rnllamaModule = TurboModuleRegistry.get('RNLlama');
+      addBreadcrumb(`RNLlama TurboModule: ${rnllamaModule ? 'FOUND' : 'null'}`);
+      if (rnllamaModule) {
+        addBreadcrumb(`RNLlama keys: ${Object.keys(rnllamaModule).slice(0, 8).join(',')}`);
+      }
+    } catch (e: any) {
+      addBreadcrumb(`RNLlama TurboModule ERROR: ${e.message}`);
+    }
+
+    // Probe if whisper TurboModule is registered
+    try {
+      const rnwhisper = TurboModuleRegistry.get('RNWhisper');
+      addBreadcrumb(`RNWhisper TurboModule: ${rnwhisper ? 'FOUND' : 'null'}`);
+    } catch (e: any) {
+      addBreadcrumb(`RNWhisper TurboModule ERROR: ${e.message}`);
+    }
+
+    // Check for JSI bindings on global
+    const jsiKeys = ['llamaInitContext', 'whisperInitContext'].filter(
+      k => typeof (global as any)[k] === 'function'
+    );
+    addBreadcrumb(`JSI globals found: ${jsiKeys.length > 0 ? jsiKeys.join(',') : 'NONE'}`);
+
+    // Check Platform and arch info
+    addBreadcrumb(`Platform: ${Platform.OS} ${Platform.Version}`);
+    
+    addBreadcrumb('NativeModuleProbe: complete');
+  } catch (e: any) {
+    addBreadcrumb(`NativeModuleProbe FATAL: ${e.message}`);
+  }
+  return null;
+}
+// ───────────────────────────────────────────────────────────────────────────
+
 function TraceAppTheme() { addBreadcrumb('AppThemeProvider rendered'); return null; }
 function TraceLanguage() { addBreadcrumb('LanguageProvider rendered'); return null; }
 function TraceVoice() { addBreadcrumb('VoiceProvider rendered'); return null; }
@@ -189,26 +267,37 @@ export default function RootLayout() {
       <GestureHandlerRootView style={{ flex: 1 }}>
         <AppThemeProvider>
           <TraceAppTheme />
-          <LanguageProvider>
-            <TraceLanguage />
-            <AppErrorBoundary>
-              <VoiceProvider>
-                <TraceVoice />
-                <MemoryProvider>
-                  <TraceMemory />
-                  <ProfileProvider>
-                    <TraceProfile />
-                    <LlmProvider>
-                      <TraceLlm />
-                      <TraceRootThemeContainer />
-                      <RootThemeContainer />
-                      <GlobalDownloadBanner />
-                    </LlmProvider>
-                  </ProfileProvider>
-                </MemoryProvider>
-              </VoiceProvider>
-            </AppErrorBoundary>
-          </LanguageProvider>
+          <SafeProviderBoundary name="LanguageProvider">
+            <LanguageProvider>
+              <TraceLanguage />
+              <NativeModuleProbe />
+              <AppErrorBoundary>
+                <SafeProviderBoundary name="VoiceProvider">
+                  <VoiceProvider>
+                    <TraceVoice />
+                    <SafeProviderBoundary name="MemoryProvider">
+                      <MemoryProvider>
+                        <TraceMemory />
+                        <SafeProviderBoundary name="ProfileProvider">
+                          <ProfileProvider>
+                            <TraceProfile />
+                            <SafeProviderBoundary name="LlmProvider">
+                              <LlmProvider>
+                                <TraceLlm />
+                                <TraceRootThemeContainer />
+                                <RootThemeContainer />
+                                <GlobalDownloadBanner />
+                              </LlmProvider>
+                            </SafeProviderBoundary>
+                          </ProfileProvider>
+                        </SafeProviderBoundary>
+                      </MemoryProvider>
+                    </SafeProviderBoundary>
+                  </VoiceProvider>
+                </SafeProviderBoundary>
+              </AppErrorBoundary>
+            </LanguageProvider>
+          </SafeProviderBoundary>
         </AppThemeProvider>
       </GestureHandlerRootView>
     </AppErrorBoundary>
