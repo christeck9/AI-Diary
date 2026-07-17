@@ -21,7 +21,7 @@
     },
     "ios": {
       "bundleIdentifier": "com.christeck.aidiary",
-      "buildNumber": "34",
+      "buildNumber": "35",
       "appleTeamId": "5BSRSHBRR6",
       "supportsTablet": true,
       "infoPlist": {
