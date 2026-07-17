@@ -1,3 +1,6 @@
+[NOTE]
+Para todos los Agentes. Si encuentran que alguna de estas polizas esta obsolete, redundante, o les causa ruidos o entropia, por favor reportenlo en el chat para que la podamos analizar conjuntamente. Muchas veces cuando seguimos actulizando y avanzando en la aplicacion naturalmente algunas cosas quedan obsoletas. Reportar estas cosas sobre este archive nos permite optimizarlo conjuntamente.
+
 [LANGUAGE_PROTOCOL]
 # Protocolo de Comunicación para los Agentes
 user_input = "English, Spanish or Mixed"
@@ -496,3 +499,39 @@ Por cada tarea en el plan, se debe incluir explícitamente:
 
 
 
+
+### 9. Protección del Puente JSI (C++) de Audio (AnimaVoice)
+*Fecha de Registro: 2026-07-10*
+
+**Problema Histórico:**
+Para evitar un supuesto cuelgue de 3 segundos en el emulador, un agente IA desactivó la ejecución del puente nativo de síntesis de audio (AnimaVoice.synthesizeNativeToPCM y nimaFeedAudioChunk / Oboe C++) de forma exclusiva en el emulador (!isEmulatorRef.current). Esto causó un fallo crítico, forzando a que la aplicación cayera a expo-speech, que al estar roto o silenciado de fábrica en muchas imágenes de Android Studio, dejó a la IA y al lector de libros sin sonido alguno.
+
+**Regla Estricta:**
+Queda **ESTRICTAMENTE PROHIBIDO** desconectar, hacer bypass (saltarse), o inhabilitar la ruta rápida de cero-latencia JSI de C++ (nimaFeedAudioChunk / AnimaVoice.synthesizeNativeToPCM) en NINGÚN ENTORNO, incluyendo emuladores. 
+* El flujo de audio mediante el puente JSI y Oboe es mandatorio y jamás debe ser bloqueado con condicionales de entorno (como isEmulatorRef).
+* Si el audio tiene lag en el emulador, es un sacrificio aceptable a cambio de garantizar que el sonido funcione, ya que depender de expo-speech en el emulador es inestable.
+
+Este es nuestro ultimo esquema:
+
+  LLM genera texto
+    ↓
+processSpeechQueue() [useInteractiveVoice]
+    ↓
+voice.speak(text) [useVoice]
+    ├─ Mutex check (previene concurrent ops)
+    ├─ AudioFocus reset (grabación → playback)
+    ├─ JSI path con health check (Universal: Emulador y Físico)
+    │   ├─ preloadedData o realtime synthesis
+    │   └─ Falla → registra JSIFailure y Circuit Breaker
+    ├─ Cloud TTS fallback
+    └─ expo-speech fallback (con forceResetAudioMode)
+
+Tab Blur / Modal Close → releaseResources({ keepJSI: true }) [useVoice]
+    ├─ Solo cierra sessions de micrófono y audio buffers sueltos
+    └─ NO destruye JSI. Preserva motor C++ vivo para cuando el usuario regrese.
+    
+App Unmount → releaseResources() [useVoice]  
+    └─ Destruye JSI (Correcto para evitar memory leaks al cerrar la app)
+
+### 10. Para Apple el comando eas build --platform ios --profile production --auto-submit
+genera su propia version. No se necesita poner ninguna nueva en el app.json. Tu solo repara, no cambies la version si estamos programando para Apple.
