@@ -421,10 +421,12 @@ export function useAppLlm(lang: string = 'es') {
         }
 
         if (settings.wasModelActive === true) {
-          console.log(`[LLM] Auto-loading active model on startup: ${modelToUse.id}`);
-          loadModel(modelToUse).catch(e => {
-            console.error('[LLM] Auto-load model failed on startup:', e);
-          });
+          console.log(`[LLM] Auto-loading active model on startup (deferred 2000ms): ${modelToUse.id}`);
+          setTimeout(() => {
+            loadModel(modelToUse).catch(e => {
+              console.error('[LLM] Auto-load model failed on startup:', e);
+            });
+          }, 2000);
         }
       } catch (e) { console.log('[LLM] Error loading preferred model setting:', e); }
       finally { isSettingsLoadedRef.current = true; }

@@ -135,8 +135,12 @@ export const getDynamicEngineConfig = (
   let threads = hwThreads;
   let gpu_layers = 0; // Por defecto seguro en Android
 
-  if (isIOS || useTurbo) {
+  if (useTurbo) {
     gpu_layers = 99; // Máxima delegación a Metal/OpenCL
+  } else if (isIOS) {
+    // 🛡️ iOS stability guard: Metal GPU context allocation can cause native JSI
+    // stack depth overflow in llama.rn during early bootstrap. Use CPU by default.
+    gpu_layers = 0;
   } else if (
     (architecture === 'qualcomm-snapdragon' || architecture === 'google-tensor') &&
     totalRAM >= 7000
