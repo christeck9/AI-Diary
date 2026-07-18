@@ -11,7 +11,7 @@ export function addBreadcrumb(msg: string) {
 }
 addBreadcrumb('app/_layout.tsx module evaluated');
 
-import { DarkTheme, ThemeProvider } from '@react-navigation/native';
+import { ThemeProvider } from '@react-navigation/native';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
@@ -160,15 +160,20 @@ function RootThemeContainer() {
     }
   }, []);
 
+  // CRITICAL FIX (2026-07-18): Do NOT spread DarkTheme here.
+  // In Hermes iOS production builds, @react-navigation/native exports DarkTheme
+  // via a lazy Object.defineProperty getter. Spreading it inside useMemo triggers
+  // an infinite recursive getter call → Maximum call stack size exceeded.
+  // Solution: build the NavigationTheme object with literal values only.
   const NavigationTheme = useMemo(() => ({
-    ...DarkTheme,
+    dark: true,
     colors: {
-      ...DarkTheme.colors,
+      primary: colors.primary,
       background: colors.background,
       card: colors.surface,
       text: colors.textPrimary,
       border: colors.border,
-      primary: colors.primary,
+      notification: colors.primary,
     },
   }), [colors]);
 
