@@ -234,49 +234,33 @@ export const WhispAvatar = ({ status = 'idle', size = 120 }: WhispAvatarProps) =
     return p;
   };
 
-  // Reanimated Derived Path for the Multi-tipped Flame Body
-  const flamePath = useDerivedValue(() => {
-    const path = Skia.Path.Make();
-    const bottom = center + 25;
-    const f = flicker.value;
-    
-    // Main tip (Center-Left leaning)
-    const tip1Y = center - 45 * f;
-    const tip1X = center - 5 * (f - 1);
-    path.addPath(createFlame(center, tip1X, tip1Y, 32, bottom));
-
-    // Right tip (Smaller, leaning right)
-    const tip2Y = center - 20 * f;
-    const tip2X = center + 25 + 5 * (f - 1);
-    path.addPath(createFlame(center + 12, tip2X, tip2Y, 18, bottom - 5));
-
-    // Left tip (Smaller, leaning left)
-    const tip3Y = center - 30 * f;
-    const tip3X = center - 28 - 5 * (f - 1);
-    path.addPath(createFlame(center - 12, tip3X, tip3Y, 20, bottom - 2));
-
-    return path;
+  // Highly optimized numerical derived values. These return pure JS numbers
+  // rather than constructing heavy native Skia.Path objects on every animation frame.
+  // This avoids JSI garbage collection accumulation and Hermes native stack overflows.
+  const auraScale = useDerivedValue(() => {
+    return pulseValue.value * (1 + 0.08 * Math.sin(time.value * 0.15));
   });
 
-  const auraPath = useDerivedValue(() => {
-    const path = Skia.Path.Make();
-    const bottom = center + 35;
-    const f = flicker.value;
-    
-    const tip1Y = center - 55 * f;
-    const tip1X = center - 5 * (f - 1);
-    path.addPath(createFlame(center, tip1X, tip1Y, 40, bottom));
-
-    const tip2Y = center - 25 * f;
-    const tip2X = center + 28 + 5 * (f - 1);
-    path.addPath(createFlame(center + 12, tip2X, tip2Y, 25, bottom - 5));
-
-    const tip3Y = center - 35 * f;
-    const tip3X = center - 32 - 5 * (f - 1);
-    path.addPath(createFlame(center - 12, tip3X, tip3Y, 28, bottom - 2));
-
-    return path;
+  const flameScale = useDerivedValue(() => {
+    return pulseValue.value * (1 + 0.05 * Math.cos(time.value * 0.25));
   });
+
+  const coreScale = useDerivedValue(() => {
+    return pulseValue.value * (1 + 0.03 * Math.sin(time.value * 0.35));
+  });
+
+  const auraRadius = useDerivedValue(() => {
+    return (BASE_SIZE * 0.40) * auraScale.value;
+  });
+
+  const flameRadius = useDerivedValue(() => {
+    return (BASE_SIZE * 0.30) * flameScale.value;
+  });
+
+  const coreRadius = useDerivedValue(() => {
+    return (BASE_SIZE * 0.16) * coreScale.value;
+  });
+
 
   // Since React Native Skia doesn't fully support Reanimated useDerivedValue directly inside the <Path> prop for some very specific versions/structures without glitches, 
   // we handle the mouth via React State but it responds cleanly to the status.
@@ -331,23 +315,24 @@ export const WhispAvatar = ({ status = 'idle', size = 120 }: WhispAvatarProps) =
     <Animated.View style={[styles.container, { width: size, height: containerHeight }, animatedStyle]}>
       <Canvas style={{ width: size, height: containerHeight }}>
         <Group transform={[{ scale }]}>
-          {/* Outer Aura (Multi-tipped Flame) */}
-          <Path path={auraPath}>
+          {/* Outer Aura (Intelligent Glow Sphere) */}
+          <Circle cx={center} cy={center} r={auraRadius}>
             <RadialGradient c={vec(center, center)} r={BASE_SIZE * 0.45} colors={['rgba(0, 150, 255, 0.4)', 'rgba(0, 50, 255, 0)']} />
             <BlurMask blur={15} style="normal" />
-          </Path>
+          </Circle>
 
-          {/* Main Body (Multi-tipped Flame) */}
-          <Path path={flamePath}>
+          {/* Main Body (Fluid Plasma Sphere) */}
+          <Circle cx={center} cy={center} r={flameRadius}>
             <RadialGradient c={vec(center, center)} r={BASE_SIZE * 0.35} colors={['#88ddff', '#0077ff']} />
             <BlurMask blur={5} style="normal" />
-          </Path>
+          </Circle>
 
-          {/* Inner Core (Brighter center to give it a 3D blob feel) */}
-          <Circle cx={center} cy={center + 5} r={BASE_SIZE * 0.18}>
+          {/* Inner Core (Brighter central core) */}
+          <Circle cx={center} cy={center + 5} r={coreRadius}>
             <RadialGradient c={vec(center, center + 5)} r={BASE_SIZE * 0.18} colors={['#ffffff', 'rgba(100, 200, 255, 0.6)']} />
             <BlurMask blur={8} style="normal" />
           </Circle>
+
 
           {/* Left Hand */}
           <Group transform={leftHandTransform}>
