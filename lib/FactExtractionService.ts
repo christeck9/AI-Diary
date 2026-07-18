@@ -98,6 +98,15 @@ export class FactExtractionService {
       // Guardar hechos y nodos atómicamente
       await db.withTransactionAsync(async () => {
         for (const data of factData) {
+          
+          // Librarian Rules: Enrich before create & Resolve contradictions
+          if (data.embedding) {
+            const similarNodes = await KnowledgeGraphService.findSimilarNodes(db, data.embedding, 0.82, data.category);
+            for (const node of similarNodes) {
+               await KnowledgeGraphService.deleteNodeAndFact(db, node.id, node.fact_id);
+            }
+          }
+
           const factId = await knowledgeManager.saveFact({
             fact: data.fact,
             source: 'Conversation',
@@ -111,9 +120,13 @@ export class FactExtractionService {
         }
       });
 
-      // Periódicamente podar el grafo y recalcular comunidades
-      await KnowledgeGraphService.pruneGraph(db, 500);
-      await KnowledgeGraphService.detectCommunities(db);
+      // Periódicamente podar el grafo y recalcular comunidades (en segundo plano)
+      setTimeout(() => {
+        console.log('[FactExtractionService] Ejecutando mantenimiento de grafo en segundo plano...');
+        KnowledgeGraphService.pruneGraph(db, 500)
+          .then(() => KnowledgeGraphService.detectCommunities(db))
+          .catch(e => console.error('[FactExtractionService] Error en mantenimiento de grafo:', e));
+      }, 5000);
       
 
     } catch (error) {

@@ -17,6 +17,66 @@ function cosineSimilarity(vecA: number[], vecB: number[]): number {
 
 export const KnowledgeGraphService = {
   /**
+   * Encuentra nodos similares basados en similitud coseno. Útil para "Librarian Rules"
+   * (Enriquecer antes de crear y resolución de contradicciones).
+   */
+  findSimilarNodes: async (
+    db: SQLite.SQLiteDatabase,
+    nodeEmbedding: number[],
+    threshold: number = 0.85,
+    category?: string
+  ): Promise<Array<{ id: number; fact_id: number; summary: string; similarity: number }>> => {
+    try {
+      let query = `SELECT id, fact_id, summary, embedding FROM kg_nodes`;
+      const params: any[] = [];
+      if (category) {
+        query += ` WHERE category = ?`;
+        params.push(category);
+      }
+      query += ` ORDER BY id DESC LIMIT 500`;
+
+      const rows = await db.getAllAsync<{id: number, fact_id: number, summary: string, embedding: string}>(query, params);
+      const similar = [];
+
+      for (const row of rows) {
+        if (!row.embedding) continue;
+        try {
+          const otherEmbedding = JSON.parse(row.embedding) as number[];
+          const sim = cosineSimilarity(nodeEmbedding, otherEmbedding);
+          if (sim >= threshold) {
+            similar.push({ id: row.id, fact_id: row.fact_id, summary: row.summary, similarity: sim });
+          }
+        } catch (e) {
+          // ignore parsing error
+        }
+      }
+      
+      return similar.sort((a, b) => b.similarity - a.similarity);
+    } catch (e) {
+      console.error('[KG_SERVICE] Error finding similar nodes:', e);
+      return [];
+    }
+  },
+
+  /**
+   * Elimina mecánicamente un nodo y su hecho subyacente para resolver contradicciones.
+   */
+  deleteNodeAndFact: async (db: SQLite.SQLiteDatabase, nodeId: number, factId: number): Promise<void> => {
+    try {
+      await db.withTransactionAsync(async () => {
+        // Borrar el nodo (las aristas con cascade o se borran en prune)
+        await db.runAsync(`DELETE FROM kg_nodes WHERE id = ?`, [nodeId]);
+        await db.runAsync(`DELETE FROM kg_edges WHERE source_id = ? OR target_id = ?`, [nodeId, nodeId]);
+        // Borrar el fact
+        await db.runAsync(`DELETE FROM knowledge_base WHERE id = ?`, [factId]);
+      });
+      console.log(`[KG_SERVICE] 🗑️ Contradiction resolved: Deleted node ${nodeId} and fact ${factId}`);
+    } catch (e) {
+      console.error('[KG_SERVICE] Error deleting node and fact:', e);
+    }
+  },
+
+  /**
    * Añade un nuevo nodo al grafo y calcula sus aristas automáticamente.
    */
   addNode: async (

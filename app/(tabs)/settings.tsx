@@ -763,7 +763,7 @@ export default function SettingsScreen() {
                     {lang === 'es' ? 'Activa Voces Naturales (API)' : 'Activate Natural Voices (API)'}
                   </Text>
                   <Text style={{ color: colors.textSecondary, fontSize: 12 }}>
-                    {lang === 'es' ? 'Voces naturales y fluidas online (no necesarias pero pudieran ser mejores y con acento regional).' : 'Natural and fluid voices online (not necessary but could be better and with regional accent).'}
+                    {lang === 'es' ? 'Voces naturales y fluidas online (no necesarias pero pudieran ser mejores y con acento regional).' : 'Natural and fluid voices online (not necessary but could be better and with country accent).'}
                   </Text>
                 </View>
                 <Switch

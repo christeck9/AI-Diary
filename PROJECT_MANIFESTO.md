@@ -1703,4 +1703,45 @@ La aplicación cuenta con un flujo estructurado en 5 pestañas principales:
 - **Creación de Script Automatizado de Auditoría (`scripts/audit_modals.py`)**:
   - Se desarrolló un script en Python que analiza el código fuente del proyecto y audita de forma automática cualquier archivo `.tsx` o `.ts` que renderice un componente `<Modal>`.
   - El script verifica matemáticamente y estructuralmente que se cumplan las directivas de Fabric: uso de `transparent={true}`, `statusBarTranslucent={true}`, `Dimensions.get('screen')`, y la lógica de re-renderizado mediante `Ticket` o `ReRender`.
-  - Se configuró la salida en codificación UTF-8 para garantizar compatibilidad con terminales de Windows y evitar errores de encoding al imprimir símbolos de aprobación.
+  - Se configuró la salida en codificación UTF-8 para ga
+
+
+  
+# AI DIARY: Intentos por construir un Audio para la IA aprueva de errores v1.9.6.7 2026-07-12
+
+## 0. Mapa de flujo de Audio de la IA:  
+  LLM genera texto
+    ↓
+processSpeechQueue() [useInteractiveVoice]
+    ↓
+voice.speak(text) [useVoice]
+    ├─ Mutex check (previene concurrent ops)
+    ├─ AudioFocus reset (grabación → playback)
+    ├─ JSI path con health check
+    │   ├─ preloadedData o realtime synthesis
+    │   └─ Falla → registra JSIFailure
+    ├─ Cloud TTS fallback
+    └─ expo-speech fallback (con forceResetAudioMode)
+
+Tab Blur → releaseResources() [useVoice]
+    ├─ Solo cierra sessions, NO destruye JSI
+    └─ Preserva motor para retorno
+    
+App Unmount → releaseResources() [useVoice]  
+    └─ Destruye JSI (correcto)
+
+
+Esta especificación documenta el refuerzo de la lógica del Sentinel para Llama 3.2 (1B), la optimización del "Seed Memory" en SQLite, y la consolidación de la memoria ("Librarian Rules").
+
+## 1. Mitigación de Alucinaciones en Modelos Pequeños (Llama 3.2:1B)
+- **Directiva Epistemológica Estricta:** Se reforzó el prompt del sistema (`systemPrompt.ts`) para forzar a Llama a admitir desconocimiento o invocar búsquedas (`[SEARCH: ...]`) en consultas fácticas, prohibiendo adivinar fechas o datos post-2024.
+- **Temperatura Dinámica en Rondas Fácticas:** Si Sentinel detecta una intención fáctica, se inyecta `forceDeterminism = true` en la generación (`useAgentEngine.ts`), reduciendo la temperatura casi a cero para suprimir el espacio probabilístico de alucinación.
+- **Filtros de Entrada (Regex) Expandidos:** Se ampliaron las expresiones regulares en `SentinelService.ts` (`LLAMA_FACTUAL_FORCE_REGEX` y `LLAMA_QUICK_FACT_REGEX`) para hacer a Sentinel más hipersensible a preguntas fácticas cuando se corre Llama, activando preventivamente la sonda `PROACTIVE_CURRENCY_CHECK`.
+
+## 2. Seed Memory en SQLite (Mapa de Entidades)
+- **Extracción de Memoria Estructurada:** Se implementó `KnowledgeManager.getSeedMemoryMap()` que agrupa eficientemente los hechos con `GROUP_CONCAT` directamente en SQLite.
+- **Prevención de Amnesia Cognitiva:** Se reemplazó la inyección lineal del historial por un sumario agrupado por categorías en el `[USER_CONTEXT]`. Al leer esta "Seed Memory" en milisegundos, el modelo reconoce las entidades que ya conoce y sobre cuáles requiere hacer búsquedas web.
+
+## 3. Consolidación de Memoria y Reglas de Bibliotecario
+- **Resolución Mecánica de Contradicciones:** Se implementó `KnowledgeGraphService.findSimilarNodes()` basado en similitud coseno (>0.82) para buscar colisiones semánticas. Si un hecho extraído actualiza o contradice a uno antiguo, se ejecuta `deleteNodeAndFact()` de forma transaccional, eliminando mecánicamente el hecho obsoleto de SQLite.
+- **Optimización de Interfaz Asíncrona:** Operaciones pesadas de mantenimiento del grafo como `detectCommunities` (Louvain) y `pruneGraph` se trasladaron a despachadores en segundo plano (`setTimeout`) dentro de `FactExtractionService.ts` para no interrumpir ni alentar el flujo interactivo del chat de Anima.

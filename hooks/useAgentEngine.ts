@@ -279,7 +279,18 @@ export const useAgentEngine = (
     };
 
     // FIX BUG-07: Correct parameter order is (lang, userContext, complexity, arch)
-    const contextDataStr = `nick:${contextData.nickname}, goal:${contextData.goal}, date:${contextData.date}`;
+    let seedMemoryStr = 'No hay conceptos almacenados.';
+    if (db) {
+      try {
+        const { createKnowledgeManager } = await import('../lib/KnowledgeManager');
+        const km = createKnowledgeManager(db);
+        seedMemoryStr = await km.getSeedMemoryMap();
+      } catch (e) {
+        console.warn('[AGENT_ENGINE] Error fetching seed memory:', e);
+      }
+    }
+    
+    const contextDataStr = `nick:${contextData.nickname}, goal:${contextData.goal}, date:${contextData.date}\n\n[MEMORIA LOCAL EN SQLITE - CONCEPTOS CONOCIDOS]:\n${seedMemoryStr}`;
     const complexityMap: Record<number, PromptComplexity> = {
       1: PromptComplexity.LOW,
       2: PromptComplexity.MEDIUM,
@@ -382,7 +393,7 @@ export const useAgentEngine = (
     let searchResult: string | null = null;
 
     // 🚀 Preemptive Search Trigger (Skipped in ZEN mode)
-    const preemptiveCheck = !isZenMode ? SentinelService.processInbound("", userText) : { detected: false, dialect: '', query: '', stream: 'NONE' as SentinelService.SentinelStream };
+    const preemptiveCheck = !isZenMode ? SentinelService.processInbound("", userText, arch as any) : { detected: false, dialect: '', query: '', stream: 'NONE' as SentinelService.SentinelStream };
     if (preemptiveCheck.detected && preemptiveCheck.dialect === 'PROACTIVE_CURRENCY_CHECK') {
       console.log(`[AGENT_ENGINE] 🚀 Preemptive Search Triggered: "${preemptiveCheck.query}"`);
       toolQueryRef.current = preemptiveCheck.query;
@@ -653,7 +664,7 @@ export const useAgentEngine = (
           attachedFile?.type === 'image' ? attachedFile.binaryBuffer : undefined,
           consciousness,
           false,
-          toolRounds > 0, // forceDeterminism
+          toolRounds > 0 || preemptiveCheck.stream === 'FAST_FACT', // forceDeterminism
           isVoice
         );
 

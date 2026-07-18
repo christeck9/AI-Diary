@@ -37,10 +37,13 @@ const FACTUAL_FORCE_REGEX = /(?:^|\s)(who is the current|what is the current|pre
 const QUICK_FACT_REGEX = /(?:^|\s)(precio|clima|weather|age|born|valor|cotizaci[oó]n|d[oó]lar|euro|bitcoin|acciones de|partido de|resultado de|score of|match of)(?:\s|$)/i;
 const EXPLICIT_SEARCH_REGEX = /(?:^|\s)(invest[ií]ga(?:lo|la|los|las|me|nos|se|te|les|le)?|investigar(?:lo|la|los|las|me|nos|se|te|les|le)?|investigaci[oó]n|research|search for|buscar(?:lo|la|los|las|me|nos|se|te|les|le)?|b[uú]sca(?:lo|la|los|las|me|nos|se|te|les|le)?|b[uú]sque(?:lo|la|los|las|me|nos|se|te|les|le)?|find out|googl[eé]a(?:lo|la|los|las|me|nos|se|te|les|le)?|google|websearch|consultar(?:lo|la|los|las|me|nos|se|te|les|le)?|cons[uú]lta(?:lo|la|los|las|me|nos|se|te|les|le)?)(?:\s|$)/i;
 
+const LLAMA_FACTUAL_FORCE_REGEX = /(?:^|\s)(who is the current|what is the current|president of|prime minister of|presidente de|primer ministro de|qui[eé]n es|qui[eé]n fue|cu[aá]ndo|cu[aá]l es|what is|when did|how many)(?:\s|$)/i;
+const LLAMA_QUICK_FACT_REGEX = /(?:^|\s)(precio|clima|weather|age|born|valor|cotizaci[oó]n|d[oó]lar|euro|bitcoin|acciones de|partido de|resultado de|score of|match of|lanzamiento|estreno|fecha de|date of)(?:\s|$)/i;
+
 /**
  * processInbound - Detects intent across multiple dialects (v6.3 Cutoff-Aware)
  */
-export const processInbound = (text: string, userQuery: string): InboundDetection => {
+export const processInbound = (text: string, userQuery: string, arch: 'gemma3' | 'gemma4' | 'llama' = 'gemma4'): InboundDetection => {
   // Fast pre-scan check: exit early if text contains no trigger characters or keywords,
   // bypassing expensive sequential regex matches on every token chunk.
   const hasPossibleTrigger =
@@ -50,8 +53,12 @@ export const processInbound = (text: string, userQuery: string): InboundDetectio
     text.includes('!') ||
     /\b(cutoff|cannot|don't|not sure|unsure|definitive|no info|information|frozen|parametric|memory|data|born|quien|quién|que|qué|donde|dónde|who|what|where|precio|clima|weather|capital|age|book|libro|tratado|treatise|author|autor|bibliography|bibliografia|codex)\b/i.test(text);
 
+  const isLlama = arch === 'llama';
+  const effectiveFactualRegex = isLlama ? LLAMA_FACTUAL_FORCE_REGEX : FACTUAL_FORCE_REGEX;
+  const effectiveQuickFactRegex = isLlama ? LLAMA_QUICK_FACT_REGEX : QUICK_FACT_REGEX;
+
   if (!hasPossibleTrigger) {
-    const isFactualForce = FACTUAL_FORCE_REGEX.test(userQuery);
+    const isFactualForce = effectiveFactualRegex.test(userQuery);
     const isCurrentEvent = POST_RECENT_REGEX.test(userQuery);
     const isExplicitSearch = EXPLICIT_SEARCH_REGEX.test(userQuery);
 
@@ -60,7 +67,7 @@ export const processInbound = (text: string, userQuery: string): InboundDetectio
         detected: true,
         query: purifyQuery(userQuery),
         dialect: 'PROACTIVE_CURRENCY_CHECK',
-        stream: (isFactualForce || QUICK_FACT_REGEX.test(userQuery)) ? 'FAST_FACT' : 'DEEP_RESEARCH'
+        stream: (isFactualForce || effectiveQuickFactRegex.test(userQuery)) ? 'FAST_FACT' : 'DEEP_RESEARCH'
       };
     }
     return { detected: false, query: '', dialect: 'NONE', stream: 'NONE' };
@@ -76,7 +83,7 @@ export const processInbound = (text: string, userQuery: string): InboundDetectio
     }
   }
 
-  const isFactualForce = FACTUAL_FORCE_REGEX.test(userQuery);
+  const isFactualForce = effectiveFactualRegex.test(userQuery);
   const isCurrentEvent = POST_RECENT_REGEX.test(userQuery);
   const isExplicitSearch = EXPLICIT_SEARCH_REGEX.test(userQuery);
 
@@ -85,7 +92,7 @@ export const processInbound = (text: string, userQuery: string): InboundDetectio
       detected: true,
       query: purifyQuery(userQuery),
       dialect: 'PROACTIVE_CURRENCY_CHECK',
-      stream: (isFactualForce || QUICK_FACT_REGEX.test(userQuery)) ? 'FAST_FACT' : 'DEEP_RESEARCH'
+      stream: (isFactualForce || effectiveQuickFactRegex.test(userQuery)) ? 'FAST_FACT' : 'DEEP_RESEARCH'
     };
   }
 

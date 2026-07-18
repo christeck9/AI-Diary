@@ -15,10 +15,44 @@ import { DarkTheme, ThemeProvider } from '@react-navigation/native';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
-import { Platform, View, StyleSheet, Text as RNText, BackHandler } from 'react-native';
-import { useEffect, useMemo } from 'react';
+import { Platform, View, StyleSheet, Text as RNText, BackHandler, Alert, TouchableOpacity } from 'react-native';
+import { useEffect, useMemo, useState } from 'react';
 import React from 'react';
 import 'react-native-reanimated';
+import * as FileSystem from 'expo-file-system';
+
+// ─── Global Error Handler (Hermes Native Stack Catcher) ───
+if (typeof ErrorUtils !== 'undefined') {
+  const defaultHandler = ErrorUtils.getGlobalHandler();
+  ErrorUtils.setGlobalHandler((error: any, isFatal?: boolean) => {
+    const errorMsg = error?.message ?? 'Unknown Error';
+    const errorStack = error?.stack ?? '';
+    const logText = `Error: ${errorMsg}\nStack:\n${errorStack}`;
+    console.error('[CRITICAL_BOOT_CRASH]', logText);
+
+    try {
+      const logPath = `${FileSystem.documentDirectory}boot_crash_log.txt`;
+      FileSystem.writeAsStringAsync(logPath, logText, { encoding: FileSystem.EncodingType.UTF8 }).catch(e => {
+        console.warn('Failed to write boot crash log file async:', e);
+      });
+    } catch (e) {
+      console.warn('Failed to write boot crash log file:', e);
+    }
+
+    Alert.alert(
+      "Critical App Error",
+      `The app has crashed during boot:\n\n${errorMsg.slice(0, 300)}\n\nPlease take a screenshot of this alert and send it to Chris.`,
+      [{ 
+        text: "OK", 
+        onPress: () => {
+          if (defaultHandler) {
+            defaultHandler(error, isFatal);
+          }
+        } 
+      }]
+    );
+  });
+}
 
 // ─── Global Error Boundary ────────────────────────────────────────────────────
 // Prevents uncaught JS exceptions from reaching Hermes's C++ terminate handler
@@ -262,6 +296,55 @@ function TraceRootThemeContainer() { addBreadcrumb('RootThemeContainer rendering
 
 export default function RootLayout() {
   addBreadcrumb('RootLayout rendering');
+  const [bootCrashLog, setBootCrashLog] = useState<string | null>(null);
+
+  useEffect(() => {
+    const checkCrashLog = async () => {
+      try {
+        const logPath = `${FileSystem.documentDirectory}boot_crash_log.txt`;
+        const info = await FileSystem.getInfoAsync(logPath);
+        if (info.exists) {
+          const content = await FileSystem.readAsStringAsync(logPath, { encoding: FileSystem.EncodingType.UTF8 });
+          setBootCrashLog(content);
+        }
+      } catch (e) {
+        console.warn('Failed to check or read boot crash log:', e);
+      }
+    };
+    checkCrashLog();
+  }, []);
+
+  const handleClearCrashLog = async () => {
+    try {
+      const logPath = `${FileSystem.documentDirectory}boot_crash_log.txt`;
+      await FileSystem.deleteAsync(logPath, { idempotent: true });
+      setBootCrashLog(null);
+    } catch (e) {
+      console.warn('Failed to clear boot crash log:', e);
+      setBootCrashLog(null);
+    }
+  };
+
+  if (bootCrashLog) {
+    return (
+      <View style={{ flex: 1, backgroundColor: '#050505', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+        <RNText style={{ color: '#B026FF', fontSize: 22, fontWeight: 'bold', marginBottom: 12 }}>AI Diary — Diagnostic Dashboard</RNText>
+        <RNText style={{ color: '#ffffff', fontSize: 14, textAlign: 'center', marginBottom: 16 }}>
+          The application crashed on the previous launch. Here is the debug log:
+        </RNText>
+        <RNText style={{ color: '#ff4444', fontSize: 11, fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace', padding: 12, backgroundColor: '#150505', borderRadius: 4, width: '100%', maxHeight: 350, overflow: 'scroll', marginBottom: 24 }}>
+          {bootCrashLog}
+        </RNText>
+        <TouchableOpacity 
+          onPress={handleClearCrashLog}
+          style={{ backgroundColor: '#B026FF', paddingVertical: 12, paddingHorizontal: 24, borderRadius: 8 }}
+        >
+          <RNText style={{ color: '#ffffff', fontSize: 14, fontWeight: 'bold' }}>Clear Log & Restart App</RNText>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
   return (
     <AppErrorBoundary>
       <GestureHandlerRootView style={{ flex: 1 }}>

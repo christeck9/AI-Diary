@@ -63,6 +63,28 @@ export class KnowledgeManager {
   }
 
   /**
+   * Builds the Seed Memory map by grouping facts by category.
+   * Returns a structured string for the LLM prompt.
+   */
+  async getSeedMemoryMap(): Promise<string> {
+    try {
+      const rows = await this.db.getAllAsync<{ category: string, facts: string }>(
+        `SELECT category, GROUP_CONCAT(fact, ' | ') as facts 
+         FROM knowledge_base 
+         GROUP BY category 
+         ORDER BY MAX(timestamp) DESC`
+      );
+      
+      if (!rows || rows.length === 0) return 'No hay conceptos almacenados.';
+
+      return rows.map(row => `- ${row.category}: ${row.facts}`).join('\n');
+    } catch (error) {
+      console.error(`[KnowledgeManager] Error building seed memory map:`, error);
+      return '';
+    }
+  }
+
+  /**
    * Clears all facts from the knowledge_base.
    * ⚠️ Destructive — only call from the Vault UI with explicit user confirmation.
    */
