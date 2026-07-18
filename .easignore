@@ -63,3 +63,20 @@ scratch/
 
 android/app/build/
 *.aab
+
+# Heavy Javascript bundles and Source Maps
+ios-bundle-*
+*.map
+*.jsbundle
+
+# Local python environments and datasets
+cdl_project/
+venv/
+.aider.tags.cache.v4/
+.aider.input.history
+
+# Local database locks and trace files
+eas_logs.txt
+graphipy_output.txt
+boot_crash_log.txt
+
