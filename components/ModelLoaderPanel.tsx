@@ -90,7 +90,7 @@ export function ModelLoaderPanel({
         onPress={() => setShowModelPicker(!showModelPicker)}
       >
         <Image 
-          source={selectedModel.id === 'llama3.2-1b-q4' ? require('../assets/images/anima_light_logo.png') : require('../assets/images/anima_spirit.png')}
+          source={selectedModel.id === 'llama3.2-1b-q4' ? require('../assets/images/anima_light_logo.png') : require('../assets/images/anima_deep_logo.png')}
           style={{ width: 24, height: 24, marginRight: 10 }}
           resizeMode="contain"
         />
@@ -135,7 +135,7 @@ export function ModelLoaderPanel({
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                   <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                     <Image 
-                      source={model.id === 'llama3.2-1b-q4' ? require('../assets/images/anima_light_logo.png') : require('../assets/images/anima_spirit.png')}
+                      source={model.id === 'llama3.2-1b-q4' ? require('../assets/images/anima_light_logo.png') : require('../assets/images/anima_deep_logo.png')}
                       style={{ width: 16, height: 16, marginRight: 8 }}
                       resizeMode="contain"
                     />

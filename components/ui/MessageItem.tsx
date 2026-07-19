@@ -103,7 +103,7 @@ export const MessageItem = React.memo(({
                 { backgroundColor: colors.surface, borderColor: activeModelId === 'llama3.2-1b-q4' ? '#FFD700' : colors.secondary, padding: 0, marginRight: 0, marginBottom: 8, position: 'relative' }
               ]}>
                 <Image
-                  source={activeModelId === 'llama3.2-1b-q4' ? require('../../assets/images/anima_light_logo.png') : require('../../assets/images/anima_spirit.png')}
+                  source={activeModelId === 'llama3.2-1b-q4' ? require('../../assets/images/anima_light_logo.png') : require('../../assets/images/anima_deep_logo.png')}
                   style={{ width: 40, height: 40 }}
                   resizeMode="contain"
                 />
@@ -140,7 +140,7 @@ export const MessageItem = React.memo(({
               style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surfaceSecondary, paddingHorizontal: 6, paddingVertical: 3, borderRadius: 12, borderWidth: 0.5, borderColor: activeModelId === 'llama3.2-1b-q4' ? 'rgba(255, 215, 0, 0.3)' : 'rgba(77, 166, 255, 0.3)' }}
             >
               <Image 
-                source={activeModelId === 'llama3.2-1b-q4' ? require('../../assets/images/anima_light_logo.png') : require('../../assets/images/anima_spirit.png')} 
+                source={activeModelId === 'llama3.2-1b-q4' ? require('../../assets/images/anima_light_logo.png') : require('../../assets/images/anima_deep_logo.png')} 
                 style={{ width: 12, height: 12, marginRight: 4 }} 
                 resizeMode="contain" 
               />
