@@ -33,7 +33,8 @@ export const MessageItem = React.memo(({
   onPausePress,
   onResumePress,
   onStopPress,
-  onModelTierPress
+  onModelTierPress,
+  activeModelId
 }: {
   item: Message,
   colors: any,
@@ -99,10 +100,10 @@ export const MessageItem = React.memo(({
             >
               <View style={[
                 styles.avatarAi,
-                { backgroundColor: colors.surface, borderColor: colors.secondary, padding: 0, marginRight: 0, marginBottom: 8, position: 'relative' }
+                { backgroundColor: colors.surface, borderColor: activeModelId === 'llama3.2-1b-q4' ? '#FFD700' : colors.secondary, padding: 0, marginRight: 0, marginBottom: 8, position: 'relative' }
               ]}>
                 <Image
-                  source={require('../../assets/images/anima_spirit.png')}
+                  source={activeModelId === 'llama3.2-1b-q4' ? require('../../assets/images/anima_light_logo.png') : require('../../assets/images/anima_spirit.png')}
                   style={{ width: 40, height: 40 }}
                   resizeMode="contain"
                 />
@@ -136,14 +137,16 @@ export const MessageItem = React.memo(({
             <TouchableOpacity 
               activeOpacity={0.7}
               onPress={onModelTierPress}
-              style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surfaceSecondary, paddingHorizontal: 6, paddingVertical: 3, borderRadius: 12, borderWidth: 0.5, borderColor: 'rgba(255, 215, 0, 0.3)' }}
+              style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surfaceSecondary, paddingHorizontal: 6, paddingVertical: 3, borderRadius: 12, borderWidth: 0.5, borderColor: activeModelId === 'llama3.2-1b-q4' ? 'rgba(255, 215, 0, 0.3)' : 'rgba(77, 166, 255, 0.3)' }}
             >
               <Image 
-                source={require('../../assets/images/anima_light_logo.png')} 
+                source={activeModelId === 'llama3.2-1b-q4' ? require('../../assets/images/anima_light_logo.png') : require('../../assets/images/anima_spirit.png')} 
                 style={{ width: 12, height: 12, marginRight: 4 }} 
                 resizeMode="contain" 
               />
-              <Text style={{ fontSize: 9, color: '#D4A017', fontWeight: 'bold' }}>Anima Light</Text>
+              <Text style={{ fontSize: 9, color: activeModelId === 'llama3.2-1b-q4' ? '#D4A017' : '#4da6ff', fontWeight: 'bold' }}>
+                {activeModelId === 'llama3.2-1b-q4' ? 'Anima Light' : 'Anima Deep'}
+              </Text>
             </TouchableOpacity>
           </View>
         )}

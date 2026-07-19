@@ -42,8 +42,8 @@ export const MODEL_LIST: ModelDefinition[] = [
   },
   {
     id: 'gemma4-e2b-qat',
-    labelEs: 'Anima Deepmind',
-    labelEn: 'Anima Deepmind',
+    labelEs: 'Anima Deep',
+    labelEn: 'Anima Deep',
     sizeMB: 2500,
     mmprojSizeMB: 940,
     descEs: 'Sabio Profundo — Razonamiento superior acelerado con QAT. (Con visión / Soporta imágenes)',

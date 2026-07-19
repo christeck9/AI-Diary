@@ -1406,9 +1406,8 @@ export default function NeuralLinkScreen() {
             )}
           </View>
 
-          {/* Centro: Avatar */}
           <View style={{ flex: 1, alignItems: 'center' }}>
-            <WhispAvatar status={whispStatus} size={90} />
+            <WhispAvatar status={whispStatus} size={90} activeModelId={activeModel?.id} />
           </View>
 
           {/* Derecha: Estados complejos u otros */}

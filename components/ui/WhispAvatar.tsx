@@ -17,12 +17,21 @@ import Animated, {
 interface WhispAvatarProps {
   status?: 'idle' | 'thinking' | 'tired' | 'happy' | 'listening' | 'speaking';
   size?: number;
+  activeModelId?: string;
 }
 
-export const WhispAvatar = ({ status = 'idle', size = 120 }: WhispAvatarProps) => {
+export const WhispAvatar = ({ status = 'idle', size = 120, activeModelId }: WhispAvatarProps) => {
   const BASE_SIZE = 120;
   const center = BASE_SIZE / 2;
   const scale = size / BASE_SIZE;
+  
+  const isLight = activeModelId === 'llama3.2-1b-q4';
+  const auraColors = isLight ? ['rgba(255, 200, 0, 0.4)', 'rgba(255, 100, 0, 0)'] : ['rgba(0, 150, 255, 0.4)', 'rgba(0, 50, 255, 0)'];
+  const bodyColors = isLight ? ['#FFD700', '#FF8C00'] : ['#88ddff', '#0077ff'];
+  const coreColors = isLight ? ['#ffffff', 'rgba(255, 230, 100, 0.6)'] : ['#ffffff', 'rgba(100, 200, 255, 0.6)'];
+  const eyeColor = isLight ? '#FFFDE7' : '#ffffff';
+  const mouthColor = isLight ? '#FFFDE7' : '#ffffff';
+  const handColor = isLight ? '#FFD700' : '#88ddff';
 
   // Reanimated shared values
   const time = useSharedValue(0);
@@ -354,7 +363,7 @@ export const WhispAvatar = ({ status = 'idle', size = 120 }: WhispAvatarProps) =
         <Group transform={[{ scale }]}>
           {/* Outer Aura (Intelligent Glow Sphere) */}
           <Circle cx={center} cy={center} r={auraRadius}>
-            <RadialGradient c={vec(center, center)} r={BASE_SIZE * 0.45} colors={['rgba(0, 150, 255, 0.4)', 'rgba(0, 50, 255, 0)']} />
+            <RadialGradient c={vec(center, center)} r={BASE_SIZE * 0.45} colors={auraColors} />
             <BlurMask blur={15} style="normal" />
           </Circle>
 
@@ -364,7 +373,7 @@ export const WhispAvatar = ({ status = 'idle', size = 120 }: WhispAvatarProps) =
             {/* Left wisp tip */}
             <Group origin={vec(center, center + 10)} transform={leftTipTransform}>
               <Path path={leftTipPath}>
-                <RadialGradient c={vec(center, center)} r={BASE_SIZE * 0.35} colors={['#88ddff', '#0077ff']} />
+                <RadialGradient c={vec(center, center)} r={BASE_SIZE * 0.35} colors={bodyColors} />
                 <BlurMask blur={4} style="normal" />
               </Path>
             </Group>
@@ -372,49 +381,49 @@ export const WhispAvatar = ({ status = 'idle', size = 120 }: WhispAvatarProps) =
             {/* Top main wisp tip */}
             <Group origin={vec(center, center + 10)} transform={topTipTransform}>
               <Path path={topTipPath}>
-                <RadialGradient c={vec(center, center)} r={BASE_SIZE * 0.38} colors={['#88ddff', '#0077ff']} />
+                <RadialGradient c={vec(center, center)} r={BASE_SIZE * 0.38} colors={bodyColors} />
                 <BlurMask blur={4} style="normal" />
               </Path>
             </Group>
 
             {/* Chubby Round Base (Circle representing the face) */}
             <Circle cx={center} cy={center + 8} r={32}>
-              <RadialGradient c={vec(center, center + 8)} r={BASE_SIZE * 0.35} colors={['#88ddff', '#0077ff']} />
+              <RadialGradient c={vec(center, center + 8)} r={BASE_SIZE * 0.35} colors={bodyColors} />
               <BlurMask blur={4} style="normal" />
             </Circle>
 
             {/* Inner Core (Brighter central core inside the circle) */}
             <Circle cx={center} cy={center - 5} r={16}>
-              <RadialGradient c={vec(center, center - 5)} r={BASE_SIZE * 0.18} colors={['#ffffff', 'rgba(100, 200, 255, 0.6)']} />
+              <RadialGradient c={vec(center, center - 5)} r={BASE_SIZE * 0.18} colors={coreColors} />
               <BlurMask blur={6} style="normal" />
             </Circle>
 
             {/* Face Group (Moves with main body) */}
             <Group>
               {/* Left Eye */}
-              <Circle cx={center - 12} cy={center + 2} r={3} color="#ffffff">
+              <Circle cx={center - 12} cy={center + 2} r={3} color={eyeColor}>
                 <BlurMask blur={0.5} style="normal" />
               </Circle>
 
               {/* Right Eye */}
-              <Circle cx={center + 12} cy={center + 2} r={3} color="#ffffff">
+              <Circle cx={center + 12} cy={center + 2} r={3} color={eyeColor}>
                 <BlurMask blur={0.5} style="normal" />
               </Circle>
 
               {/* Mouth */}
               {status === 'speaking' ? (
-                <Path path={mouthPath} color="#ffffff" style="fill">
+                <Path path={mouthPath} color={mouthColor} style="fill">
                   <BlurMask blur={0.5} style="normal" />
                 </Path>
               ) : (
-                <Path path={mouthPath} color="#ffffff" style="stroke" strokeWidth={1.5} strokeCap="round">
+                <Path path={mouthPath} color={mouthColor} style="stroke" strokeWidth={1.5} strokeCap="round">
                   <BlurMask blur={0.2} style="normal" />
                 </Path>
               )}
 
               {/* Sweat Drop for Thinking state */}
               {status === 'thinking' && sweatDropSVG && (
-                <Path path={sweatDropSVG} color="#88ddff">
+                <Path path={sweatDropSVG} color={handColor}>
                   <BlurMask blur={0.5} style="normal" />
                 </Path>
               )}
@@ -424,11 +433,11 @@ export const WhispAvatar = ({ status = 'idle', size = 120 }: WhispAvatarProps) =
           {/* Left Hand (Outside body transform so it floats independently) */}
           <Group transform={leftHandTransform}>
             <Circle cx={0} cy={0} r={10}>
-              <RadialGradient c={vec(0, 0)} r={12} colors={['rgba(0, 150, 255, 0.6)', 'rgba(0, 50, 255, 0)']} />
+              <RadialGradient c={vec(0, 0)} r={12} colors={auraColors} />
               <BlurMask blur={5} style="normal" />
             </Circle>
             <Circle cx={0} cy={0} r={4}>
-              <RadialGradient c={vec(0, 0)} r={4} colors={['#ffffff', 'rgba(100, 200, 255, 0.6)']} />
+              <RadialGradient c={vec(0, 0)} r={4} colors={coreColors} />
               <BlurMask blur={2} style="normal" />
             </Circle>
           </Group>
@@ -436,11 +445,11 @@ export const WhispAvatar = ({ status = 'idle', size = 120 }: WhispAvatarProps) =
           {/* Right Hand */}
           <Group transform={rightHandTransform}>
             <Circle cx={0} cy={0} r={10}>
-              <RadialGradient c={vec(0, 0)} r={12} colors={['rgba(0, 150, 255, 0.6)', 'rgba(0, 50, 255, 0)']} />
+              <RadialGradient c={vec(0, 0)} r={12} colors={auraColors} />
               <BlurMask blur={5} style="normal" />
             </Circle>
             <Circle cx={0} cy={0} r={4}>
-              <RadialGradient c={vec(0, 0)} r={4} colors={['#ffffff', 'rgba(100, 200, 255, 0.6)']} />
+              <RadialGradient c={vec(0, 0)} r={4} colors={coreColors} />
               <BlurMask blur={2} style="normal" />
             </Circle>
           </Group>

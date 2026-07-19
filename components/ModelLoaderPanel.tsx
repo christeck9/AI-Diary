@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Image } from 'react-native';
 import Animated from 'react-native-reanimated';
 import * as FileSystem from 'expo-file-system';
 import { IconSymbol } from './ui/icon-symbol';
@@ -68,8 +68,8 @@ export function ModelLoaderPanel({
       isFloating && {
         position: 'absolute',
         top: '25%',
-        left: 20,
-        right: 20,
+        alignSelf: 'center',
+        width: '75%',
         zIndex: 9999,
         elevation: 10,
         shadowColor: '#000',
@@ -80,8 +80,8 @@ export function ModelLoaderPanel({
     ]}>
       <View style={styles.statusHeader}>
         <IconSymbol name="cpu" size={28} color={colors.secondary} style={{ marginRight: 10 }} />
-        <Text style={[styles.statusTitle, { color: colors.textPrimary }]}>
-          {lang === 'es' ? 'SELECCIONA TU MODELO DE IA' : 'SELECT YOUR AI MODEL'}
+        <Text style={[styles.statusTitle, { color: colors.textPrimary, fontSize: 13, opacity: 0.8 }]}>
+          {lang === 'es' ? 'MODELO DE IA' : 'AI MODEL'}
         </Text>
       </View>
 
@@ -89,12 +89,14 @@ export function ModelLoaderPanel({
         style={[styles.modelSelectBtn, { backgroundColor: colors.surface, borderColor: colors.border }]}
         onPress={() => setShowModelPicker(!showModelPicker)}
       >
+        <Image 
+          source={selectedModel.id === 'llama3.2-1b-q4' ? require('../assets/images/anima_light_logo.png') : require('../assets/images/anima_spirit.png')}
+          style={{ width: 24, height: 24, marginRight: 10 }}
+          resizeMode="contain"
+        />
         <View style={{ flex: 1 }}>
           <Text style={{ color: colors.textPrimary, fontSize: 14, fontWeight: 'bold' }}>
             {selectedModel[lang === 'es' ? 'labelEs' : 'labelEn']}
-          </Text>
-          <Text style={{ color: colors.textSecondary, fontSize: 11, marginTop: 2 }}>
-            {selectedModel.sizeMB} MB — {lang === 'es' ? 'Local' : 'Local'}
           </Text>
         </View>
         <IconSymbol name="chevron.up.chevron.down" size={16} color={colors.textSecondary} />
@@ -167,9 +169,9 @@ export function ModelLoaderPanel({
                 onPress={handleDownload}
                 disabled={status === 'downloading'}
               >
-                <Text style={{ color: '#FFF', fontWeight: 'bold', fontSize: 13, textAlign: 'center' }}>
+                <Text style={{ color: '#FFF', fontWeight: 'bold', fontSize: 11, textAlign: 'center' }}>
                   {modelStatus === 'outdated'
-                    ? (lang === 'es' ? 'ACTUALIZAR IA (opcional)' : 'UPDATE AI (optional)')
+                    ? (lang === 'es' ? 'ACTUALIZAR' : 'UPDATE')
                     : (lang === 'es' ? 'DESCARGAR' : 'DOWNLOAD')}
                 </Text>
               </TouchableOpacity>
@@ -191,8 +193,8 @@ export function ModelLoaderPanel({
               onPress={handleLoad}
               disabled={(modelStatus === 'missing') || status === 'downloading'}
             >
-              <Text style={{ color: ((modelStatus === 'current' || modelStatus === 'outdated') && status !== 'downloading') ? '#FFF' : colors.textSecondary, fontWeight: 'bold', fontSize: 13, textAlign: 'center' }}>
-                {lang === 'es' ? 'ACTIVAR IA' : 'ACTIVATE AI'}
+              <Text style={{ color: ((modelStatus === 'current' || modelStatus === 'outdated') && status !== 'downloading') ? '#FFF' : colors.textSecondary, fontWeight: 'bold', fontSize: 11, textAlign: 'center' }}>
+                {lang === 'es' ? 'ACTIVAR' : 'ACTIVATE'}
               </Text>
             </TouchableOpacity>
           </Animated.View>
@@ -244,18 +246,18 @@ export function ModelLoaderPanel({
 }
 
 const styles = StyleSheet.create({
-  statusOverlay: { margin: 15, borderRadius: 16, padding: 20, alignItems: 'center', borderWidth: 2, zIndex: 100 },
-  statusHeader: { flexDirection: 'row', alignItems: 'center', width: '90%', justifyContent: 'center' },
+  statusOverlay: { margin: 15, borderRadius: 16, padding: 15, alignItems: 'center', borderWidth: 1, zIndex: 100 },
+  statusHeader: { flexDirection: 'row', alignItems: 'center', width: '100%', justifyContent: 'center' },
   statusTitle: { fontSize: 16, fontWeight: 'bold', letterSpacing: 1 },
   modelSelectBtn: {
-    flexDirection: 'row', alignItems: 'center', paddingHorizontal: 15, paddingVertical: 10,
-    borderRadius: 12, marginTop: 8, borderWidth: 1, width: '90%'
+    flexDirection: 'row', alignItems: 'center', paddingHorizontal: 15, paddingVertical: 8,
+    borderRadius: 24, marginTop: 12, borderWidth: 1, width: '100%'
   },
   pickerContainer: {
-    borderRadius: 12, width: '90%', marginTop: 5, borderWidth: 1, overflow: 'hidden',
+    borderRadius: 12, width: '100%', marginTop: 5, borderWidth: 1, overflow: 'hidden',
     elevation: 5, shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2, shadowRadius: 4
   },
   pickerItem: { padding: 15, borderBottomWidth: 1 },
-  actionBtn: { paddingHorizontal: 25, borderRadius: 24, paddingVertical: 12, alignItems: 'center', justifyContent: 'center' }
+  actionBtn: { paddingHorizontal: 15, borderRadius: 24, paddingVertical: 10, alignItems: 'center', justifyContent: 'center' }
 });
