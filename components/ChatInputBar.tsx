@@ -254,18 +254,26 @@ export function ChatInputBar(props: ChatInputBarProps) {
                 flexDirection: 'row',
                 alignItems: 'center',
                 backgroundColor: 'transparent',
-                paddingHorizontal: 2,
-                paddingVertical: 10,
+                paddingHorizontal: 6,
+                paddingVertical: 6,
                 borderRadius: 20,
                 justifyContent: 'center',
-                minWidth: 44,
                 minHeight: 44,
               }}
               onPress={onClearChat}
               accessibilityRole="button"
               accessibilityLabel={lang === 'es' ? 'Limpiar historial' : 'Clean history'}
             >
-              <IconSymbol name="trash" size={26} color={colors.primary} />
+              <IconSymbol name="trash" size={20} color={colors.primary} />
+              <Text style={{ 
+                fontSize: 10, 
+                fontWeight: 'bold', 
+                color: colors.primary, 
+                marginLeft: 5,
+                letterSpacing: 0.3
+              }}>
+                {lang === 'es' ? 'Limpiar Chat' : 'Clear Chat'}
+              </Text>
             </TouchableOpacity>
           )}
           </View>

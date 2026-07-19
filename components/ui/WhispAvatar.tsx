@@ -1,13 +1,13 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { Canvas, Circle, Group, Path, Skia, BlurMask, RadialGradient, vec } from '@shopify/react-native-skia';
-import Animated, { 
-  useSharedValue, 
-  useAnimatedStyle, 
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
   useDerivedValue,
-  withRepeat, 
-  withSequence, 
-  withTiming, 
+  withRepeat,
+  withSequence,
+  withTiming,
   withDelay,
   withSpring,
   Easing,
@@ -111,7 +111,7 @@ export const WhispAvatar = ({ status = 'idle', size = 120 }: WhispAvatarProps) =
         -1,
         true
       );
-      
+
       // Breathe / Pulse
       pulseValue.value = withRepeat(
         withSequence(
@@ -166,7 +166,7 @@ export const WhispAvatar = ({ status = 'idle', size = 120 }: WhispAvatarProps) =
     if (status === 'happy') { speed = 1.0; amplitude = 45; }
     if (status === 'listening') { speed = 0.4; amplitude = 5; } // Nearly still, focused
     if (status === 'speaking') { speed = 1.2; amplitude = 30; } // Active side-to-side
-    
+
     // Sum of sine waves with irrational frequency ratios creates a non-repeating semi-random pattern
     const t = time.value * speed;
     return Math.sin(t * 1.3) * (amplitude * 0.7) + Math.cos(t * 2.1) * (amplitude * 0.3);
@@ -180,7 +180,7 @@ export const WhispAvatar = ({ status = 'idle', size = 120 }: WhispAvatarProps) =
     if (status === 'happy') { speed = 1.5; amplitude = 15; } // Bounces more when happy
     if (status === 'listening') { speed = 0.6; amplitude = 3; } // Minimal vertical — attentive lean
     if (status === 'speaking') { speed = 2.0; amplitude = 18; } // Bounces a lot while speaking
-    
+
     const t = time.value * speed;
     return Math.cos(t * 1.5) * (amplitude * 0.6) + Math.sin(t * 2.7) * (amplitude * 0.4);
   });
@@ -195,7 +195,7 @@ export const WhispAvatar = ({ status = 'idle', size = 120 }: WhispAvatarProps) =
       { translateY: leftHandTargetY.value + noiseY }
     ];
   });
-  
+
   const rightHandTransform = useDerivedValue(() => {
     const t = time.value * 2;
     const noiseX = Math.cos(t * 1.7) * 3;
@@ -271,7 +271,7 @@ export const WhispAvatar = ({ status = 'idle', size = 120 }: WhispAvatarProps) =
       { translateX: jitterX },
       { translateY: jitterY },
       { rotate: rotation },
-      { scaleX: s * 0.94 }, // 6% narrower (halfway between circular and narrow)
+      { scaleX: s * 0.96 }, // 6% narrower (halfway between circular and narrow)
       { scaleY: s },
     ];
   });
@@ -310,7 +310,7 @@ export const WhispAvatar = ({ status = 'idle', size = 120 }: WhispAvatarProps) =
     if (status === 'thinking') target = 0;
     if (status === 'listening') target = 0.2; // Slightly open
     if (status === 'speaking') target = 1.0; // Wide, open mouth
-    
+
     const path = Skia.Path.Make();
     const startX = center - 8;
     const endX = center + 8;
@@ -345,7 +345,7 @@ export const WhispAvatar = ({ status = 'idle', size = 120 }: WhispAvatarProps) =
   const containerHeight = Math.round(size * 0.85);
 
   const sweatDropSVG = Skia.Path.MakeFromSVGString(
-    `M ${center+18} ${center-10} C ${center+23} ${center-4} ${center+23} ${center+2} ${center+18} ${center+2} C ${center+13} ${center+2} ${center+13} ${center-4} ${center+18} ${center-10} Z`
+    `M ${center + 18} ${center - 10} C ${center + 23} ${center - 4} ${center + 23} ${center + 2} ${center + 18} ${center + 2} C ${center + 13} ${center + 2} ${center + 13} ${center - 4} ${center + 18} ${center - 10} Z`
   );
 
   return (
@@ -360,7 +360,7 @@ export const WhispAvatar = ({ status = 'idle', size = 120 }: WhispAvatarProps) =
 
           {/* Main Body (Breathing and floating together) */}
           <Group origin={vec(center, center + 40)} transform={mainFlameTransform}>
-            
+
             {/* Left wisp tip */}
             <Group origin={vec(center, center + 10)} transform={leftTipTransform}>
               <Path path={leftTipPath}>
@@ -395,7 +395,7 @@ export const WhispAvatar = ({ status = 'idle', size = 120 }: WhispAvatarProps) =
               <Circle cx={center - 12} cy={center + 2} r={3} color="#ffffff">
                 <BlurMask blur={0.5} style="normal" />
               </Circle>
-              
+
               {/* Right Eye */}
               <Circle cx={center + 12} cy={center + 2} r={3} color="#ffffff">
                 <BlurMask blur={0.5} style="normal" />
