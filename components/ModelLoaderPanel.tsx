@@ -57,10 +57,27 @@ export function ModelLoaderPanel({
   downloadSpeed: number;
   waitPhrase: string;
 }) {
-  if (status === 'ready' || !isOnboardingComplete) return null;
+  if ((status === 'ready' && !showModelPicker) || !isOnboardingComplete) return null;
 
-  return (
-    <View style={[styles.statusOverlay, { backgroundColor: colors.surfaceSecondary, borderColor: colors.secondary }]}>
+  const isFloating = status === 'ready';
+
+  const panelContent = (
+    <View style={[
+      styles.statusOverlay,
+      { backgroundColor: colors.surfaceSecondary, borderColor: colors.secondary },
+      isFloating && {
+        position: 'absolute',
+        top: '25%',
+        left: 20,
+        right: 20,
+        zIndex: 9999,
+        elevation: 10,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+      }
+    ]}>
       <View style={styles.statusHeader}>
         <IconSymbol name="cpu" size={28} color={colors.secondary} style={{ marginRight: 10 }} />
         <Text style={[styles.statusTitle, { color: colors.textPrimary }]}>
@@ -104,14 +121,9 @@ export function ModelLoaderPanel({
                 ]}
                 onPress={async () => {
                   setSelectedModel(model);
-                  const baseDir = FileSystem.documentDirectory?.replace(/\/+$/, '') + '/llm_models';
-                  const modelPath = `${baseDir}/${model.fileName}`;
-                  const info = await FileSystem.getInfoAsync(modelPath);
-
-                  if (info.exists) {
+                  if (activeModel?.id !== model.id) {
                     selectModel(model);
                   }
-
                   setShowModelPicker(false);
                   try {
                     await settingsService.set({ preferredModel: model.id });
@@ -205,6 +217,30 @@ export function ModelLoaderPanel({
       )}
     </View>
   );
+
+  if (isFloating) {
+    return (
+      <View style={{
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        backgroundColor: 'rgba(0,0,0,0.5)',
+        zIndex: 9998,
+        justifyContent: 'center',
+      }}>
+        <TouchableOpacity 
+          style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }} 
+          onPress={() => setShowModelPicker(false)} 
+          activeOpacity={1}
+        />
+        {panelContent}
+      </View>
+    );
+  }
+
+  return panelContent;
 }
 
 const styles = StyleSheet.create({
