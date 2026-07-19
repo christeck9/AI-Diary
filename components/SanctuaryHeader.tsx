@@ -13,6 +13,7 @@ import { IconSymbol } from './ui/icon-symbol';
 import { useAppTheme } from '../contexts/ThemeContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useLlmState } from '../contexts/LlmContext';
+import { useFocusEffect } from '@react-navigation/native';
 
 interface SanctuaryHeaderProps {
   onModelPress?: () => void;
@@ -46,30 +47,32 @@ export const SanctuaryHeader = ({
 
   const [lastBadge, setLastBadge] = useState<{ emoji: string, name: string } | null>(null);
 
-  useEffect(() => {
-    let isMounted = true;
-    if (!db) return;
+  useFocusEffect(
+    useCallback(() => {
+      let isMounted = true;
+      if (!db) return;
 
-    db.getAllAsync('SELECT emoji, name FROM user_badges WHERE count > 0 ORDER BY last_awarded DESC LIMIT 1')
-      .then((rows: any[]) => {
-        if (isMounted && rows && rows.length > 0) {
-          setLastBadge(prev => {
-            const nextBadge = rows[0];
-            if (prev && prev.name === nextBadge.name && prev.emoji === nextBadge.emoji) {
-              return prev; // Prevents infinite re-renders by preserving object reference
-            }
-            return nextBadge;
-          });
-        }
-      })
-      .catch(e => {
-        console.warn('[SanctuaryHeader] Error fetching last badge:', e);
-      });
+      db.getAllAsync('SELECT emoji, name FROM user_badges WHERE count > 0 ORDER BY last_awarded DESC LIMIT 1')
+        .then((rows: any[]) => {
+          if (isMounted && rows && rows.length > 0) {
+            setLastBadge(prev => {
+              const nextBadge = rows[0];
+              if (prev && prev.name === nextBadge.name && prev.emoji === nextBadge.emoji) {
+                return prev; // Prevents infinite re-renders by preserving object reference
+              }
+              return nextBadge;
+            });
+          }
+        })
+        .catch(e => {
+          console.warn('[SanctuaryHeader] Error fetching last badge:', e);
+        });
 
-    return () => {
-      isMounted = false;
-    };
-  }, [db, earnedBadge]);
+      return () => {
+        isMounted = false;
+      };
+    }, [db, earnedBadge])
+  );
 
   // Kebab menu trigger removed, using local Clean Chat icon directly
 
