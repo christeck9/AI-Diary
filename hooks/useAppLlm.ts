@@ -269,14 +269,6 @@ export function useAppLlm(lang: string = 'es') {
     const localSize = await getModelLocalSize(model);
     if (!localSize) return 'missing';
 
-    const remoteSize = await getModelRemoteSize(model);
-    if (!remoteSize) return 'current'; // Assume current if can't check
-
-    // Allow 1% tolerance for size comparison
-    const tolerance = remoteSize * 0.01;
-    if (Math.abs(localSize - remoteSize) > tolerance) {
-      return 'outdated';
-    }
     return 'current';
   };
 
