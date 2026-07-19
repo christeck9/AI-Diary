@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import DraggableFlatList, { ScaleDecorator } from 'react-native-draggable-flatlist';
-import { StyleSheet, View, Text, TextInput, TouchableOpacity, Alert, Platform, StatusBar, ScrollView, FlatList, ActivityIndicator, KeyboardAvoidingView, Dimensions } from 'react-native';
+import { StyleSheet, View, Text, TextInput, TouchableOpacity, Alert, Platform, StatusBar, ScrollView, FlatList, ActivityIndicator, KeyboardAvoidingView, Dimensions, SafeAreaView } from 'react-native';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useFocusEffect } from 'expo-router';
 import { IconSymbol } from '../../components/ui/icon-symbol';
@@ -895,7 +895,7 @@ ${factsText}`;
   const consoleBorder = isMatrix ? '#1a2b1a' : colors.border;
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       <SanctuaryHeader
         activeModelLabel={llmStatus === 'ready' && activeModel ? activeModel[lang === 'es' ? 'labelEs' : 'labelEn'] : undefined}
         onHomePress={handleHeaderHomePress}
@@ -1574,7 +1574,7 @@ ${factsText}`;
         </View>
       )}
 
-    </View>
+    </SafeAreaView>
   );
 }
 

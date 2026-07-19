@@ -1096,6 +1096,13 @@ export default function ToolsScreen() {
 
 
 
+              {/* CALENDAR CARD */}
+              <View style={{ width: '100%', marginTop: 20 }}>
+              <React.Suspense fallback={null}>
+                <InteractiveCalendar colors={colors} lang={lang as any} />
+              </React.Suspense>
+              </View>
+
               {/* AUTOMATIONS / RECURRING TASKS CARD */}
               <View style={[styles.vaultCard, { borderColor: colors.border, backgroundColor: colors.surfaceSecondary, marginTop: 20 }]}>
                 <View style={styles.cardHeader}>
@@ -1327,13 +1334,6 @@ export default function ToolsScreen() {
                     ))}
                   </View>
                 )}
-              </View>
-
-              {/* CALENDAR CARD */}
-              <View style={{ width: '100%', marginTop: 20 }}>
-              <React.Suspense fallback={null}>
-                <InteractiveCalendar colors={colors} lang={lang as any} />
-              </React.Suspense>
               </View>
             </View>
           </ScrollView>

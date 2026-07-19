@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { Canvas, Circle, Group, Path, Skia, BlurMask, RadialGradient, vec } from '@shopify/react-native-skia';
 import Animated, { 
@@ -214,56 +214,125 @@ export const WhispAvatar = ({ status = 'idle', size = 120 }: WhispAvatarProps) =
     ]
   }));
 
-  // Helper to draw a single flame prong
-  const createFlame = (cx: number, tipX: number, tipY: number, w: number, bottom: number) => {
-    'worklet';
+  // Static path definitions constructed once to avoid native object leaks on UI thread
+  const mainFlamePath = useMemo(() => {
     const p = Skia.Path.Make();
+    const cx = center;
+    const bottom = center + 40;
+    const tipX = center;
+    const tipY = center - 35;
+    const w = 26;
+    
     p.moveTo(tipX, tipY);
-    // Right curve
     p.cubicTo(
       cx + w, tipY + (bottom - tipY) * 0.4, 
       cx + w, bottom - 5, 
       cx, bottom
     );
-    // Left curve
     p.cubicTo(
       cx - w, bottom - 5,
       cx - w, tipY + (bottom - tipY) * 0.4,
       tipX, tipY
     );
+    p.close();
     return p;
-  };
+  }, [center]);
 
-  // Highly optimized numerical derived values. These return pure JS numbers
-  // rather than constructing heavy native Skia.Path objects on every animation frame.
-  // This avoids JSI garbage collection accumulation and Hermes native stack overflows.
+  const sideFlamePath = useMemo(() => {
+    const p = Skia.Path.Make();
+    const cx = center;
+    const bottom = center + 40;
+    const tipX = center;
+    const tipY = center - 20;
+    const w = 16;
+    
+    p.moveTo(tipX, tipY);
+    p.cubicTo(
+      cx + w, tipY + (bottom - tipY) * 0.4, 
+      cx + w, bottom - 5, 
+      cx, bottom
+    );
+    p.cubicTo(
+      cx - w, bottom - 5,
+      cx - w, tipY + (bottom - tipY) * 0.4,
+      tipX, tipY
+    );
+    p.close();
+    return p;
+  }, [center]);
+
+  const coreFlamePath = useMemo(() => {
+    const p = Skia.Path.Make();
+    const cx = center;
+    const bottom = center + 38;
+    const tipX = center;
+    const tipY = center - 15;
+    const w = 14;
+    
+    p.moveTo(tipX, tipY);
+    p.cubicTo(
+      cx + w, tipY + (bottom - tipY) * 0.4, 
+      cx + w, bottom - 5, 
+      cx, bottom
+    );
+    p.cubicTo(
+      cx - w, bottom - 5,
+      cx - w, tipY + (bottom - tipY) * 0.4,
+      tipX, tipY
+    );
+    p.close();
+    return p;
+  }, [center]);
+
+  // Derived values for scale and breathing effects
   const auraScale = useDerivedValue(() => {
     return pulseValue.value * (1 + 0.08 * Math.sin(time.value * 0.15));
-  });
-
-  const flameScale = useDerivedValue(() => {
-    return pulseValue.value * (1 + 0.05 * Math.cos(time.value * 0.25));
-  });
-
-  const coreScale = useDerivedValue(() => {
-    return pulseValue.value * (1 + 0.03 * Math.sin(time.value * 0.35));
   });
 
   const auraRadius = useDerivedValue(() => {
     return (BASE_SIZE * 0.40) * auraScale.value;
   });
 
-  const flameRadius = useDerivedValue(() => {
-    return (BASE_SIZE * 0.30) * flameScale.value;
+  // Dynamic GPU-accelerated group transforms (NO memory allocation at 60fps)
+  const centerFlameTransform = useDerivedValue(() => {
+    const s = pulseValue.value * flicker.value;
+    const jitterX = Math.sin(time.value * 8) * 1.0;
+    const jitterY = Math.cos(time.value * 6) * 0.8;
+    return [
+      { translateX: jitterX },
+      { translateY: jitterY },
+      { scaleX: s },
+      { scaleY: s },
+    ];
   });
 
-  const coreRadius = useDerivedValue(() => {
-    return (BASE_SIZE * 0.16) * coreScale.value;
+  const leftFlameTransform = useDerivedValue(() => {
+    const jitterX = Math.sin(time.value * 5 + 1) * 0.8;
+    const jitterY = Math.cos(time.value * 4 + 1) * 0.5;
+    const rotation = Math.sin(time.value * 7) * 0.04;
+    return [
+      { translateX: -16 + jitterX },
+      { translateY: 8 + jitterY },
+      { rotate: rotation },
+      { scaleX: 0.85 * flicker.value },
+      { scaleY: 0.85 * pulseValue.value },
+    ];
   });
 
+  const rightFlameTransform = useDerivedValue(() => {
+    const jitterX = Math.cos(time.value * 5 + 2) * 0.8;
+    const jitterY = Math.sin(time.value * 4 + 2) * 0.5;
+    const rotation = Math.cos(time.value * 7) * 0.04;
+    return [
+      { translateX: 16 + jitterX },
+      { translateY: 8 + jitterY },
+      { rotate: rotation },
+      { scaleX: 0.85 * flicker.value },
+      { scaleY: 0.85 * pulseValue.value },
+    ];
+  });
 
-  // Since React Native Skia doesn't fully support Reanimated useDerivedValue directly inside the <Path> prop for some very specific versions/structures without glitches, 
-  // we handle the mouth via React State but it responds cleanly to the status.
+  // Mouth path calculation
   const [mouthPath, setMouthPath] = useState(Skia.Path.Make());
 
   useEffect(() => {
@@ -321,17 +390,35 @@ export const WhispAvatar = ({ status = 'idle', size = 120 }: WhispAvatarProps) =
             <BlurMask blur={15} style="normal" />
           </Circle>
 
-          {/* Main Body (Fluid Plasma Sphere) */}
-          <Circle cx={center} cy={center} r={flameRadius}>
-            <RadialGradient c={vec(center, center)} r={BASE_SIZE * 0.35} colors={['#88ddff', '#0077ff']} />
-            <BlurMask blur={5} style="normal" />
-          </Circle>
+          {/* Main Body (Fluid Plasma Flame with 3 overlapping static prongs) */}
+          <Group origin={vec(center, center + 40)} transform={leftFlameTransform}>
+            <Path path={sideFlamePath}>
+              <RadialGradient c={vec(center, center + 10)} r={BASE_SIZE * 0.28} colors={['#88ddff', '#0077ff']} />
+              <BlurMask blur={4} style="normal" />
+            </Path>
+          </Group>
 
-          {/* Inner Core (Brighter central core) */}
-          <Circle cx={center} cy={center + 5} r={coreRadius}>
-            <RadialGradient c={vec(center, center + 5)} r={BASE_SIZE * 0.18} colors={['#ffffff', 'rgba(100, 200, 255, 0.6)']} />
-            <BlurMask blur={8} style="normal" />
-          </Circle>
+          <Group origin={vec(center, center + 40)} transform={rightFlameTransform}>
+            <Path path={sideFlamePath}>
+              <RadialGradient c={vec(center, center + 10)} r={BASE_SIZE * 0.28} colors={['#88ddff', '#0077ff']} />
+              <BlurMask blur={4} style="normal" />
+            </Path>
+          </Group>
+
+          <Group origin={vec(center, center + 40)} transform={centerFlameTransform}>
+            <Path path={mainFlamePath}>
+              <RadialGradient c={vec(center, center)} r={BASE_SIZE * 0.38} colors={['#88ddff', '#0077ff']} />
+              <BlurMask blur={4} style="normal" />
+            </Path>
+          </Group>
+
+          {/* Inner Core (Brighter central flame core) */}
+          <Group origin={vec(center, center + 40)} transform={centerFlameTransform}>
+            <Path path={coreFlamePath}>
+              <RadialGradient c={vec(center, center + 5)} r={BASE_SIZE * 0.20} colors={['#ffffff', 'rgba(100, 200, 255, 0.6)']} />
+              <BlurMask blur={6} style="normal" />
+            </Path>
+          </Group>
 
 
           {/* Left Hand */}
@@ -358,8 +445,8 @@ export const WhispAvatar = ({ status = 'idle', size = 120 }: WhispAvatarProps) =
             </Circle>
           </Group>
 
-          {/* Face Group */}
-          <Group>
+          {/* Face Group (Moves with Center Flame for high cohesion) */}
+          <Group origin={vec(center, center + 40)} transform={centerFlameTransform}>
             {/* Left Eye */}
             <Circle cx={center - 12} cy={center - 2} r={3} color="#ffffff">
               <BlurMask blur={0.5} style="normal" />

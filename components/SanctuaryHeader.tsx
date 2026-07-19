@@ -1,5 +1,6 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Platform, StatusBar } from 'react-native';
+import { useSQLiteContext } from './MemoryProvider';
 import Animated, { 
   useSharedValue, 
   useAnimatedStyle, 
@@ -24,7 +25,7 @@ interface SanctuaryHeaderProps {
   onLangSelect?: (lang: string) => void;
   isStreaming?: boolean;
   animaMessage?: string;
-  onClearChat?: () => void;
+  earnedBadge?: any;
 }
 
 export const SanctuaryHeader = ({ 
@@ -36,11 +37,32 @@ export const SanctuaryHeader = ({
   onLangPress,
   onLangSelect,
   isStreaming = false,
-  onClearChat,
+  earnedBadge,
 }: SanctuaryHeaderProps) => {
   const { colors, activeTheme } = useAppTheme();
   const { lang, setLang } = useLanguage();
   const { deviceRAM } = useLlmState();
+  const db = useSQLiteContext();
+
+  const [lastBadge, setLastBadge] = useState<{ emoji: string, name: string } | null>(null);
+
+  const fetchLastBadge = useCallback(async () => {
+    if (!db) return;
+    try {
+      const rows: any[] = await db.getAllAsync(
+        'SELECT emoji, name FROM user_badges WHERE count > 0 ORDER BY last_awarded DESC LIMIT 1'
+      );
+      if (rows && rows.length > 0) {
+        setLastBadge(rows[0]);
+      }
+    } catch (e) {
+      console.warn('[SanctuaryHeader] Error fetching last badge:', e);
+    }
+  }, [db]);
+
+  useEffect(() => {
+    fetchLastBadge();
+  }, [fetchLastBadge, earnedBadge]);
 
   // Kebab menu trigger removed, using local Clean Chat icon directly
 
@@ -134,6 +156,36 @@ export const SanctuaryHeader = ({
           </TouchableOpacity>
         </TouchableOpacity>
 
+        {/* Central Badge Area */}
+        <View style={{ alignItems: 'center', justifyContent: 'center', flex: 1 }}>
+          {lastBadge ? (
+            <View style={{ alignItems: 'center' }}>
+              <Text style={{ fontSize: 22 }}>
+                {lastBadge.emoji.endsWith('.png') ? '🧠' : lastBadge.emoji}
+              </Text>
+              <Text style={{ 
+                fontSize: 8, 
+                fontWeight: 'bold', 
+                color: colors.primary, 
+                marginTop: 2, 
+                letterSpacing: 0.5 
+              }}>
+                {lastBadge.name.toUpperCase()}
+              </Text>
+            </View>
+          ) : (
+            <Text style={{ 
+              fontSize: 10, 
+              fontWeight: 'bold', 
+              color: colors.textSecondary, 
+              letterSpacing: 0.5, 
+              opacity: 0.4 
+            }}>
+              {lang === 'es' ? 'INSIGNIAS' : 'BADGES'}
+            </Text>
+          )}
+        </View>
+
         <View key="header-actions-row" style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
           {/* Language Pill Selector */}
           <View style={{ alignItems: 'center' }}>
@@ -180,25 +232,6 @@ export const SanctuaryHeader = ({
             </View>
           </View>
 
-          {/* Clean Chat action button */}
-          {onClearChat && (
-            <TouchableOpacity
-              key="header-clear-chat"
-              style={{ alignItems: 'center', justifyContent: 'center', padding: 4 }}
-              onPress={onClearChat}
-            >
-              <IconSymbol name="trash" size={24} color={colors.primary} />
-              <Text style={{ 
-                fontSize: 8, 
-                fontWeight: 'bold', 
-                color: colors.primary, 
-                marginTop: 2, 
-                letterSpacing: 0.5 
-              }}>
-                Clean Chat
-              </Text>
-            </TouchableOpacity>
-          )}
         </View>
       </View>
     </View>

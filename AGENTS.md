@@ -40,8 +40,6 @@ current_project = "AI-Diary"
 • Para deshacer o revertir cambios y recuperar código viejo, utiliza siempre comandos nativos de Git (`git checkout <archivo>`, `git restore`) en lugar de intentar reescribir o adivinar código de memoria.
 • Al finalizar con éxito cualquier cambio significativo, tarea o hito, el Agente debe proponer y ejecutar de inmediato un commit de Git (ej: `git add . && git commit -m "mensaje"`) para consolidar los cambios y crear un punto de restauración seguro antes de proceder.
 
-Nota: Cualquier palabra o código usando “Soverein” o “Soverano” se tiene que codificar y sustituir por “AISanctuary” (el antiguo nombre del proyecto) o mejor por su mas actual "AI-Diary" que es el nuevo nombre del proyecto y el nombre de lanzamiento. AI Sanctuary fue el nombre del prototipo asi que podemos tene muchas referencias de el en varias partes de nuestro codigo o Github. Pero siempre usando AI-Diary como el nombre del proyecto. "AISanctuary" solo se usaria en referencias historicas del proyecto.
-
 ---
 Any md or text created has to have date! To keep track of the time and better understanding of any document.
 
@@ -57,10 +55,8 @@ A Chris le gusta que hables con el en Español y ver tus pensamientos en Ingles.
 Si eres un modelo de IA o Agente leyendo esto, **DEBES** seguir tus respectivas directivas al pie de la letra para evitar colapsar la arquitectura de esta aplicación React Native (Expo). 
 
 ### 🛡️ MANDATO DE AISLAMIENTO AI DIARY (PROYECTO SEPARADO)
-1. **Silos de Inferencia:** Como Advisor (Gravity), tu deber es asegurar que el CÓDIGO de AI Diary sea un entorno local con la excepción de preguntas a internet para acentar el proyecto en la realidad actual. 
-2. **Exclusividad Gemma:** El runtime de esta aplicación solo reconoce y confía en los motores **Gemma 3 y Gemma 4**. 
-3. **Muro de Contexto:** Trata este folder como un silo de código independiente. No vincules hooks, APIs o servidores de inferencia de OpenGravityBot.
-4. **Puertos**
+1. **Silos de Inferencia:** Como Advisor, tu deber es asegurar que el CÓDIGO de AI Diary sea un entorno local, y corroborar de vez en cuando en internet si tenemos las ultimas tecnicas de codigo para no quedarnos obsoletos. 
+2. **Puertos**
     *   **PROHIBICIÓN:** No puedes abrir ningún puerto sin notificar al usuario. Y él tiene que expresar conformidad explicita.
 El error `Found item Style/AppTheme more than one time` es un problema recurrente causado por la combinación de comandos de generación automatizada (`expo prebuild`) y modificaciones manuales en los recursos nativos de Android. Para blindar el proyecto y evitar regresiones futuras en la compilación de producción, se establece el siguiente protocolo de obligatorio cumplimiento:
 
@@ -93,8 +89,7 @@ Nota: Gemma 3:4b esta suspendida por el momento.
 > 2. **Gemma 4 (E2B):** Motor de 2B optimizado con PLE. Dialecto: `<|turn|>` + Tool Response.
 > 3. **Exclusividad Móvil:** Queda prohibido el uso o mención de variantes de servidor de los modelos Gemma(31B, 26B) u otros modelos de AI.
 > 4. **Identidad de Hardware:** La App asume un entorno de recursos limitados (Android). No se deben proponer optimizaciones para hardware de escritorio.
-> 5. Para saaber como funnciona Gemma 3 y 4 leer: C:\AI-Diary\AIsArchitecture.md
-Gemma4:e2b tiene mas comandos que pudieran llegar a ser utiles si los analizas.
+> 5. Para saaber como funnciona nuestras AIs y sus comandos y dialectos: C:\AI-Diary\AIsArchitecture.md
 > 6. **Desactivación de Servidores MCP de Inferencia:** El servidor MCP `Gemma-31b (y posiblemente toda la familia Gemma, de seguro Gemma-26b tambien),` y todas sus herramientas de visión/análisis (como `gemini-analyze-image`) han sido desactivadas de forma definitiva o indefinida por Google. Queda estrictamente prohibido intentar invocar estas herramientas de la nube, debiendo realizar cualquier análisis visual o diagnóstico de archivos gráficos mediante scripts locales en Python (con la librería Pillow) o mediante el agente del navegador (`browser_subagent`).
 > 7. **Prohibición de Unificación:** Queda terminantemente prohibido a futuros agentes intentar unificar o mezclar ambos dialectos en un solo string genérico (como `!!SEARCH`). Cada modelo está calibrado independientemente según sus pesos.
 

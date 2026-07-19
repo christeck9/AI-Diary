@@ -1350,7 +1350,7 @@ export default function NeuralLinkScreen() {
           onModelPress={handleModelPress}
           activeModelLabel={status === 'ready' && activeModel ? activeModel[lang === 'es' ? 'labelEs' : 'labelEn'] : undefined}
           isStreaming={isTyping}
-          onClearChat={handleClearChat}
+          earnedBadge={earnedBadge}
         />
         
         {/* Fila 2: Sub-Barra de Diary Anima (Blob interactivo) - Solo en el Home/Diary */}
@@ -1673,6 +1673,7 @@ export default function NeuralLinkScreen() {
             downloadPercent={downloadPercent}
             downloadedMB={downloadedMB}
             downloadSpeed={downloadSpeed}
+            onClearChat={handleClearChat}
           />
           <React.Suspense fallback={null}>
             <VisionDownloadModal

@@ -5,35 +5,7 @@ import Animated, { FadeInDown, FadeOutUp } from 'react-native-reanimated';
 import { IconSymbol } from './ui/icon-symbol';
 import { CONSCIOUSNESS_CONFIG } from '../constants/NeuralConstants';
 
-export function ChatInputBar({
-  isTyping,
-  processingAttachedFile,
-  colors,
-  lang,
-  activeModel,
-  handlePickDocument,
-  inputText,
-  handleInputChange,
-  t,
-  handleSend,
-  stopGeneration,
-  attachedFile,
-  status,
-  voiceState,
-  toggleInteractiveMode,
-  setMicPhase,
-  setShowVoiceNoteModal,
-  dictation,
-  consciousnessLevel,
-  setConsciousnessLevel,
-  clearAttachment,
-  isSearchingWeb,
-  searchingStep,
-  isThinking,
-  downloadPercent = 0,
-  downloadedMB = 0,
-  downloadSpeed = 0
-}: {
+export interface ChatInputBarProps {
   isTyping: boolean;
   processingAttachedFile: any;
   colors: any;
@@ -61,7 +33,40 @@ export function ChatInputBar({
   downloadPercent?: number;
   downloadedMB?: number;
   downloadSpeed?: number;
-}) {
+  onClearChat?: () => void;
+}
+
+export function ChatInputBar(props: ChatInputBarProps) {
+  const {
+    isTyping,
+    processingAttachedFile,
+    colors,
+    lang,
+    activeModel,
+    handlePickDocument,
+    inputText,
+    handleInputChange,
+    t,
+    handleSend,
+    stopGeneration,
+    attachedFile,
+    status,
+    voiceState,
+    toggleInteractiveMode,
+    setMicPhase,
+    setShowVoiceNoteModal,
+    dictation,
+    consciousnessLevel,
+    setConsciousnessLevel,
+    clearAttachment,
+    isSearchingWeb,
+    searchingStep,
+    isThinking,
+    downloadPercent = 0,
+    downloadedMB = 0,
+    downloadSpeed = 0,
+    onClearChat
+  } = props;
   return (
     <>
       {/* 🛡️ SENTINEL v3.0 — Indicador Dinámico de Fase */}
@@ -178,7 +183,8 @@ export function ChatInputBar({
           borderTopWidth: 1,
           borderTopColor: colors.border
         }}>
-          {(() => {
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+            {(() => {
             const isRecording = voiceState === 'RECORDING';
             const isProcessing = voiceState === 'PROCESSING';
             const isSpeakingNow = voiceState === 'SPEAKING';
@@ -241,6 +247,28 @@ export function ChatInputBar({
               </TouchableOpacity>
             );
           })()}
+
+          {onClearChat && (
+            <TouchableOpacity
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                backgroundColor: 'transparent',
+                paddingHorizontal: 2,
+                paddingVertical: 10,
+                borderRadius: 20,
+                justifyContent: 'center',
+                minWidth: 44,
+                minHeight: 44,
+              }}
+              onPress={onClearChat}
+              accessibilityRole="button"
+              accessibilityLabel={lang === 'es' ? 'Limpiar historial' : 'Clean history'}
+            >
+              <IconSymbol name="trash" size={26} color={colors.primary} />
+            </TouchableOpacity>
+          )}
+          </View>
 
           <View style={{ flexDirection: 'row', alignItems: 'center' }}>
             <Text
