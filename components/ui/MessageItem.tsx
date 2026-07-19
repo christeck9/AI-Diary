@@ -89,55 +89,59 @@ export const MessageItem = React.memo(({
       ]}>
         {isAi && (
           <View style={{ alignItems: 'center', marginRight: 10 }}>
-            <View style={[
-              styles.avatarAi,
-              { backgroundColor: colors.surface, borderColor: colors.secondary, padding: 0, marginRight: 0, marginBottom: 8 }
-            ]}>
-              <Image
-                source={require('../../assets/images/anima_spirit.png')}
-                style={{ width: 40, height: 40 }}
-                resizeMode="contain"
-              />
-            </View>
+            <TouchableOpacity
+              activeOpacity={0.8}
+              onPress={isSpeaking ? onPausePress : (isPaused ? onResumePress : () => onPlayPress && onPlayPress(item))}
+              onLongPress={onStopPress}
+              delayLongPress={600}
+            >
+              <View style={[
+                styles.avatarAi,
+                { backgroundColor: colors.surface, borderColor: colors.secondary, padding: 0, marginRight: 0, marginBottom: 8, position: 'relative' }
+              ]}>
+                <Image
+                  source={require('../../assets/images/anima_spirit.png')}
+                  style={{ width: 40, height: 40 }}
+                  resizeMode="contain"
+                />
+                
+                {/* Play/Pause Badge */}
+                <View style={{
+                  position: 'absolute',
+                  bottom: -2,
+                  right: -2,
+                  backgroundColor: colors.surfaceSecondary,
+                  borderRadius: 10,
+                  width: 18,
+                  height: 18,
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  borderWidth: 1.5,
+                  borderColor: colors.surface,
+                  shadowColor: colors.primary,
+                  elevation: 2,
+                }}>
+                  <IconSymbol 
+                    name={isSpeaking ? 'pause.fill' : 'play.fill'} 
+                    size={10} 
+                    color={isSpeaking || isPaused ? colors.primary : colors.textSecondary} 
+                  />
+                </View>
+              </View>
+            </TouchableOpacity>
 
-            {/* Unified Multimedia Button */}
-            {(() => {
-              if (isSpeaking) {
-                // PLAYING state: shows pause icon, short press pauses, long press stops/resets
-                return (
-                  <TouchableOpacity 
-                    style={[styles.voiceControlBtn, { backgroundColor: colors.surfaceSecondary, shadowColor: colors.primary, elevation: 2 }]} 
-                    onPress={onPausePress}
-                    onLongPress={onStopPress}
-                    delayLongPress={600}
-                  >
-                    <IconSymbol name="pause.fill" size={16} color={colors.primary} />
-                  </TouchableOpacity>
-                );
-              } else if (isPaused) {
-                // PAUSED state: shows play icon (colored), short press resumes, long press stops/resets
-                return (
-                  <TouchableOpacity 
-                    style={[styles.voiceControlBtn, { backgroundColor: colors.surfaceSecondary, shadowColor: colors.primary, elevation: 2 }]} 
-                    onPress={onResumePress}
-                    onLongPress={onStopPress}
-                    delayLongPress={600}
-                  >
-                    <IconSymbol name="play.fill" size={16} color={colors.primary} />
-                  </TouchableOpacity>
-                );
-              } else {
-                // STOPPED state: shows play icon (gray), short press starts playing
-                return (
-                  <TouchableOpacity 
-                    style={[styles.voiceControlBtn, { backgroundColor: colors.surfaceSecondary, shadowColor: colors.primary, elevation: 2 }]} 
-                    onPress={() => onPlayPress && onPlayPress(item)}
-                  >
-                    <IconSymbol name="play.fill" size={16} color={colors.textSecondary} />
-                  </TouchableOpacity>
-                );
-              }
-            })()}
+            {/* Model Tier Indicator */}
+            <TouchableOpacity 
+              activeOpacity={0.7}
+              style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surfaceSecondary, paddingHorizontal: 6, paddingVertical: 3, borderRadius: 12, borderWidth: 0.5, borderColor: 'rgba(255, 215, 0, 0.3)' }}
+            >
+              <Image 
+                source={require('../../assets/images/anima_light_logo.png')} 
+                style={{ width: 12, height: 12, marginRight: 4 }} 
+                resizeMode="contain" 
+              />
+              <Text style={{ fontSize: 9, color: '#D4A017', fontWeight: 'bold' }}>Anima Light</Text>
+            </TouchableOpacity>
           </View>
         )}
         <View style={[
