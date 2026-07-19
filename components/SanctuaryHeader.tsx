@@ -46,23 +46,30 @@ export const SanctuaryHeader = ({
 
   const [lastBadge, setLastBadge] = useState<{ emoji: string, name: string } | null>(null);
 
-  const fetchLastBadge = useCallback(async () => {
-    if (!db) return;
-    try {
-      const rows: any[] = await db.getAllAsync(
-        'SELECT emoji, name FROM user_badges WHERE count > 0 ORDER BY last_awarded DESC LIMIT 1'
-      );
-      if (rows && rows.length > 0) {
-        setLastBadge(rows[0]);
-      }
-    } catch (e) {
-      console.warn('[SanctuaryHeader] Error fetching last badge:', e);
-    }
-  }, [db]);
-
   useEffect(() => {
-    fetchLastBadge();
-  }, [fetchLastBadge, earnedBadge]);
+    let isMounted = true;
+    if (!db) return;
+
+    db.getAllAsync('SELECT emoji, name FROM user_badges WHERE count > 0 ORDER BY last_awarded DESC LIMIT 1')
+      .then((rows: any[]) => {
+        if (isMounted && rows && rows.length > 0) {
+          setLastBadge(prev => {
+            const nextBadge = rows[0];
+            if (prev && prev.name === nextBadge.name && prev.emoji === nextBadge.emoji) {
+              return prev; // Prevents infinite re-renders by preserving object reference
+            }
+            return nextBadge;
+          });
+        }
+      })
+      .catch(e => {
+        console.warn('[SanctuaryHeader] Error fetching last badge:', e);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [db, earnedBadge]);
 
   // Kebab menu trigger removed, using local Clean Chat icon directly
 
