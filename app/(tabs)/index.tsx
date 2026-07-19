@@ -1245,6 +1245,7 @@ export default function NeuralLinkScreen() {
         isTyping={extraData?.isTyping || false}
         processingPhase={extraData?.processingPhase || 'idle'}
         lang={lang}
+        activeModelId={activeModel?.id}
         onModelTierPress={() => setShowModelPicker(true)}
         onAction={(action, msg) => {
           if (action === 'copy') {

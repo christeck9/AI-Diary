@@ -59,7 +59,7 @@ export function ModelLoaderPanel({
 }) {
   if ((status === 'ready' && !showModelPicker) || !isOnboardingComplete) return null;
 
-  const isFloating = status === 'ready';
+  const isFloating = true;
 
   const panelContent = (
     <View style={[
@@ -133,9 +133,16 @@ export function ModelLoaderPanel({
                 }}
               >
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <Text style={{ color: colors.textPrimary, fontWeight: selectedModel.id === model.id ? 'bold' : 'normal' }}>
-                    {model.label}
-                  </Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <Image 
+                      source={model.id === 'llama3.2-1b-q4' ? require('../assets/images/anima_light_logo.png') : require('../assets/images/anima_spirit.png')}
+                      style={{ width: 16, height: 16, marginRight: 8 }}
+                      resizeMode="contain"
+                    />
+                    <Text style={{ color: colors.textPrimary, fontWeight: selectedModel.id === model.id ? 'bold' : 'normal' }}>
+                      {model.label}
+                    </Text>
+                  </View>
                   {isDisabled && (
                     <IconSymbol name="lock.fill" size={14} color={colors.textSecondary} />
                   )}
