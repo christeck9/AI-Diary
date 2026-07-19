@@ -381,8 +381,8 @@ export const WhispAvatar = ({ status = 'idle', size = 120 }: WhispAvatarProps) =
             </Circle>
 
             {/* Inner Core (Brighter central core inside the circle) */}
-            <Circle cx={center} cy={center + 12} r={16}>
-              <RadialGradient c={vec(center, center + 12)} r={BASE_SIZE * 0.18} colors={['#ffffff', 'rgba(100, 200, 255, 0.6)']} />
+            <Circle cx={center} cy={center - 5} r={16}>
+              <RadialGradient c={vec(center, center - 5)} r={BASE_SIZE * 0.18} colors={['#ffffff', 'rgba(100, 200, 255, 0.6)']} />
               <BlurMask blur={6} style="normal" />
             </Circle>
 
