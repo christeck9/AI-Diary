@@ -217,17 +217,17 @@ export const WhispAvatar = ({ status = 'idle', size = 120 }: WhispAvatarProps) =
   // Static path definitions constructed once to avoid native object leaks on UI thread
   const topTipPath = useMemo(() => {
     const p = Skia.Path.Make();
-    // Tip at (center - 5, center - 35), tapering down to merge with the circle base
-    p.moveTo(center - 5, center - 35);
+    // Tip at (center - 6, center - 35), tapering down to merge with the circle base in an asymmetrical S-curve
+    p.moveTo(center - 6, center - 35);
     p.cubicTo(
-      center + 18, center - 15,
-      center + 24, center + 5,
-      center, center + 15
+      center + 16, center - 20,
+      center + 22, center + 5,
+      center + 8, center + 15
     );
     p.cubicTo(
-      center - 24, center + 5,
-      center - 18, center - 15,
-      center - 5, center - 35
+      center - 16, center + 12,
+      center - 22, center - 10,
+      center - 6, center - 35
     );
     p.close();
     return p;
@@ -265,9 +265,12 @@ export const WhispAvatar = ({ status = 'idle', size = 120 }: WhispAvatarProps) =
     const s = pulseValue.value;
     const jitterX = Math.sin(time.value * 5) * 1.0;
     const jitterY = Math.cos(time.value * 4) * 0.8;
+    // Add a gentle rotation sway to simulate the classic wisp dancing motion
+    const rotation = Math.sin(time.value * 2.5) * 0.04; // ~2.3 degrees sway
     return [
       { translateX: jitterX },
       { translateY: jitterY },
+      { rotate: rotation },
       { scaleX: s },
       { scaleY: s },
     ];
