@@ -45,11 +45,11 @@ Evaluamos la orientación de marca para cumplir con las rigurosas normativas de 
 
 Aprovechando que no tenemos costos de procesamiento por token ni servidores, implementamos una estrategia de monetización de pago único sumamente atractiva para combatir la fatiga de las suscripciones.
 
-```
 ┌────────────────────────────────────────────────────────┐
 │                   AI DIARY (FREE)                      │
 │ - IA Local con Llama 3.2 (1B)                          │
 │ - Diarios básicos de Texto y Voz                       │
+│ - Herramientas y Utilidades Generales                  │
 │ - Tests Básicos: OCEAN (Big 5), Cognitivo, 16 Tipos    │
 └───────────────────────────┬────────────────────────────┘
                             │  Upgrade In-App
@@ -59,16 +59,18 @@ Aprovechando que no tenemos costos de procesamiento por token ni servidores, imp
 │ - Motor de IA Avanzado Gemma 4 (2B)                    │
 │ - Bóveda de Datos Cifrada Local (AES-256 Vault)        │
 │ - Tests Psicológicos Avanzados Adicionales             │
-│ - Módulos de Proyectos y Tareas Repetitivas            │
+│ - Experimento Agéntico Avanzado (Gemma 4):             │
+│   • Módulo de Proyectos                                │
+│   • Automatizaciones / Tareas Repetitivas              │
 │ - Reporte Semanal & Exportación en PDF de Personalidad │
 │ - Voces Naturales Premium / Tema Zion (Matrix)         │
 └────────────────────────────────────────────────────────┘
-```
 
 ### A. Nivel Gratuito (Gancho de Adquisición)
 Ofrece un valor inmenso de entrada para garantizar descargas y viralidad:
 *   Acceso ilimitado al diario por texto y voz (almacenamiento local estándar).
 *   Procesamiento con el modelo **Llama 3.2 (1B)**.
+*   **Herramientas generales de la app** (diario, herramientas de apoyo básicas).
 *   **3 Tests de Personalidad Básicos:** OCEAN (Big Five), Aptitudes Cognitivas y 16 Tipos (MBTI).
 
 ### B. "AI Diary Pro" (Pago Único / In-App Purchase)
@@ -76,7 +78,7 @@ Ofrece un valor inmenso de entrada para garantizar descargas y viralidad:
 *   **Funcionalidades Exclusivas:**
     1.  **Desbloqueo de Gemma 4 (2B):** Permite descargar y usar el motor local avanzado para respuestas de mayor profundidad lógica y filosófica.
     2.  **Bóveda Cifrada de Datos (AES-256 Vault):** Protección criptográfica de nivel militar para cifrar físicamente los archivos del diario contra accesos no autorizados en caso de robo o pérdida física del teléfono.
-    3.  **Módulos de Herramientas:** Acceso completo a la sección de *Proyectos* y *Tareas Repetitivas*.
+    3.  **Experimentos Agénticos Locales:** Acceso exclusivo a los módulos de **Proyectos** y **Automatizaciones / Tareas Repetitivas** (los cuales requieren el procesamiento y la inyección de herramientas avanzada del motor Gemma 4).
     4.  **Generación de Reportes:** Creación de reportes semanales de ánimo y la capacidad de exportar el PDF extendido de personalidad para terapeutas.
     5.  **Estética y Personalización:** Desbloqueo de voces premium naturales y temas visuales exclusivos (como el tema **Zion / Matrix**).
 
