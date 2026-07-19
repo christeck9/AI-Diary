@@ -251,28 +251,28 @@ export function ChatInputBar(props: ChatInputBarProps) {
           {onClearChat && (
             <TouchableOpacity
               style={{
-                flexDirection: 'row',
                 alignItems: 'center',
-                backgroundColor: 'transparent',
-                paddingHorizontal: 6,
-                paddingVertical: 6,
-                borderRadius: 20,
                 justifyContent: 'center',
+                backgroundColor: 'transparent',
+                paddingHorizontal: 4,
+                paddingVertical: 4,
+                borderRadius: 20,
+                minWidth: 54,
                 minHeight: 44,
               }}
               onPress={onClearChat}
               accessibilityRole="button"
-              accessibilityLabel={lang === 'es' ? 'Limpiar historial' : 'Clean history'}
+              accessibilityLabel={lang === 'es' ? 'Borrar chat' : 'Clear chat'}
             >
-              <IconSymbol name="trash" size={20} color={colors.primary} />
+              <IconSymbol name="trash" size={22} color={colors.primary} />
               <Text style={{ 
-                fontSize: 10, 
+                fontSize: 8, 
                 fontWeight: 'bold', 
                 color: colors.primary, 
-                marginLeft: 5,
+                marginTop: 2,
                 letterSpacing: 0.3
               }}>
-                {lang === 'es' ? 'Limpiar Chat' : 'Clear Chat'}
+                {lang === 'es' ? 'Borra Chat' : 'Clear Chat'}
               </Text>
             </TouchableOpacity>
           )}
