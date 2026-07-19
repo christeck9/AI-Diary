@@ -179,6 +179,15 @@ export const SanctuaryHeader = ({
               }}>
                 {lastBadge.name.toUpperCase()}
               </Text>
+              <Text style={{ 
+                fontSize: 8, 
+                fontWeight: 'bold', 
+                color: colors.secondary, 
+                marginTop: 1, 
+                letterSpacing: 0.5 
+              }}>
+                {lang === 'es' ? 'INSIGNIA' : 'BADGE'}
+              </Text>
             </View>
           ) : (
             <Text style={{ 
