@@ -215,70 +215,37 @@ export const WhispAvatar = ({ status = 'idle', size = 120 }: WhispAvatarProps) =
   }));
 
   // Static path definitions constructed once to avoid native object leaks on UI thread
-  const mainFlamePath = useMemo(() => {
+  const topTipPath = useMemo(() => {
     const p = Skia.Path.Make();
-    const cx = center;
-    const bottom = center + 40;
-    const tipX = center;
-    const tipY = center - 35;
-    const w = 26;
-    
-    p.moveTo(tipX, tipY);
+    // Tip at (center - 5, center - 35), tapering down to merge with the circle base
+    p.moveTo(center - 5, center - 35);
     p.cubicTo(
-      cx + w, tipY + (bottom - tipY) * 0.4, 
-      cx + w, bottom - 5, 
-      cx, bottom
+      center + 18, center - 15,
+      center + 24, center + 5,
+      center, center + 15
     );
     p.cubicTo(
-      cx - w, bottom - 5,
-      cx - w, tipY + (bottom - tipY) * 0.4,
-      tipX, tipY
+      center - 24, center + 5,
+      center - 18, center - 15,
+      center - 5, center - 35
     );
     p.close();
     return p;
   }, [center]);
 
-  const sideFlamePath = useMemo(() => {
+  const leftTipPath = useMemo(() => {
     const p = Skia.Path.Make();
-    const cx = center;
-    const bottom = center + 40;
-    const tipX = center;
-    const tipY = center - 20;
-    const w = 16;
-    
-    p.moveTo(tipX, tipY);
+    // Secondary tip branching up-left like the original design
+    p.moveTo(center - 25, center - 20);
     p.cubicTo(
-      cx + w, tipY + (bottom - tipY) * 0.4, 
-      cx + w, bottom - 5, 
-      cx, bottom
+      center - 5, center - 5,
+      center, center + 10,
+      center, center + 15
     );
     p.cubicTo(
-      cx - w, bottom - 5,
-      cx - w, tipY + (bottom - tipY) * 0.4,
-      tipX, tipY
-    );
-    p.close();
-    return p;
-  }, [center]);
-
-  const coreFlamePath = useMemo(() => {
-    const p = Skia.Path.Make();
-    const cx = center;
-    const bottom = center + 38;
-    const tipX = center;
-    const tipY = center - 15;
-    const w = 14;
-    
-    p.moveTo(tipX, tipY);
-    p.cubicTo(
-      cx + w, tipY + (bottom - tipY) * 0.4, 
-      cx + w, bottom - 5, 
-      cx, bottom
-    );
-    p.cubicTo(
-      cx - w, bottom - 5,
-      cx - w, tipY + (bottom - tipY) * 0.4,
-      tipX, tipY
+      center - 20, center + 10,
+      center - 25, center,
+      center - 25, center - 20
     );
     p.close();
     return p;
@@ -294,10 +261,10 @@ export const WhispAvatar = ({ status = 'idle', size = 120 }: WhispAvatarProps) =
   });
 
   // Dynamic GPU-accelerated group transforms (NO memory allocation at 60fps)
-  const centerFlameTransform = useDerivedValue(() => {
-    const s = pulseValue.value * flicker.value;
-    const jitterX = Math.sin(time.value * 8) * 1.0;
-    const jitterY = Math.cos(time.value * 6) * 0.8;
+  const mainFlameTransform = useDerivedValue(() => {
+    const s = pulseValue.value;
+    const jitterX = Math.sin(time.value * 5) * 1.0;
+    const jitterY = Math.cos(time.value * 4) * 0.8;
     return [
       { translateX: jitterX },
       { translateY: jitterY },
@@ -306,29 +273,27 @@ export const WhispAvatar = ({ status = 'idle', size = 120 }: WhispAvatarProps) =
     ];
   });
 
-  const leftFlameTransform = useDerivedValue(() => {
-    const jitterX = Math.sin(time.value * 5 + 1) * 0.8;
-    const jitterY = Math.cos(time.value * 4 + 1) * 0.5;
-    const rotation = Math.sin(time.value * 7) * 0.04;
+  const topTipTransform = useDerivedValue(() => {
+    // Top tip flickers and wiggles slightly
+    const sX = 1 + flicker.value * 0.04;
+    const sY = 1 + flicker.value * 0.08;
+    const rotation = Math.sin(time.value * 8) * 0.03;
     return [
-      { translateX: -16 + jitterX },
-      { translateY: 8 + jitterY },
       { rotate: rotation },
-      { scaleX: 0.85 * flicker.value },
-      { scaleY: 0.85 * pulseValue.value },
+      { scaleX: sX },
+      { scaleY: sY },
     ];
   });
 
-  const rightFlameTransform = useDerivedValue(() => {
-    const jitterX = Math.cos(time.value * 5 + 2) * 0.8;
-    const jitterY = Math.sin(time.value * 4 + 2) * 0.5;
-    const rotation = Math.cos(time.value * 7) * 0.04;
+  const leftTipTransform = useDerivedValue(() => {
+    // Left tip wiggles independently
+    const sX = 0.9 + flicker.value * 0.05;
+    const sY = 0.9 + flicker.value * 0.06;
+    const rotation = Math.cos(time.value * 7) * 0.05;
     return [
-      { translateX: 16 + jitterX },
-      { translateY: 8 + jitterY },
       { rotate: rotation },
-      { scaleX: 0.85 * flicker.value },
-      { scaleY: 0.85 * pulseValue.value },
+      { scaleX: sX },
+      { scaleY: sY },
     ];
   });
 
@@ -377,7 +342,7 @@ export const WhispAvatar = ({ status = 'idle', size = 120 }: WhispAvatarProps) =
   const containerHeight = Math.round(size * 0.85);
 
   const sweatDropSVG = Skia.Path.MakeFromSVGString(
-    `M ${center+15} ${center-26} C ${center+20} ${center-20} ${center+20} ${center-14} ${center+15} ${center-14} C ${center+10} ${center-14} ${center+10} ${center-20} ${center+15} ${center-26} Z`
+    `M ${center+18} ${center-10} C ${center+23} ${center-4} ${center+23} ${center+2} ${center+18} ${center+2} C ${center+13} ${center+2} ${center+13} ${center-4} ${center+18} ${center-10} Z`
   );
 
   return (
@@ -390,38 +355,70 @@ export const WhispAvatar = ({ status = 'idle', size = 120 }: WhispAvatarProps) =
             <BlurMask blur={15} style="normal" />
           </Circle>
 
-          {/* Main Body (Fluid Plasma Flame with 3 overlapping static prongs) */}
-          <Group origin={vec(center, center + 40)} transform={leftFlameTransform}>
-            <Path path={sideFlamePath}>
-              <RadialGradient c={vec(center, center + 10)} r={BASE_SIZE * 0.28} colors={['#88ddff', '#0077ff']} />
-              <BlurMask blur={4} style="normal" />
-            </Path>
-          </Group>
+          {/* Main Body (Breathing and floating together) */}
+          <Group origin={vec(center, center + 40)} transform={mainFlameTransform}>
+            
+            {/* Left wisp tip */}
+            <Group origin={vec(center, center + 10)} transform={leftTipTransform}>
+              <Path path={leftTipPath}>
+                <RadialGradient c={vec(center, center)} r={BASE_SIZE * 0.35} colors={['#88ddff', '#0077ff']} />
+                <BlurMask blur={4} style="normal" />
+              </Path>
+            </Group>
 
-          <Group origin={vec(center, center + 40)} transform={rightFlameTransform}>
-            <Path path={sideFlamePath}>
-              <RadialGradient c={vec(center, center + 10)} r={BASE_SIZE * 0.28} colors={['#88ddff', '#0077ff']} />
-              <BlurMask blur={4} style="normal" />
-            </Path>
-          </Group>
+            {/* Top main wisp tip */}
+            <Group origin={vec(center, center + 10)} transform={topTipTransform}>
+              <Path path={topTipPath}>
+                <RadialGradient c={vec(center, center)} r={BASE_SIZE * 0.38} colors={['#88ddff', '#0077ff']} />
+                <BlurMask blur={4} style="normal" />
+              </Path>
+            </Group>
 
-          <Group origin={vec(center, center + 40)} transform={centerFlameTransform}>
-            <Path path={mainFlamePath}>
-              <RadialGradient c={vec(center, center)} r={BASE_SIZE * 0.38} colors={['#88ddff', '#0077ff']} />
+            {/* Chubby Round Base (Circle representing the face) */}
+            <Circle cx={center} cy={center + 8} r={32}>
+              <RadialGradient c={vec(center, center + 8)} r={BASE_SIZE * 0.35} colors={['#88ddff', '#0077ff']} />
               <BlurMask blur={4} style="normal" />
-            </Path>
-          </Group>
+            </Circle>
 
-          {/* Inner Core (Brighter central flame core) */}
-          <Group origin={vec(center, center + 40)} transform={centerFlameTransform}>
-            <Path path={coreFlamePath}>
-              <RadialGradient c={vec(center, center + 5)} r={BASE_SIZE * 0.20} colors={['#ffffff', 'rgba(100, 200, 255, 0.6)']} />
+            {/* Inner Core (Brighter central core inside the circle) */}
+            <Circle cx={center} cy={center + 12} r={16}>
+              <RadialGradient c={vec(center, center + 12)} r={BASE_SIZE * 0.18} colors={['#ffffff', 'rgba(100, 200, 255, 0.6)']} />
               <BlurMask blur={6} style="normal" />
-            </Path>
+            </Circle>
+
+            {/* Face Group (Moves with main body) */}
+            <Group>
+              {/* Left Eye */}
+              <Circle cx={center - 12} cy={center + 2} r={3} color="#ffffff">
+                <BlurMask blur={0.5} style="normal" />
+              </Circle>
+              
+              {/* Right Eye */}
+              <Circle cx={center + 12} cy={center + 2} r={3} color="#ffffff">
+                <BlurMask blur={0.5} style="normal" />
+              </Circle>
+
+              {/* Mouth */}
+              {status === 'speaking' ? (
+                <Path path={mouthPath} color="#ffffff" style="fill">
+                  <BlurMask blur={0.5} style="normal" />
+                </Path>
+              ) : (
+                <Path path={mouthPath} color="#ffffff" style="stroke" strokeWidth={1.5} strokeCap="round">
+                  <BlurMask blur={0.2} style="normal" />
+                </Path>
+              )}
+
+              {/* Sweat Drop for Thinking state */}
+              {status === 'thinking' && sweatDropSVG && (
+                <Path path={sweatDropSVG} color="#88ddff">
+                  <BlurMask blur={0.5} style="normal" />
+                </Path>
+              )}
+            </Group>
           </Group>
 
-
-          {/* Left Hand */}
+          {/* Left Hand (Outside body transform so it floats independently) */}
           <Group transform={leftHandTransform}>
             <Circle cx={0} cy={0} r={10}>
               <RadialGradient c={vec(0, 0)} r={12} colors={['rgba(0, 150, 255, 0.6)', 'rgba(0, 50, 255, 0)']} />
@@ -443,37 +440,6 @@ export const WhispAvatar = ({ status = 'idle', size = 120 }: WhispAvatarProps) =
               <RadialGradient c={vec(0, 0)} r={4} colors={['#ffffff', 'rgba(100, 200, 255, 0.6)']} />
               <BlurMask blur={2} style="normal" />
             </Circle>
-          </Group>
-
-          {/* Face Group (Moves with Center Flame for high cohesion) */}
-          <Group origin={vec(center, center + 40)} transform={centerFlameTransform}>
-            {/* Left Eye */}
-            <Circle cx={center - 12} cy={center - 2} r={3} color="#ffffff">
-              <BlurMask blur={0.5} style="normal" />
-            </Circle>
-            
-            {/* Right Eye */}
-            <Circle cx={center + 12} cy={center - 2} r={3} color="#ffffff">
-              <BlurMask blur={0.5} style="normal" />
-            </Circle>
-
-            {/* Mouth */}
-            {status === 'speaking' ? (
-              <Path path={mouthPath} color="#ffffff" style="fill">
-                <BlurMask blur={0.5} style="normal" />
-              </Path>
-            ) : (
-              <Path path={mouthPath} color="#ffffff" style="stroke" strokeWidth={1.5} strokeCap="round">
-                <BlurMask blur={0.2} style="normal" />
-              </Path>
-            )}
-
-            {/* Sweat Drop for Thinking state */}
-            {status === 'thinking' && sweatDropSVG && (
-              <Path path={sweatDropSVG} color="#88ddff">
-                <BlurMask blur={0.5} style="normal" />
-              </Path>
-            )}
           </Group>
         </Group>
       </Canvas>
