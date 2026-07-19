@@ -32,7 +32,8 @@ export const MessageItem = React.memo(({
   onPlayPress,
   onPausePress,
   onResumePress,
-  onStopPress
+  onStopPress,
+  onModelTierPress
 }: {
   item: Message,
   colors: any,
@@ -50,6 +51,7 @@ export const MessageItem = React.memo(({
   onPausePress?: () => void,
   onResumePress?: () => void,
   onStopPress?: () => void,
+  onModelTierPress?: () => void
 }) => {
 
   const renderRightActions = () => {
@@ -133,6 +135,7 @@ export const MessageItem = React.memo(({
             {/* Model Tier Indicator */}
             <TouchableOpacity 
               activeOpacity={0.7}
+              onPress={onModelTierPress}
               style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surfaceSecondary, paddingHorizontal: 6, paddingVertical: 3, borderRadius: 12, borderWidth: 0.5, borderColor: 'rgba(255, 215, 0, 0.3)' }}
             >
               <Image 
