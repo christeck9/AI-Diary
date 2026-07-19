@@ -271,7 +271,7 @@ export const WhispAvatar = ({ status = 'idle', size = 120 }: WhispAvatarProps) =
       { translateX: jitterX },
       { translateY: jitterY },
       { rotate: rotation },
-      { scaleX: s },
+      { scaleX: s * 0.88 }, // Narrow down horizontally for a sleek droplet look
       { scaleY: s },
     ];
   });
