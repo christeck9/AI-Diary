@@ -161,7 +161,7 @@ export function ModelLoaderPanel({
       {(status === 'idle' || status === 'downloading') && (
         <View style={{ width: '90%', marginTop: 15, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 10 }}>
           {/* DOWNLOAD / UPDATE BUTTON */}
-          {modelStatus !== 'current' && (
+          {modelStatus === 'missing' && (
             <Animated.View style={[{ flex: 1, opacity: (status !== 'downloading') ? 1 : 0.6 }]}>
               <TouchableOpacity
                 style={[
@@ -177,9 +177,7 @@ export function ModelLoaderPanel({
                 disabled={status === 'downloading'}
               >
                 <Text style={{ color: '#FFF', fontWeight: 'bold', fontSize: 11, textAlign: 'center' }}>
-                  {modelStatus === 'outdated'
-                    ? (lang === 'es' ? 'ACTUALIZAR' : 'UPDATE')
-                    : (lang === 'es' ? 'DESCARGAR' : 'DOWNLOAD')}
+                  {lang === 'es' ? 'DESCARGAR' : 'DOWNLOAD'}
                 </Text>
               </TouchableOpacity>
             </Animated.View>

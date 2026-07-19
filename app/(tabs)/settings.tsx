@@ -1392,16 +1392,30 @@ export default function SettingsScreen() {
                                             // Delete old model files
                                             if (fullModel.fileName) {
                                               const modelPath = `${baseDir}/${fullModel.fileName}`;
+                                              const resumePath = `${baseDir}/download_resume_${fullModel.fileName}.json`;
+                                              
                                               const modelInfo = await FileSystem.getInfoAsync(modelPath);
                                               if (modelInfo.exists) {
                                                 await FileSystem.deleteAsync(modelPath, { idempotent: true });
                                               }
+                                              
+                                              const resumeInfo = await FileSystem.getInfoAsync(resumePath);
+                                              if (resumeInfo.exists) {
+                                                await FileSystem.deleteAsync(resumePath, { idempotent: true });
+                                              }
                                             }
                                             if (fullModel.mmprojFileName) {
                                               const mmprojPath = `${baseDir}/${fullModel.mmprojFileName}`;
+                                              const mmprojResumePath = `${baseDir}/download_resume_${fullModel.mmprojFileName}.json`;
+                                              
                                               const mmprojInfo = await FileSystem.getInfoAsync(mmprojPath);
                                               if (mmprojInfo.exists) {
                                                 await FileSystem.deleteAsync(mmprojPath, { idempotent: true });
+                                              }
+                                              
+                                              const mmprojResumeInfo = await FileSystem.getInfoAsync(mmprojResumePath);
+                                              if (mmprojResumeInfo.exists) {
+                                                await FileSystem.deleteAsync(mmprojResumePath, { idempotent: true });
                                               }
                                             }
                                             // Download new model
