@@ -150,18 +150,10 @@ export const SanctuaryHeader = ({
               fontWeight: 'bold', 
               color: colors.primary, 
               marginTop: 2, 
-              letterSpacing: 0.5 
+              letterSpacing: 0.5,
+              textAlign: 'center'
             }}>
-              {lang === 'es' ? 'REINICIAR' : 'RESTART'}
-            </Text>
-            <Text style={{ 
-              fontSize: 8, 
-              fontWeight: 'bold', 
-              color: colors.secondary, 
-              marginTop: 1, 
-              letterSpacing: 0.5 
-            }}>
-              {activeModelLabel ? activeModelLabel.toUpperCase() : 'AI CORE'}
+              {(lang === 'es' ? 'REINICIAR ' : 'RESTART ') + (activeModelLabel ? activeModelLabel.toUpperCase() : 'AI CORE')}
             </Text>
           </TouchableOpacity>
         </TouchableOpacity>

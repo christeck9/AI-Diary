@@ -33,9 +33,9 @@ export class ContextFoldingService {
       const isLlama = arch === 'llama';
       const isGemma4 = arch === 'gemma4';
       
-      let startUser = isGemma4 ? '<|turn|>user\n' : '<start_of_turn>user\n';
-      let endUser = isGemma4 ? '<|turn|>\n' : '<end_of_turn>\n';
-      let startModel = isGemma4 ? '<|turn|>model\n' : '<start_of_turn>model\n';
+      let startUser = isGemma4 ? '<|turn>user\n' : '<start_of_turn>user\n';
+      let endUser = isGemma4 ? '<turn|>\n' : '<end_of_turn>\n';
+      let startModel = isGemma4 ? '<|turn>model\n' : '<start_of_turn>model\n';
 
       if (isLlama) {
         startUser = '<|start_header_id|>user<|end_header_id|>\n\n';
@@ -84,7 +84,7 @@ ${transcript}${endUser}${startModel}[CONSOLIDATED EPISODIC MEMORY]: `;
       if (!text) return;
 
       // 🛡️ Remove stop tokens that might leak despite the stop parameter
-      text = text.replace(/<\|eot_id\|>|<eos>|<end_of_turn>|<\|turn\|>|<\|im_end\|>|<\|begin_of_text\|>|<\|eom_id\|>|<\|endoftext\|>/g, '');
+      text = text.replace(/<\|eot_id\|>|<eos>|<end_of_turn>|<\|turn\|>|<\|im_end\|>|<\|begin_of_text\|>|<\|eom_id\|>|<\|endoftext\|>|<(?:unused\d+|pad|bos|eos|unk|mask)>/gi, '');
 
       const newFoldedText = text.trim();
 

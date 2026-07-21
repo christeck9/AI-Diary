@@ -176,7 +176,9 @@ export function useAppLlm(lang: string = 'es') {
   const [status, setStatus] = useState<'idle' | 'downloading' | 'loading' | 'ready'>('idle');
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloadingModel, setDownloadingModel] = useState<ModelDefinition | null>(null);
-  const [activeModel, setActiveModel] = useState<ModelInfo>(AVAILABLE_MODELS[0]);
+  // Default to the last model in the list (Anima Deep) to show correct UI during async startup.
+  // The useEffect below will override this once preferredModel is read from SQLite (~200ms later).
+  const [activeModel, setActiveModel] = useState<ModelInfo>(AVAILABLE_MODELS[AVAILABLE_MODELS.length - 1]);
   const [currentContextSize, setCurrentContextSize] = useState(4096);
   const [downloadedMB, setDownloadedMB] = useState(0);
   const [downloadSpeed, setDownloadSpeed] = useState(0);
@@ -388,18 +390,33 @@ export function useAppLlm(lang: string = 'es') {
     const loadPreferredModel = async () => {
       if (isSettingsLoadedRef.current) return;
       try {
+        const hwConfig = await getHardwareConfig();
         const totalRam = await getTotalRAM();
         setDeviceRAM(totalRam);
 
         const settings = await settingsService.get();
         let modelToUse = activeModel;
 
+        const baseDir = FileSystem.documentDirectory?.replace(/\/+$/, '') + '/llm_models';
+
         if (settings.preferredModel) {
           const model = AVAILABLE_MODELS.find(m => m.id === settings.preferredModel);
           if (model) {
-            // Verify if the preferred model is allowed by RAM
-            if (model.id === 'gemma4-e2b-qat' && totalRam < 8000) {
-              // Downgrade if not enough RAM (using totalRam as a rough proxy here just for startup fallback)
+            const filePath = `${baseDir}/${model.fileName}`;
+            let fileExists = false;
+            try {
+              const fileInfo = await FileSystem.getInfoAsync(filePath);
+              fileExists = fileInfo.exists;
+            } catch (e) {
+              console.warn('[LLM] Error checking model file existence:', e);
+            }
+
+            if (!fileExists) {
+              console.warn(`[LLM] Preferred model ${model.id} not found on disk. Falling back to Anima Light.`);
+              modelToUse = AVAILABLE_MODELS.find(m => m.id === 'llama3.2-1b-q4') || model;
+              await settingsService.set({ preferredModel: modelToUse.id, wasModelActive: false });
+            } else if (model.id === 'gemma4-e2b-qat' && totalRam < 3000 && !hwConfig?.isEmulator) {
+              console.log(`[LLM] Device has very low RAM (${totalRam} MB). Downgrading preferred model to Anima Light on startup.`);
               modelToUse = AVAILABLE_MODELS.find(m => m.id === 'llama3.2-1b-q4') || model;
             } else {
               modelToUse = model;
@@ -1048,12 +1065,12 @@ export function useAppLlm(lang: string = 'es') {
                 : 0.90
         ));
       } else {
-        // Gemma 4 strict low-temperature mode to prevent reasoning verbosity
-        targetTemp = forceDeterminism ? 0.15 : (forceHighTemperature ? 0.60 : (
-          consciousnessLevel === 1 ? 0.20
-            : consciousnessLevel === 2 ? modelConfig.temperature
-              : consciousnessLevel === 3 ? 0.55
-                : 0.60
+        // Gemma 4 dynamic temperature scale
+        targetTemp = forceDeterminism ? 0.15 : (forceHighTemperature ? 0.85 : (
+          consciousnessLevel === 1 ? 0.30
+            : consciousnessLevel === 2 ? modelConfig.temperature // 0.7
+              : consciousnessLevel === 3 ? 0.80
+                : 0.90
         ));
       }
 
@@ -1117,13 +1134,14 @@ export function useAppLlm(lang: string = 'es') {
           : isGemma3
             // Gemma 3 4B: standard end-of-turn token + safety fallbacks
             ? ["<eos>", "<end_of_turn>", "<|endoftext|>"]
-            // Gemma 4 E2B: includes |turn| boundary token unique to its chat template
-            : ["<eos>", "<end_of_turn>", "<turn|>", "<|turn>", "<|im_end|>", "<|eot_id|>"],
+            // Gemma 4 E2B: standard end-of-turn token
+            : ["<eos>", "<end_of_turn>", "<|im_end|>", "<|eot_id|>"],
         cache_prompt: true,
         slot_id: 0,
         prompt: adjustedMessages ? undefined : adjustedPrompt,
         messages: adjustedMessages ? adjustedMessages : undefined,
       };
+
 
       if (imagePath && llamaContextRef.current) {
         let isMultimodal = false;
@@ -1158,7 +1176,9 @@ export function useAppLlm(lang: string = 'es') {
         
         if (cpuSemaphore.paused) {
           // Si el semáforo está pausado (ej. background), abortamos la generación de inmediato
-          llamaContextRef.current?.stopCompletion().catch(() => {});
+          if (llamaContextRef.current) {
+            llamaContextRef.current.stopCompletion().catch(() => {});
+          }
           return;
         }
 
@@ -1194,6 +1214,7 @@ export function useAppLlm(lang: string = 'es') {
 
   const abortGeneration = async () => {
     try {
+      generationId++; // Invalida cualquier callback de completion pendiente de inmediato
       if (llamaContextRef.current) await llamaContextRef.current.stopCompletion();
     } catch (e) { console.error("[LLM] Error aborting:", e); }
   };

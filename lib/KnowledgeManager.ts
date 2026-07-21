@@ -66,14 +66,26 @@ export class KnowledgeManager {
    * Builds the Seed Memory map by grouping facts by category.
    * Returns a structured string for the LLM prompt.
    */
-  async getSeedMemoryMap(): Promise<string> {
+  async getSeedMemoryMap(bypassLimit = false): Promise<string> {
     try {
-      const rows = await this.db.getAllAsync<{ category: string, facts: string }>(
-        `SELECT category, GROUP_CONCAT(fact, ' | ') as facts 
-         FROM knowledge_base 
-         GROUP BY category 
-         ORDER BY MAX(timestamp) DESC`
-      );
+      const query = bypassLimit
+        ? `SELECT category, GROUP_CONCAT(fact, ' | ') as facts 
+           FROM knowledge_base 
+           GROUP BY category 
+           ORDER BY MAX(timestamp) DESC`
+        : `WITH ranked_facts AS (
+             SELECT category, fact,
+                    ROW_NUMBER() OVER (PARTITION BY category ORDER BY timestamp DESC) as rn
+             FROM knowledge_base
+             WHERE category != 'Sabiduría'
+           )
+           SELECT category, GROUP_CONCAT(fact, ' | ') as facts 
+           FROM ranked_facts 
+           WHERE rn <= 5
+           GROUP BY category
+           ORDER BY category`;
+
+      const rows = await this.db.getAllAsync<{ category: string, facts: string }>(query);
       
       if (!rows || rows.length === 0) return 'No hay conceptos almacenados.';
 

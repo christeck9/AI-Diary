@@ -17,6 +17,7 @@ import { settingsService } from '../lib/SettingsService';
 import { SQLiteDatabase } from 'expo-sqlite';
 import { ModelInfo } from './useAppLlm';
 import { Message, UserProfile, PsyProfile } from '../types';
+import { MODEL_CONFIG } from '../src/config/ModelConfig';
 
 type Architecture = 'gemma3' | 'gemma4' | 'llama';
 
@@ -99,6 +100,7 @@ export const useAgentEngine = (
   const searchPromiseRef = useRef<Promise<string> | null>(null);
   const searchStreamRef = useRef<'FAST_FACT' | 'DEEP_RESEARCH' | 'LOCAL_VAULT' | 'NONE'>('NONE');
   const wasInterruptedRef = useRef(false);
+  const consecutiveUnusedTokensRef = useRef(0);
 
   const registerInterruption = useCallback(() => {
     wasInterruptedRef.current = true;
@@ -180,6 +182,7 @@ export const useAgentEngine = (
     if (isTypingRef.current) return;
     isTypingRef.current = true;
     setIsProcessing(true);
+    consecutiveUnusedTokensRef.current = 0;
 
     let sentenceWasEmitted = false;
     const activeOnSentenceGenerated = onSentenceGenerated
@@ -284,7 +287,8 @@ export const useAgentEngine = (
       try {
         const { createKnowledgeManager } = await import('../lib/KnowledgeManager');
         const km = createKnowledgeManager(db);
-        seedMemoryStr = await km.getSeedMemoryMap();
+        const bypass = arch === 'gemma4' && !!MODEL_CONFIG.gemma4.bypassSqliteLimit;
+        seedMemoryStr = await km.getSeedMemoryMap(bypass);
       } catch (e) {
         console.warn('[AGENT_ENGINE] Error fetching seed memory:', e);
       }
@@ -338,14 +342,17 @@ export const useAgentEngine = (
           console.log('[AGENT_ENGINE] ⚡ Bypassing active episodic memory (Context Folding).');
         }
 
-        const rows = await db.getAllAsync(
-          'SELECT role, text FROM messages ORDER BY created_at DESC LIMIT 20'
+        const rows = await db.getAllAsync<{ id: string, role: string, text: string }>(
+          'SELECT id, role, text FROM messages ORDER BY created_at DESC LIMIT 20'
         );
-        const mappedHistory = rows.reverse().map((row: any) => ({
-          id: '',
-          role: (row.role === 'ai' ? 'ai' : 'user') as Message['role'],
-          text: row.text
-        }));
+        const mappedHistory = rows
+          .reverse()
+          .filter((row: any) => row.id !== messageId)
+          .map((row: any) => ({
+            id: row.id || '',
+            role: (row.role === 'ai' ? 'ai' : 'user') as Message['role'],
+            text: row.text
+          }));
 
         // 🛡️ Context Guillotine (Anti-Drift Measure)
         // Restrict history to ~12000 chars (or 4000 for Llama) to avoid memory overflow which pushes 
@@ -437,7 +444,7 @@ export const useAgentEngine = (
       let currentPrompt = formattedPrompt;
       if (pendingToolResponse) {
         const cleanPromptBase = formattedPrompt
-          .replace(/<(start_of_turn|\|turn\|)>model\n?$/i, '')
+          .replace(/<(?:start_of_turn|\|turn)>model\n?$/i, '')
           .replace(/<\|start_header_id\|>assistant<\|end_header_id\|>\n*\n*$/i, '');
         currentPrompt = cleanPromptBase + pendingToolResponse;
       }
@@ -488,17 +495,39 @@ export const useAgentEngine = (
         await generateStreamingResponse(
           currentPrompt,
           async (partial: string) => {
+            let isUnusedToken = /<(?:unused\d+|pad|bos|eos|unk|mask)>/i.test(partial);
+            if (isUnusedToken) {
+              consecutiveUnusedTokensRef.current = (consecutiveUnusedTokensRef.current || 0) + 1;
+              if (consecutiveUnusedTokensRef.current >= 3) {
+                console.warn(`[AGENT_ENGINE] 🛡️ Anti-loop: detected ${consecutiveUnusedTokensRef.current} consecutive unused tokens. Aborting generation.`);
+                await abortGeneration();
+                return;
+              }
+            } else {
+              consecutiveUnusedTokensRef.current = 0;
+            }
+
+            let cleanPartial = partial;
+            if (cleanPartial) {
+              // 🛡️ Anti-corruption: strip raw vocabulary tokens (like <unused50>) during streaming
+              cleanPartial = cleanPartial.replace(/<(?:unused\d+|pad|bos|eos|unk|mask)>/gi, '');
+              if (cleanPartial) {
+                console.log(`[RAW TOKEN]: ${JSON.stringify(cleanPartial)}`);
+              }
+            }
+            if (!cleanPartial) return;
+
             if (roundSearchTriggered) {
-              if (!hasAborted && (searchResult !== null || /<\/thought>|<start_function_call>|<call:|!!SEARCH/i.test(roundResponse))) {
+              if (!hasAborted && (searchResult !== null || /<\/thought>|<start_function_call>|<call:|!!SEARCH|<\|tool_call>|\[SEARCH:/i.test(roundResponse))) {
                 hasAborted = true;
                 await abortGeneration();
 
                 if (onClearSpeechQueue) {
-                  onClearSpeechQueue();
+                   onClearSpeechQueue();
                 }
 
                 const results = searchResult !== null ? searchResult : await searchPromiseRef.current;
-
+                
                 // Persist results in the database as local semantic cache
                 if (db && results && results !== 'SENTINEL_NULL_DATA' && results !== 'NO_DATA') {
                   try {
@@ -528,8 +557,8 @@ export const useAgentEngine = (
               return;
             }
 
-            roundResponse += partial;
-            fullResponse += partial;
+            roundResponse += cleanPartial;
+            fullResponse += cleanPartial;
             tokenCountRef.current++;
 
             // Gemma 4 Thinking Indicator: detect <|think|> open/close tags in the streamed response.
@@ -615,7 +644,8 @@ export const useAgentEngine = (
             }
 
             // Round synchronization (Hybrid: by search completion or explicit tokens)
-            if (roundSearchTriggered && (searchResult !== null || /<\/thought>|<start_function_call>|<call:|!!SEARCH/i.test(roundResponse))) {
+            if (roundSearchTriggered && !hasAborted && (searchResult !== null || /<\/thought>|<start_function_call>|<call:|!!SEARCH|<\|tool_call>|\[SEARCH:/i.test(roundResponse))) {
+              hasAborted = true;
               await abortGeneration();
 
               if (isThinkingRef.current) {
@@ -742,11 +772,11 @@ export const useAgentEngine = (
           // The Handshake (pendingToolResponse) completely replaces the aborted response.
           // We overwrite the original prompt to start with a clean and deterministic mental state.
           const cleanPromptBase = formattedPrompt
-            .replace(/<(start_of_turn|\|turn\|)>model\n?$/i, '')
+            .replace(/<(?:start_of_turn|\|turn)>model\n?$/i, '')
             .replace(/<\|start_header_id\|>assistant<\|end_header_id\|>\n*\n*$/i, '');
           currentPrompt = cleanPromptBase + pendingToolResponse;
 
-          if (fullResponse.includes('<call:') || fullResponse.includes('hybrid_search') || fullResponse.includes('!!SEARCH')) {
+          if (fullResponse.includes('<call:') || fullResponse.includes('hybrid_search') || fullResponse.includes('!!SEARCH') || fullResponse.includes('<|tool_call>') || fullResponse.includes('[SEARCH:')) {
             // LOGIC-02 FIX: Line-scoped [^\n]* instead of greedy [\s\S]*.
             // The greedy version deleted from the first tool marker to end-of-string,
             // potentially wiping the model's real answer generated in later rounds.
@@ -754,6 +784,8 @@ export const useAgentEngine = (
               .replace(/<call:[^\n]*/gi, '')
               .replace(/!!SEARCH[^\n]*/gi, '')
               .replace(/\{query:[^\n]*/gi, '')
+              .replace(/<\|tool_call>[^\n]*/gi, '')
+              .replace(/\[SEARCH:[^\n]*/gi, '')
               .replace(/\n{3,}/g, '\n\n')
               .trim();
           }

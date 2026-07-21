@@ -34,7 +34,11 @@
     "babel.config.js",
     "metro.config.js",
     "jest.config.js",
-    "BACKUPS"
+    "BACKUPS",
+    "android",
+    "ios",
+    ".expo",
+    "dist"
   ],
   "extends": "expo/tsconfig.base"
 }

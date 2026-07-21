@@ -83,6 +83,7 @@ export const MODEL_CONFIG = {
     top_p: 0.85,
     min_p: 0.05,
     repeat_penalty: 1.05,
+    bypassSqliteLimit: false, // Cambiar a true para depurar e inyectar todos los hechos (incluyendo Sabiduría)
   },
 
   gemma3: {

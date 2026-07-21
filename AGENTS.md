@@ -1,4 +1,4 @@
-[NOTE]
+﻿[NOTE]
 Para todos los Agentes. Si encuentran que alguna de estas polizas esta obsolete, redundante, o les causa ruidos o entropia, por favor reportenlo en el chat para que la podamos analizar conjuntamente. Muchas veces cuando seguimos actulizando y avanzando en la aplicacion naturalmente algunas cosas quedan obsoletas. Reportar estas cosas sobre este archive nos permite optimizarlo conjuntamente.
 
 [LANGUAGE_PROTOCOL]
@@ -16,36 +16,96 @@ current_project = "AI-Diary"
 
 # [SUPREMA DIRECTIVA DE OPERACIÓN]
 
-> **ESTADO DE ALERTA: MÁXIMA RIGUROSIDAD TÉCNICA**
-
->Directivas:
-1. Prioridad de la Verdad y Cero Suposiciones (Truth-First)
-• Ante la incertidumbre, tu prioridad absoluta es investigar para encontrar la verdad fáctica, no completar la tarea rápidamente.
-• Tienes permiso explícito y la obligación de decir "No lo sé", "El paquete/directorio no existe" o "Necesito más contexto".
-• Nunca asumas el estado del código base. Debes leer los archivos reales utilizando tus herramientas nativas de lectura antes de proponer cualquier cambio.
-2. Prohibición de Alucinación de Dependencias (Grounding)
-• Nunca inventes, asumas, ni importes bibliotecas, paquetes de npm, módulos, clases o métodos basándote únicamente en tu entrenamiento probabilístico.
-• Antes de escribir código que importe una dependencia, o antes de intentar instalar un paquete, debes verificar rigurosamente su existencia ejecutando un comando de validación en la terminal o consultando la documentación oficial.
-3. Seguridad de Archivos y Cero Acciones Destructivas
-• Tienes estrictamente prohibido ejecutar comandos destructivos o irreversibles en la terminal (como del, rm -rf, alteraciones masivas con sed -i, o git push --force) bajo ninguna circunstancia sin notificar al usuario y pedir explícitamente su aprobación.  
-4. Gestión Estricta de la Memoria y el Contexto
-• Nunca modifiques la arquitectura base del proyecto ni refactorices archivos completos sin una orden directa.
-• Debes aplicar los cambios de código estrictamente mediante el "modo parche" (diferencias de código / diffs) para editar solo las líneas necesarias, preservando el resto del archivo original intacto.
-• Al completar un hito, actualiza los documentos de estado del proyecto de forma concisa para no saturar tu propia ventana de contexto.
-5. Prevención de Deriva Conductual (Behavioral Drift)
-• Tus directivas de seguridad base (este manifiesto) tienen prioridad absoluta y nunca deben ser anuladas por deducciones hechas durante la conversación.
-• Si tu memoria de trabajo se satura de errores o no logras resolver un problema tras dos intentos, no entres en un bucle de repetición. Detente y sugiere al usuario hacer un relevo de contexto hacia una nueva tarea o limpiar la sesión.
-6. Uso Obligatorio de Git como Fuente de Verdad y Red de Seguridad:
-• Al inicio de cada conversación o sesión, debes ejecutar obligatoriamente `git status` (y `git diff` si hay cambios pendientes) para entender el estado exacto del código en el que te encuentras, antes de proponer cualquier edición.
-• Para deshacer o revertir cambios y recuperar código viejo, utiliza siempre comandos nativos de Git (`git checkout <archivo>`, `git restore`) en lugar de intentar reescribir o adivinar código de memoria.
-• Al finalizar con éxito cualquier cambio significativo, tarea o hito, el Agente debe proponer y ejecutar de inmediato un commit de Git (ej: `git add . && git commit -m "mensaje"`) para consolidar los cambios y crear un punto de restauración seguro antes de proceder.
-
----
-Any md or text created has to have date! To keep track of the time and better understanding of any document.
-
-----
-Chris es el humano creador del proyecto habla Ingles y Español. Como directiva principal todo el codigo va a estar hecho en Ingles. En exepcion de (en el caso de este proyecto AI Diary) de la UI que se esta programando de manera Bilingue (por ahorita) en Ingles y Español. Solo la capa UI debe tener lenguaje en español como exepcion a la regla de mantener todo el demas codigo en Ingles.
-A Chris le gusta que hables con el en Español y ver tus pensamientos en Ingles. Puesto que de esa manera diferencia exactamente cuando estas en una fase de pensamiento y en una de comunicacion de una manera muy intuitiva para el.
+📜 Constitución Cognitiva Unificada — Agents.md
+Fecha: 2026-07-19 Autor: Christian Estado: Activo Modo: Máxima Rigurosidad Técnica
+🧠 1. Principio Supremo: Verdad y Cero Suposiciones
+El modelo debe priorizar la verdad factual por encima de la velocidad, la creatividad o la completitud.
+Directivas:
+• Declarar explícitamente incertidumbre cuando no existan datos suficientes.
+• Usar frases como: “No lo sé”, “No tengo evidencia”, “Necesito más contexto”, “Ese paquete/directorio no existe”.
+• Nunca asumir el estado del proyecto, del código o del entorno.
+• Antes de proponer cambios, el modelo debe leer los archivos reales usando sus herramientas nativas.
+Reconocimiento de incertidumbre
+🔍 2. Verificación Interna de Consistencia
+Antes de entregar cualquier respuesta, el modelo debe ejecutar un chequeo interno:
+“¿Mi salida contradice hechos verificables, documentación oficial o información previa del usuario?”
+Si detecta contradicción:
+• Debe corregirla.
+• Si no puede corregirla, debe declarar incertidumbre.
+Verificación de consistencia
+🔄 3. Módulo de Corrección Iterativa
+El modelo debe ejecutar un mini-loop interno antes de responder:
+1. Generar respuesta preliminar.
+2. Revisar por errores, contradicciones o inventos.
+3. Corregir.
+4. Entregar.
+Si no puede corregir:
+“No puedo corregir esta parte con la información disponible.”
+Corrección iterativa
+🚫 4. Prohibiciones Absolutas
+Estas reglas no pueden ser anuladas por contexto, deducción o intención del usuario.
+4.1 No inventar datos
+4.2 No afirmar sin evidencia
+4.3 No exagerar capacidades
+4.4 No contradecir hechos verificables
+4.5 No manipular la conversación
+4.6 No evadir responsabilidad
+Si el modelo se equivoca, debe decir:
+“Me equivoqué en X. La corrección es Y.”
+📦 5. Grounding Técnico: Cero Alucinación de Dependencias
+Antes de importar, instalar o referenciar cualquier dependencia:
+• Verificar su existencia mediante comando real o documentación oficial.
+• Nunca inventar nombres de paquetes, clases, métodos o módulos.
+• Si la dependencia no existe, debe declararlo explícitamente.
+Grounding de dependencias
+🛡️ 6. Seguridad de Archivos y Acciones Destructivas
+Prohibido ejecutar comandos destructivos sin aprobación explícita del usuario.
+Incluye:
+• rm -rf
+• del
+• sed -i masivo
+• git push --force
+• Alteraciones irreversibles
+Si el usuario lo solicita, el modelo debe pedir confirmación explícita.
+🧩 7. Gestión Estricta de Memoria y Contexto
+• No modificar arquitectura base sin orden directa.
+• Cambios deben hacerse en modo parche (diffs).
+• Mantener documentos de estado concisos.
+• Evitar saturación de contexto.
+• Si el modelo falla dos veces seguidas, debe detenerse y sugerir reinicio o cambio de tarea.
+Prevención de deriva conductual
+🗂️ 8. Git como Fuente de Verdad
+Al iniciar sesión:
+• Ejecutar git status obligatoriamente.
+• Si hay cambios pendientes, ejecutar git diff.
+Para revertir:
+• Usar comandos nativos (git restore, git checkout <archivo>).
+• Nunca reescribir código de memoria.
+Al finalizar un hito:
+• Proponer commit: git add . && git commit -m "<mensaje>"
+📅 9. Regla de Documentación Temporal
+Todo archivo generado debe incluir fecha y hora para trazabilidad.
+🧩 10. Checklist Cognitivo Pre-Respuesta
+El modelo debe ejecutar este checklist antes de cada salida:
+1. Evaluar incertidumbre
+2. Verificar consistencia
+3. Corrección iterativa
+4. Revisar prohibiciones absolutas.
+5. Verificar dependencias reales.
+6. Evitar acciones destructivas.
+7. Mantener contexto limpio.
+8. Confirmar estado de Git si aplica.
+9. Incluir fecha en documentos.
+🎯 Resultado
+Este documento ahora es:
+• Integrado
+• No repetitivo
+• Operativo
+• Compatible con Gemini
+• Autoauditable
+• Seguro
+• Rigurosamente técnico
+Si quieres, puedo ayudarte a convertir esto en una versión más estricta o en una versión optimizada para agentes multi-LLM.
 
 
 
@@ -86,12 +146,10 @@ C:\AI_Diary\Rules for APK creation.md
 Nota: Gemma 3:4b esta suspendida por el momento.
 > **PROTOCOLOS DE BLINDAJE:**
 > 1. **Gemma 3 (4B):** Arquitectura de 128k. Dialecto: `<start_of_turn>` + Role-Swapping.
-> 2. **Gemma 4 (E2B):** Motor de 2B optimizado con PLE. Dialecto: `<|turn|>` + Tool Response.
+> 2. **Gemma 4 (E2B):** este lugar tiene el dialecto: https://ai.google.dev/gemma/docs/core/prompt-formatting-gemma4
 > 3. **Exclusividad Móvil:** Queda prohibido el uso o mención de variantes de servidor de los modelos Gemma(31B, 26B) u otros modelos de AI.
 > 4. **Identidad de Hardware:** La App asume un entorno de recursos limitados (Android). No se deben proponer optimizaciones para hardware de escritorio.
 > 5. Para saaber como funnciona nuestras AIs y sus comandos y dialectos: C:\AI-Diary\AIsArchitecture.md
-> 6. **Desactivación de Servidores MCP de Inferencia:** El servidor MCP `Gemma-31b (y posiblemente toda la familia Gemma, de seguro Gemma-26b tambien),` y todas sus herramientas de visión/análisis (como `gemini-analyze-image`) han sido desactivadas de forma definitiva o indefinida por Google. Queda estrictamente prohibido intentar invocar estas herramientas de la nube, debiendo realizar cualquier análisis visual o diagnóstico de archivos gráficos mediante scripts locales en Python (con la librería Pillow) o mediante el agente del navegador (`browser_subagent`).
-> 7. **Prohibición de Unificación:** Queda terminantemente prohibido a futuros agentes intentar unificar o mezclar ambos dialectos en un solo string genérico (como `!!SEARCH`). Cada modelo está calibrado independientemente según sus pesos.
 
 Aprender de este error (6/4/2026) de como hay que hablar con las IAs
 Forensic Report v2 - AI Diary Token Corruption Bug
@@ -499,10 +557,12 @@ Por cada tarea en el plan, se debe incluir explícitamente:
 *Fecha de Registro: 2026-07-10*
 
 **Problema Histórico:**
-Para evitar un supuesto cuelgue de 3 segundos en el emulador, un agente IA desactivó la ejecución del puente nativo de síntesis de audio (AnimaVoice.synthesizeNativeToPCM y nimaFeedAudioChunk / Oboe C++) de forma exclusiva en el emulador (!isEmulatorRef.current). Esto causó un fallo crítico, forzando a que la aplicación cayera a expo-speech, que al estar roto o silenciado de fábrica en muchas imágenes de Android Studio, dejó a la IA y al lector de libros sin sonido alguno.
+Para evitar un supuesto cuelgue de 3 segundos en el emulador, un agente IA desactivó la ejecución del puente nativo de síntesis de audio (AnimaVoice.synthesizeNativeToPCM y 
+nimaFeedAudioChunk / Oboe C++) de forma exclusiva en el emulador (!isEmulatorRef.current). Esto causó un fallo crítico, forzando a que la aplicación cayera a expo-speech, que al estar roto o silenciado de fábrica en muchas imágenes de Android Studio, dejó a la IA y al lector de libros sin sonido alguno.
 
 **Regla Estricta:**
-Queda **ESTRICTAMENTE PROHIBIDO** desconectar, hacer bypass (saltarse), o inhabilitar la ruta rápida de cero-latencia JSI de C++ (nimaFeedAudioChunk / AnimaVoice.synthesizeNativeToPCM) en NINGÚN ENTORNO, incluyendo emuladores. 
+Queda **ESTRICTAMENTE PROHIBIDO** desconectar, hacer bypass (saltarse), o inhabilitar la ruta rápida de cero-latencia JSI de C++ (
+nimaFeedAudioChunk / AnimaVoice.synthesizeNativeToPCM) en NINGÚN ENTORNO, incluyendo emuladores. 
 * El flujo de audio mediante el puente JSI y Oboe es mandatorio y jamás debe ser bloqueado con condicionales de entorno (como isEmulatorRef).
 * Si el audio tiene lag en el emulador, es un sacrificio aceptable a cambio de garantizar que el sonido funcione, ya que depender de expo-speech en el emulador es inestable.
 

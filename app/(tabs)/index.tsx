@@ -1303,7 +1303,7 @@ export default function NeuralLinkScreen() {
         }}
       />
     );
-  }, [colors, lang, handleReportMessage, handleImagePress, isTypingRef, addSystemMessage, handleSend, handleDeleteMessage, dictation, isVoiceSpeaking, isVoicePaused, activeSpeechId]);
+  }, [colors, lang, handleReportMessage, handleImagePress, isTypingRef, addSystemMessage, handleSend, handleDeleteMessage, dictation, isVoiceSpeaking, isVoicePaused, activeSpeechId, activeModel]);
 
   const handleClearChat = useCallback(() => {
     Alert.alert(
@@ -1532,7 +1532,7 @@ export default function NeuralLinkScreen() {
               contentContainerStyle={styles.chatContainer}
               overScrollMode="never"
               bounces={false}
-              extraData={{ isTyping, processingPhase }}
+              extraData={{ isTyping, processingPhase, activeModelId: activeModel?.id }}
               ListHeaderComponent={null}
               ListFooterComponent={
                 (!isFiltering && messages.length >= messagesLimit) ? (

@@ -4,6 +4,7 @@ import * as Haptics from 'expo-haptics';
 import { Swipeable, TouchableOpacity as RNGHTouchableOpacity } from 'react-native-gesture-handler';
 import { IconSymbol } from './icon-symbol';
 import { CognitiveNode } from './CognitiveNode';
+import { MODEL_LIST } from '../../src/config/ModelConfig';
 
 export interface Message {
   id: string;
@@ -52,7 +53,8 @@ export const MessageItem = React.memo(({
   onPausePress?: () => void,
   onResumePress?: () => void,
   onStopPress?: () => void,
-  onModelTierPress?: () => void
+  onModelTierPress?: () => void,
+  activeModelId?: string
 }) => {
 
   const renderRightActions = () => {
@@ -145,7 +147,10 @@ export const MessageItem = React.memo(({
                 resizeMode="contain" 
               />
               <Text style={{ fontSize: 9, color: activeModelId === 'llama3.2-1b-q4' ? '#D4A017' : '#4da6ff', fontWeight: 'bold' }}>
-                {activeModelId === 'llama3.2-1b-q4' ? 'Anima Light' : 'Anima Deep'}
+                {(() => {
+                  const modelInfo = MODEL_LIST.find(m => m.id === activeModelId);
+                  return modelInfo ? (lang === 'es' ? modelInfo.labelEs : modelInfo.labelEn) : (activeModelId === 'llama3.2-1b-q4' ? 'Anima Light' : 'Anima Deep');
+                })()}
               </Text>
             </TouchableOpacity>
           </View>
@@ -237,9 +242,11 @@ export const MessageItem = React.memo(({
 }, (prevProps, nextProps) => {
   if (prevProps.item.id !== nextProps.item.id) return false;
   if (prevProps.item.text !== nextProps.item.text) return false;
+  if (prevProps.item.role !== nextProps.item.role) return false;  // Guard: AI vs User layout
   if (prevProps.item.status !== nextProps.item.status) return false;
   if (prevProps.item.thoughts !== nextProps.item.thoughts) return false;
   if (prevProps.item.tool_query !== nextProps.item.tool_query) return false;
+  if (prevProps.isAi !== nextProps.isAi) return false;  // Guard: ensure layout re-renders if role-derived prop changes
   if (prevProps.lang !== nextProps.lang) return false;
   
   // Optimize: Compare colors by their primitive values to prevent unnecessary re-renders when the parent object reference changes
@@ -251,6 +258,8 @@ export const MessageItem = React.memo(({
     prevProps.colors.textSecondary !== nextProps.colors.textSecondary ||
     prevProps.colors.textPrimary !== nextProps.colors.textPrimary
   ) return false;
+
+  if (prevProps.activeModelId !== nextProps.activeModelId) return false;
 
   // Crucial performance fix: Ignore typing/phase updates if this is not the latest message
   if (!prevProps.isLatest && !nextProps.isLatest) {
