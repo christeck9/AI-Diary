@@ -21,6 +21,7 @@ export default function TabLayout() {
         tabBarInactiveTintColor: colors.textSecondary,
         headerShown: false,
         tabBarButton: HapticTab,
+        tabBarLabelStyle: { fontSize: 10, fontWeight: '600' },
         tabBarStyle: Platform.select({
           ios: {
             position: 'absolute',
@@ -36,7 +37,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: 'AI Home',
+          title: lang === 'es' ? 'IA Base' : 'AI Base',
           tabBarIcon: ({ color }) => <IconSymbol size={28} name="house.fill" color={color} />,
         }}
       />
@@ -50,7 +51,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="projects"
         options={{
-          title: lang === 'es' ? 'Proyectos' : 'Projects',
+          title: lang === 'es' ? 'Diarios & Proyectos' : 'Journals & Projects',
           tabBarIcon: ({ color }) => <IconSymbol size={28} name="list.bullet.clipboard.fill" color={color} />,
         }}
       />
