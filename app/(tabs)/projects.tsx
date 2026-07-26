@@ -31,7 +31,7 @@ const themesList = [
   { value: 'Relationship', labelEs: '🤝 Lidiar con una Relación', labelEn: '🤝 Deal with a Relationship' },
   { value: 'Web Code', labelEs: '💻 Dar código para página web', labelEn: '💻 Provide Web Page Code' },
   { value: 'Program Code', labelEs: '🖥️ Crear código para programa', labelEn: '🖥️ Create Program Code' },
-  { value: 'Other', labelEs: '⚙️ Otro', labelEn: '⚙️ Other' }
+  { value: 'Other', labelEs: '⚙️ Crear tu propio Tema de Proyecto', labelEn: '⚙️ Create your own Theme Project' }
 ];
 
 const getConsoleSystemPrompt = (project: any, lang: string) => {
