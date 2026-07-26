@@ -46,6 +46,8 @@ import { VoiceNoteOverlay } from '../../components/VoiceNoteOverlay';
 import { ModelLoaderPanel } from '../../components/ModelLoaderPanel';
 import { ChatInputBar } from '../../components/ChatInputBar';
 import { chatBridge } from '../../lib/chatBridge';
+import { CheckMyMoodOverlay } from '../../components/ui/CheckMyMoodOverlay';
+import { MoodTriggerService } from '../../lib/MoodTriggerService';
 
 const VisionDownloadModal = React.lazy(() => import('../../components/VisionDownloadModal').then(m => ({ default: m.VisionDownloadModal })));
 
@@ -80,6 +82,7 @@ export default function NeuralLinkScreen() {
   const { status: statusRaw,
     activeModel,
     AVAILABLE_MODELS,
+    refreshTrigger,
     deviceRAM } = useLlmState();
 
   const {
@@ -133,7 +136,7 @@ export default function NeuralLinkScreen() {
   const [activeTest, setActiveTest] = useState<'ocean' | 'aptitude' | 'vocational' | 'anxiety' | 'mood' | 'mbti'>('ocean');
   const { userProfile, setUserProfile, psyProfile, setPsyProfile, psyCompleted, setPsyCompleted } = useProfile();
   const [isOnboardingComplete, setIsOnboardingComplete] = useState(true);
-  const [onboardingStep, setOnboardingStep] = useState(0);
+  const [onboardingStep, setOnboardingStep] = useState(1);
   const [consciousnessLevel, setConsciousnessLevel] = useState(1); // Default: Zen
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const [batteryLevel, setBatteryLevel] = useState(1);
@@ -141,6 +144,13 @@ export default function NeuralLinkScreen() {
   const [isEcoMode, setIsEcoMode] = useState(false);
 
   const [initNotification, setInitNotification] = useState<string | null>(null);
+
+  // 🎭 Check My Mood States
+  const [showMoodOverlay, setShowMoodOverlay] = useState(false);
+  const [moodAnchorY, setMoodAnchorY] = useState(0);
+  const [moodMessageContextId, setMoodMessageContextId] = useState<string | undefined>(undefined);
+  const [activeMoodEmoji, setActiveMoodEmoji] = useState<string | null>(null);
+  const moodTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
 
   // 🔍 Sanctuary SEARCH STATES
@@ -206,6 +216,12 @@ export default function NeuralLinkScreen() {
     const hideSub = Keyboard.addListener('keyboardDidHide', () => setKeyboardHeight(0));
     return () => { showSub.remove(); hideSub.remove(); };
   }, []);
+
+  useEffect(() => {
+    if (activeModel && activeModel.id !== selectedModel.id) {
+      setSelectedModel(activeModel);
+    }
+  }, [activeModel]);
 
   const changeConsciousnessLevel = useCallback(async (level: number) => {
     setConsciousnessLevel(level);
@@ -387,7 +403,7 @@ export default function NeuralLinkScreen() {
   } = useInteractiveVoice(
     lang,
     psyProfile,
-    async (text: string, onSentenceGenerated?: (sentence: string) => void, onClearSpeechQueue?: () => void) => {
+    async (text: string, onSentenceGenerated?: (sentence: string) => void, onClearSpeechQueue?: () => void, onPreloadSpeech?: (sentence: string) => void) => {
       const userMsgId = `voice-${Date.now()}-${Math.random().toString(36).substring(7)}`;
       const userMsg: Message = { id: userMsgId, role: 'user', text, created_at: Date.now(), status: 'sent' };
       setMessages(prev => [...prev, userMsg]);
@@ -402,7 +418,8 @@ export default function NeuralLinkScreen() {
         {
           isVoice: true,
           onSentenceGenerated,
-          onClearSpeechQueue
+          onClearSpeechQueue,
+          onPreloadSpeech
         }
       );
       return aiResponse || '';
@@ -593,12 +610,12 @@ export default function NeuralLinkScreen() {
 
   const whispStatus = useMemo((): 'idle' | 'thinking' | 'tired' | 'happy' | 'listening' | 'speaking' => {
     if (voiceState === 'RECORDING' || dictation.isListening) return 'listening';
-    if (isVoiceSpeaking || voiceState === 'SPEAKING') return 'speaking';
+    if (isVoiceSpeaking || voiceState === 'SPEAKING' || dictation.isSpeaking) return 'speaking';
     if (isTyping || isThinking || processingPhase !== 'idle') return 'thinking';
     if (isEcoMode || batteryLevel <= 0.20) return 'tired';
     if (batteryLevel > 0.70) return 'happy';
     return 'idle';
-  }, [voiceState, dictation.isListening, isVoiceSpeaking, isTyping, isThinking, processingPhase, isEcoMode, batteryLevel]);
+  }, [voiceState, dictation.isListening, isVoiceSpeaking, dictation.isSpeaking, isTyping, isThinking, processingPhase, isEcoMode, batteryLevel]);
 
   const whispStatusLabel = useMemo(() => {
     if (whispStatus === 'listening') return lang === 'es' ? '🎙️ Estoy escuchando...' : "🎙️ I'm listening...";
@@ -858,7 +875,7 @@ export default function NeuralLinkScreen() {
     checkFile();
 
     return () => { isMounted = false; };
-  }, [selectedModel, status]);
+  }, [selectedModel, status, refreshTrigger]);
 
   const checkSpecificModelExists = useCallback(async (model: any) => {
     try {
@@ -958,6 +975,24 @@ export default function NeuralLinkScreen() {
     };
     loadInitialData();
   }, [db, loadMessages]);
+
+  // 🎙️ ZERO-STATE / FIRST ONBOARDING VOICE WELCOME VIA TTS
+  const prevOnboardingCompleteRef = useRef<boolean | null>(null);
+  useEffect(() => {
+    if (prevOnboardingCompleteRef.current === false && isOnboardingComplete === true) {
+      const nickname = userProfile?.nickname;
+      const nameStr = nickname ? ` ${nickname}` : '';
+      const welcomeText = lang === 'es'
+        ? `¡Hola${nameStr}! Soy Anima, tu compañero de reflexión personal. Todo lo que hablamos se queda solo en tu teléfono — sin servidores, sin nubes, sin nadie más.`
+        : `Hello${nameStr}! I am Anima, your personal reflection companion. Everything we talk about stays only on your phone — no servers, no clouds, no one else.`;
+
+      const timer = setTimeout(() => {
+        dictation.speak(welcomeText, psyProfile);
+      }, 400);
+      return () => clearTimeout(timer);
+    }
+    prevOnboardingCompleteRef.current = isOnboardingComplete;
+  }, [isOnboardingComplete, lang, userProfile?.nickname, psyProfile, dictation]);
 
   // System notification when model becomes ready
   useEffect(() => {
@@ -1234,6 +1269,12 @@ export default function NeuralLinkScreen() {
     }
   }, []);
 
+  const handleMoodPress = useCallback((item: Message, pageY: number) => {
+    setMoodAnchorY(pageY);
+    setMoodMessageContextId(item.id);
+    setShowMoodOverlay(true);
+  }, []);
+
   const renderMessage = useCallback(({ item, index, extraData }: any) => {
     const isLatest = index === 0;
     return (
@@ -1246,6 +1287,7 @@ export default function NeuralLinkScreen() {
         processingPhase={extraData?.processingPhase || 'idle'}
         lang={lang}
         activeModelId={activeModel?.id}
+        activeMoodEmoji={extraData?.activeMoodEmoji}
         onModelTierPress={() => setShowModelPicker(true)}
         onAction={(action, msg) => {
           if (action === 'copy') {
@@ -1301,9 +1343,10 @@ export default function NeuralLinkScreen() {
           }
           dictation.stopSpeaking();
         }}
+        onMoodPress={handleMoodPress}
       />
     );
-  }, [colors, lang, handleReportMessage, handleImagePress, isTypingRef, addSystemMessage, handleSend, handleDeleteMessage, dictation, isVoiceSpeaking, isVoicePaused, activeSpeechId, activeModel]);
+  }, [colors, lang, handleReportMessage, handleImagePress, isTypingRef, addSystemMessage, handleSend, handleDeleteMessage, dictation, isVoiceSpeaking, isVoicePaused, activeSpeechId, activeModel, handleMoodPress]);
 
   const handleClearChat = useCallback(() => {
     Alert.alert(
@@ -1338,6 +1381,36 @@ export default function NeuralLinkScreen() {
     }
   }, [status]);
 
+  const handleSelectMood = useCallback(async (mood: string) => {
+    if (!db) return;
+    try {
+      // Set the mood emoji for the user avatar temporarily (5 mins)
+      setActiveMoodEmoji(mood);
+      if (moodTimeoutRef.current) clearTimeout(moodTimeoutRef.current);
+      moodTimeoutRef.current = setTimeout(() => {
+        setActiveMoodEmoji(null);
+      }, 5 * 60 * 1000);
+
+      // Registrar mood y revisar triggers
+      const triggerPrompt = await MoodTriggerService.processMoodAndCheckTriggers(db, mood, moodMessageContextId);
+      
+      // Si la IA decide detonar un trigger
+      if (triggerPrompt) {
+        const msgId = `ai-mood-trigger-${Date.now()}`;
+        const newMsg: Message = { id: msgId, role: 'ai', text: triggerPrompt, created_at: Date.now() };
+        setMessages(prev => [...prev, newMsg]);
+        await db.runAsync('INSERT INTO messages (id, role, text, created_at) VALUES (?, ?, ?, ?)', 
+          [msgId, 'ai', triggerPrompt, newMsg.created_at || Date.now()]);
+        
+        // Hacemos que Anima hable el trigger
+        if (dictation.ttsEnabled) {
+          dictation.speak(triggerPrompt, psyProfile, () => {});
+        }
+      }
+    } catch (error) {
+      console.error('[MOOD] Error al procesar mood:', error);
+    }
+  }, [db, moodMessageContextId, dictation, psyProfile]);
 
   return (
     <>
@@ -1532,7 +1605,7 @@ export default function NeuralLinkScreen() {
               contentContainerStyle={styles.chatContainer}
               overScrollMode="never"
               bounces={false}
-              extraData={{ isTyping, processingPhase, activeModelId: activeModel?.id }}
+              extraData={{ isTyping, processingPhase, activeModelId: activeModel?.id, activeMoodEmoji }}
               ListHeaderComponent={null}
               ListFooterComponent={
                 (!isFiltering && messages.length >= messagesLimit) ? (
@@ -1744,7 +1817,15 @@ export default function NeuralLinkScreen() {
 
       </SafeAreaView>
 
-      {/* KebabMenuOverlay removed in favor of direct header Clean Chat button */}
+      <CheckMyMoodOverlay
+        visible={showMoodOverlay}
+        anchorY={moodAnchorY}
+        onClose={() => setShowMoodOverlay(false)}
+        onSelectMood={(mood) => {
+          setShowMoodOverlay(false);
+          handleSelectMood(mood);
+        }}
+      />
     </>
   );
 }

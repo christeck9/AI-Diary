@@ -35,7 +35,9 @@ export const MessageItem = React.memo(({
   onResumePress,
   onStopPress,
   onModelTierPress,
-  activeModelId
+  onMoodPress,
+  activeModelId,
+  activeMoodEmoji
 }: {
   item: Message,
   colors: any,
@@ -54,8 +56,11 @@ export const MessageItem = React.memo(({
   onResumePress?: () => void,
   onStopPress?: () => void,
   onModelTierPress?: () => void,
-  activeModelId?: string
+  onMoodPress?: (item: Message, anchorY: number) => void,
+  activeModelId?: string,
+  activeMoodEmoji?: string | null
 }) => {
+  const userAvatarRef = React.useRef<View>(null);
 
   const renderRightActions = () => {
     return (
@@ -102,10 +107,10 @@ export const MessageItem = React.memo(({
             >
               <View style={[
                 styles.avatarAi,
-                { backgroundColor: colors.surface, borderColor: activeModelId === 'llama3.2-1b-q4' ? '#FFD700' : colors.secondary, padding: 0, marginRight: 0, marginBottom: 8, position: 'relative' }
+                { backgroundColor: colors.surface, borderColor: activeModelId === 'gemma3-1b-it-q4' ? '#FFD700' : colors.secondary, padding: 0, marginRight: 0, marginBottom: 8, position: 'relative' }
               ]}>
                 <Image
-                  source={activeModelId === 'llama3.2-1b-q4' ? require('../../assets/images/anima_light_logo.png') : require('../../assets/images/anima_deep_logo.png')}
+                  source={activeModelId === 'gemma3-1b-it-q4' ? require('../../assets/images/anima_light_logo.png') : require('../../assets/images/anima_deep_logo.png')}
                   style={{ width: 40, height: 40 }}
                   resizeMode="contain"
                 />
@@ -139,17 +144,17 @@ export const MessageItem = React.memo(({
             <TouchableOpacity 
               activeOpacity={0.7}
               onPress={onModelTierPress}
-              style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surfaceSecondary, paddingHorizontal: 6, paddingVertical: 3, borderRadius: 12, borderWidth: 0.5, borderColor: activeModelId === 'llama3.2-1b-q4' ? 'rgba(255, 215, 0, 0.3)' : 'rgba(77, 166, 255, 0.3)' }}
+              style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surfaceSecondary, paddingHorizontal: 6, paddingVertical: 3, borderRadius: 12, borderWidth: 0.5, borderColor: activeModelId === 'gemma3-1b-it-q4' ? 'rgba(255, 215, 0, 0.3)' : 'rgba(77, 166, 255, 0.3)' }}
             >
               <Image 
-                source={activeModelId === 'llama3.2-1b-q4' ? require('../../assets/images/anima_light_logo.png') : require('../../assets/images/anima_deep_logo.png')} 
+                source={activeModelId === 'gemma3-1b-it-q4' ? require('../../assets/images/anima_light_logo.png') : require('../../assets/images/anima_deep_logo.png')} 
                 style={{ width: 12, height: 12, marginRight: 4 }} 
                 resizeMode="contain" 
               />
-              <Text style={{ fontSize: 9, color: activeModelId === 'llama3.2-1b-q4' ? '#D4A017' : '#4da6ff', fontWeight: 'bold' }}>
+              <Text style={{ fontSize: 9, color: activeModelId === 'gemma3-1b-it-q4' ? '#D4A017' : '#4da6ff', fontWeight: 'bold' }}>
                 {(() => {
                   const modelInfo = MODEL_LIST.find(m => m.id === activeModelId);
-                  return modelInfo ? (lang === 'es' ? modelInfo.labelEs : modelInfo.labelEn) : (activeModelId === 'llama3.2-1b-q4' ? 'Anima Light' : 'Anima Deep');
+                  return modelInfo ? (lang === 'es' ? modelInfo.labelEs : modelInfo.labelEn) : (activeModelId === 'gemma3-1b-it-q4' ? 'Anima Light' : 'Anima Deep');
                 })()}
               </Text>
             </TouchableOpacity>
@@ -233,7 +238,30 @@ export const MessageItem = React.memo(({
             </Text>
           )}
         </View>
-        {!isAi && <View style={[styles.avatarUser, { backgroundColor: colors.surface, borderColor: colors.primary }]}><IconSymbol name="person.fill" size={20} color={colors.primary} /></View>}
+        {!isAi && (
+          <TouchableOpacity 
+            activeOpacity={0.7}
+            onPress={() => {
+              if (onMoodPress && userAvatarRef.current) {
+                userAvatarRef.current.measure((fx, fy, width, height, px, py) => {
+                  onMoodPress(item, py);
+                });
+              }
+            }}
+            style={{ alignItems: 'center' }}
+          >
+            <View ref={userAvatarRef} style={[styles.avatarUser, { backgroundColor: colors.surface, borderColor: colors.primary }]}>
+              {activeMoodEmoji ? (
+                <Text style={{ fontSize: 18 }}>{activeMoodEmoji}</Text>
+              ) : (
+                <IconSymbol name="person.fill" size={20} color={colors.primary} />
+              )}
+            </View>
+            <Text style={{ fontSize: 9, color: colors.textSecondary, marginTop: 4, marginLeft: 10, fontWeight: '600' }}>
+              Mood
+            </Text>
+          </TouchableOpacity>
+        )}
       </View>
     </Swipeable>
   );
@@ -260,6 +288,7 @@ export const MessageItem = React.memo(({
   ) return false;
 
   if (prevProps.activeModelId !== nextProps.activeModelId) return false;
+  if (prevProps.activeMoodEmoji !== nextProps.activeMoodEmoji) return false;
 
   // Crucial performance fix: Ignore typing/phase updates if this is not the latest message
   if (!prevProps.isLatest && !nextProps.isLatest) {
