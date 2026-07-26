@@ -99,7 +99,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
   }, [onboardingStep, status, AVAILABLE_MODELS, checkSpecificModelExists, checkVisionModelExists]);
 
   React.useEffect(() => {
-    if (onboardingStep >= 1) {
+    if (onboardingStep >= 2) {
       getFreeDiskStorageMB().then(setFreeDiskMB);
       getFreeRAM().then(setFreeRamMB);
     }
@@ -127,19 +127,20 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
     <View style={[styles.statusOverlay, { backgroundColor: colors.surfaceSecondary, borderColor: colors.primary, zIndex: 999 }]}>
       <Image
         source={require('../../assets/images/icon.png')}
-        style={{ width: 64, height: 64, borderRadius: 12, marginBottom: 5 }}
+        style={{ width: 48, height: 48, borderRadius: 10, marginBottom: 5 }}
       />
-      <Text style={[styles.statusText, { color: colors.textPrimary, marginTop: 10, fontSize: 18 }]}>
+      <Text style={[styles.statusText, { color: colors.textPrimary, marginTop: 5, fontSize: 18 }]}>
         {lang === 'es' ? 'Iniciando AI Diary' : 'AI Diary Initialization'}
       </Text>
 
-      {onboardingStep === 0 && (
+      {/* STEP 1: Welcome & Profile Setup */}
+      {onboardingStep === 1 && (
         <ScrollView
           style={{ width: '100%', marginTop: 10 }}
           contentContainerStyle={{ alignItems: 'center', paddingBottom: 20 }}
           showsVerticalScrollIndicator={false}
         >
-          <View style={{ flexDirection: 'row', marginBottom: 20, borderWidth: 1, borderColor: colors.border, borderRadius: 8, overflow: 'hidden' }}>
+          <View style={{ flexDirection: 'row', marginBottom: 15, borderWidth: 1, borderColor: colors.border, borderRadius: 8, overflow: 'hidden' }}>
             <TouchableOpacity
               style={{ paddingVertical: 10, paddingHorizontal: 20, backgroundColor: lang === 'en' ? colors.primary : 'transparent' }}
               onPress={() => setLang('en')}
@@ -154,11 +155,24 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
             </TouchableOpacity>
           </View>
 
-          <Text style={{ color: colors.secondary, fontWeight: 'bold', marginBottom: 20, textAlign: 'center', fontSize: 20 }}>
+          <Text style={{ color: colors.secondary, fontWeight: 'bold', marginBottom: 4, textAlign: 'center', fontSize: 20 }}>
             {lang === 'es' ? '¡Bienvenido a AI Diary!' : 'Welcome to AI Diary!'}
           </Text>
+          <Text style={{ color: colors.textSecondary, marginBottom: 8, textAlign: 'center', fontSize: 13 }}>
+            {lang === 'es' ? 'Tu diario privado con IA que NUNCA sale de tu teléfono.' : 'Your private AI diary that NEVER leaves your phone.'}
+          </Text>
+          <Text style={{ color: colors.textPrimary, marginBottom: 14, textAlign: 'center', fontSize: 13, lineHeight: 18, fontStyle: 'italic', paddingHorizontal: 10 }}>
+            {lang === 'es'
+              ? 'Los diarios tradicionales son de una sola vía; aquí, tu diario te escucha, te entiende y te ayuda a reflexionar. Escribe o graba tus pensamientos del día y yo los organizaré por ti.'
+              : "Traditional diaries are a one-way street; here, your diary listens, understands, and helps you reflect. Write or record your thoughts of the day and I'll organize them for you."}
+          </Text>
 
-          <View style={{ width: '100%', marginTop: 15, marginBottom: 5 }} />
+          {/* AI Diary App Logo */}
+          <Image
+            source={require('../../assets/images/icon.png')}
+            style={{ width: 80, height: 80, borderRadius: 16, marginBottom: 15 }}
+            resizeMode="contain"
+          />
 
           <Text style={{ color: colors.textSecondary, marginBottom: 5, width: '100%' }}>{lang === 'es' ? '¿Cómo debemos llamarte?' : 'What should we call you?'}</Text>
           <TextInput style={[styles.input, { borderColor: colors.border, marginBottom: 15, width: '100%', minHeight: 45, borderRadius: 8, borderWidth: 1, color: colors.textPrimary }]} value={userProfile.nickname || ''} onChangeText={t => setUserProfile({ ...userProfile, nickname: t })} />
@@ -177,8 +191,8 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
             fontFamily: Platform.select({ ios: 'Arial', android: 'Arial' })
           }}>
             {lang === 'es'
-              ? 'AI DIARY PUEDE OPERAR 100% OFFLINE DESPUÉS DE DESCARGAR LOS MODELOS DE IA PRINCIPALES. ES ECOLÓGICO YA QUE VIVE EN TU TELÉFONO Y ES COMPLETAMENTE PRIVADO Y LO PUEDES ENCRIPTAR'
-              : 'AI DIARY CAN OPERATE 100% OFFLINE AFTER DOWNLOADING CORE AI MODELS. IT IS ECOLOGICAL AS IT LIVES IN YOUR PHONE AND IT IS COMPLETELY PRIVATE AND YOU CAN ENCRYPTED'}
+              ? 'AI DIARY PUEDE OPERAR 100% OFFLINE DESPUÉS DE DESCARGAR LOS MODELOS DE IA PRINCIPALES. ES ECOLÓGICO PUES OPERA EN TU TELÉFONO, ES COMPLETAMENTE PRIVADO Y LO PUEDES ENCRIPTAR'
+              : 'AI DIARY CAN OPERATE 100% OFFLINE AFTER DOWNLOADING CORE AI MODELS. IT IS ECOLOGICAL AS IT OPERATES ON YOUR PHONE, IT IS COMPLETELY PRIVATE AND YOU CAN ENCRYPT IT'}
           </Text>
 
           <TouchableOpacity
@@ -202,7 +216,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
               } catch (e) {
                 console.warn('[ONBOARDING] Error saving profile:', e);
               }
-              setOnboardingStep(1);
+              setOnboardingStep(2);
             }}
           >
             <Text style={{ color: (userProfile.nickname && userProfile.work) ? '#FFF' : colors.textSecondary, fontWeight: 'bold' }}>
@@ -212,7 +226,8 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
         </ScrollView>
       )}
 
-      {onboardingStep >= 1 && onboardingStep <= 3 && (() => {
+      {/* STEPS 2, 3, 4: Hardware Check & Model Selection */}
+      {onboardingStep >= 2 && onboardingStep <= 4 && (() => {
         let ramDetectionText = '';
         let isLowRam = false;
         let ramStatus: 'red' | 'yellow' | 'green' = 'red';
@@ -325,22 +340,33 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
               </View>
             )}
 
-            {/* Offline/Privacy Legend */}
-            <Text style={{
-              color: colors.textSecondary,
-              fontSize: 12,
-              textAlign: 'center',
-              marginBottom: 16,
-              lineHeight: 16,
-              paddingHorizontal: 10
-            }}>
-              {lang === 'es'
-                ? 'Para operar sin conexión a internet y proteger tu privacidad, esta aplicación descarga los modelos de IA directo a tu dispositivo.'
-                : 'To operate without an internet connection and protect your privacy, this application downloads the AI models directly to your device.'}
-            </Text>
+            {/* Offline/Privacy Legend - Displayed ONLY on STEP 2 */}
+            {onboardingStep === 2 && (
+              <View style={{ alignItems: 'center', marginBottom: 16, paddingHorizontal: 10 }}>
+                <Text style={{
+                  color: colors.textSecondary,
+                  fontSize: 12,
+                  textAlign: 'center',
+                  marginBottom: 4,
+                  lineHeight: 16
+                }}>
+                  {lang === 'es'
+                    ? 'Para operar sin conexión a internet y proteger tu privacidad, descarga los modelos de IA.'
+                    : 'To operate offline and protect your privacy, download the AI models.'}
+                </Text>
+                <Text style={{
+                  color: colors.primary,
+                  fontSize: 13,
+                  fontWeight: 'bold',
+                  textAlign: 'center'
+                }}>
+                  {lang === 'es' ? 'Anima Light te escucha y te lee' : 'Anima Light listens and reads'}
+                </Text>
+              </View>
+            )}
 
-            {/* STEP 1: Core AI */}
-            {onboardingStep === 1 && (
+            {/* STEP 2: Core AI - Anima Light */}
+            {onboardingStep === 2 && (
               <View style={{ width: '100%', marginTop: 5, alignItems: 'center' }}>
                 {!canRunLight ? (
                   <Text style={{ color: colors.textSecondary, textAlign: 'center', marginBottom: 15 }}>
@@ -350,9 +376,16 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
                   </Text>
                 ) : (
                   <>
-                    <Text style={{ color: colors.textPrimary, fontWeight: 'bold', marginBottom: 10 }}>
-                      {AVAILABLE_MODELS?.[0]?.[lang === 'es' ? 'labelEs' : 'labelEn']} ({AVAILABLE_MODELS?.[0]?.sizeMB} MB)
+                    <Text style={{ color: colors.textPrimary, fontWeight: 'bold', marginBottom: 8, fontSize: 16 }}>
+                      Anima Light ({AVAILABLE_MODELS?.[0]?.sizeMB || 700} MB)
                     </Text>
+
+                    {/* Anima Light Logo */}
+                    <Image
+                      source={require('../../assets/images/anima_light_logo.png')}
+                      style={{ width: 80, height: 80, borderRadius: 16, marginBottom: 12 }}
+                      resizeMode="contain"
+                    />
 
                     {(status === 'idle' || status === 'downloading' || status === 'ready') && (
                       <Animated.View style={[{ opacity: !model0Exists ? 1 : 0.6, marginBottom: 10 }]}>
@@ -389,7 +422,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
                 <View style={{ flexDirection: 'row', gap: 10, width: '100%', marginTop: 20 }}>
                   <TouchableOpacity
                     style={[styles.actionBtn, { flex: 1, backgroundColor: 'transparent', borderColor: colors.border, borderWidth: 1, borderRadius: 24 }]}
-                    onPress={() => setOnboardingStep(0)}
+                    onPress={() => setOnboardingStep(1)}
                   >
                     <Text style={{ color: colors.textSecondary, fontWeight: 'bold', textAlign: 'center' }}>{lang === 'es' ? 'Atrás' : 'Back'}</Text>
                   </TouchableOpacity>
@@ -408,7 +441,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
                       }
                     ]}
                     onPress={() => {
-                      if (canRunDeepMindText) setOnboardingStep(2);
+                      if (canRunDeepMindText) setOnboardingStep(3);
                       else saveAndCompleteOnboarding();
                     }}
                   >
@@ -422,18 +455,25 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
               </View>
             )}
 
-            {/* STEP 2: DeepMind Text Optional */}
-            {onboardingStep === 2 && (
+            {/* STEP 3: Anima Deep Optional */}
+            {onboardingStep === 3 && (
               <View style={{ width: '100%', marginTop: 5, alignItems: 'center' }}>
-                <Text style={{ color: colors.textSecondary, textAlign: 'center', marginBottom: 15, paddingHorizontal: 10 }}>
+                <Text style={{ color: colors.textSecondary, textAlign: 'center', marginBottom: 12, paddingHorizontal: 10, lineHeight: 18 }}>
                   {lang === 'es'
-                    ? "También tienes la posibilidad de descargar Anima DeepMind. Lo puedes hacer ahorita o después. Dado que mide ~2.5GB se va a tardar unas tres veces más que la anterior, ¿lo quieres hacer ahorita?"
-                    : "You also have the possibility to download Anima DeepMind. You can do it now or later. Since it measures ~2.5GB it will take about three times longer than the previous one, do you want to do it right now?"}
+                    ? `También tienes la posibilidad de descargar Anima Deep. Tu compañero con cerebro profundo y con capacidades agenticas para generar proyectos. Esta disponibles en los paquetes Pro e Ilimitado.\n\nLo puedes hacer ahorita o después. Dado que mide ~${AVAILABLE_MODELS?.[1]?.sizeMB ? (AVAILABLE_MODELS[1].sizeMB / 1024).toFixed(1) : '2.5'}GB se va a tardar X3, ¿lo quieres hacer ahorita?`
+                    : `You also have the possibility to download Anima Deep. Your companion with a deep brain and agentic capabilities to generate projects. Available in Pro and Unlimited packages.\n\nYou can do it now or later. Since it measures ~${AVAILABLE_MODELS?.[1]?.sizeMB ? (AVAILABLE_MODELS[1].sizeMB / 1024).toFixed(1) : '2.5'}GB it will take 3x longer, do you want to do it right now?`}
                 </Text>
                 
-                <Text style={{ color: colors.textPrimary, fontWeight: 'bold', marginBottom: 10 }}>
-                  {AVAILABLE_MODELS?.[1]?.[lang === 'es' ? 'labelEs' : 'labelEn']} ({AVAILABLE_MODELS?.[1]?.sizeMB} MB)
+                <Text style={{ color: colors.textPrimary, fontWeight: 'bold', marginBottom: 8, fontSize: 16 }}>
+                  Anima Deep ({AVAILABLE_MODELS?.[1]?.sizeMB || 2500} MB)
                 </Text>
+
+                {/* Anima Deep Logo */}
+                <Image
+                  source={require('../../assets/images/anima_deep_logo.png')}
+                  style={{ width: 80, height: 80, borderRadius: 16, marginBottom: 12 }}
+                  resizeMode="contain"
+                />
 
                 {(status === 'idle' || status === 'downloading' || status === 'ready') && (
                   <Animated.View style={[{ opacity: !model1Exists ? 1 : 0.6, marginBottom: 10 }]}>
@@ -469,7 +509,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
                   <TouchableOpacity
                     style={[styles.actionBtn, { flex: 1, backgroundColor: 'transparent', borderColor: colors.border, borderWidth: 1, borderRadius: 24 }]}
                     onPress={() => {
-                      if (canRunDeepMindVision) setOnboardingStep(3);
+                      if (canRunDeepMindVision) setOnboardingStep(4);
                       else saveAndCompleteOnboarding();
                     }}
                   >
@@ -480,7 +520,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
                     <TouchableOpacity
                       style={[styles.actionBtn, { flex: 2, backgroundColor: colors.primary, borderColor: colors.primary, alignItems: 'center', borderRadius: 24 }]}
                       onPress={() => {
-                        if (canRunDeepMindVision) setOnboardingStep(3);
+                        if (canRunDeepMindVision) setOnboardingStep(4);
                         else saveAndCompleteOnboarding();
                       }}
                     >
@@ -491,18 +531,25 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
               </View>
             )}
 
-            {/* STEP 3: DeepMind Vision Optional */}
-            {onboardingStep === 3 && (
+            {/* STEP 4: Anima Deep Vision Optional */}
+            {onboardingStep === 4 && (
               <View style={{ width: '100%', marginTop: 5, alignItems: 'center' }}>
-                <Text style={{ color: colors.textSecondary, textAlign: 'center', marginBottom: 15, paddingHorizontal: 10 }}>
+                <Text style={{ color: colors.textSecondary, textAlign: 'center', marginBottom: 12, paddingHorizontal: 10, lineHeight: 18 }}>
                   {lang === 'es'
-                    ? "Tu teléfono también soporta el módulo de Visión de DeepMind para analizar imágenes y PDFs gráficos. Es opcional y puedes bajarlo después si lo deseas. ¿Quieres descargarlo ahora?"
-                    : "Your phone also supports the DeepMind Vision module to analyze images and graphic PDFs. It is optional and you can download it later if you wish. Do you want to download it now?"}
+                    ? "Anima Deep tiene su modulo de vision para describir una foto, lee PDFs de solo imagen, está disponible en los paquetes Pro e Ilimitado."
+                    : "Anima Deep has its vision module to describe photos and read image-only PDFs, available in Pro and Unlimited packages."}
                 </Text>
                 
-                <Text style={{ color: colors.textPrimary, fontWeight: 'bold', marginBottom: 10 }}>
-                  DeepMind Vision ({AVAILABLE_MODELS?.[1]?.mmprojSizeMB || 0} MB)
+                <Text style={{ color: colors.textPrimary, fontWeight: 'bold', marginBottom: 8, fontSize: 16 }}>
+                  Anima Deep Vision ({AVAILABLE_MODELS?.[1]?.mmprojSizeMB || 940} MB)
                 </Text>
+
+                {/* Anima Spirit / Vision Icon */}
+                <Image
+                  source={require('../../assets/images/anima_spirit.png')}
+                  style={{ width: 80, height: 80, borderRadius: 16, marginBottom: 12 }}
+                  resizeMode="contain"
+                />
 
                 {(status === 'idle' || status === 'downloading' || status === 'ready') && (
                   <Animated.View style={[{ opacity: !visionExists ? 1 : 0.6, marginBottom: 10 }]}>
@@ -541,21 +588,23 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
                     <Text style={{ color: colors.textSecondary, fontWeight: 'bold', textAlign: 'center' }}>LATER</Text>
                   </TouchableOpacity>
                   
-                  <TouchableOpacity
-                    style={[
-                      styles.actionBtn, 
-                      { 
-                        flex: 2, 
-                        backgroundColor: colors.primary, 
-                        borderColor: colors.primary, 
-                        alignItems: 'center', 
-                        borderRadius: 24 
-                      }
-                    ]}
-                    onPress={() => saveAndCompleteOnboarding()}
-                  >
-                    <Text style={{ color: '#FFF', fontWeight: 'bold' }}>CONTINUE</Text>
-                  </TouchableOpacity>
+                  {visionExists && (
+                    <TouchableOpacity
+                      style={[
+                        styles.actionBtn, 
+                        { 
+                          flex: 2, 
+                          backgroundColor: colors.primary, 
+                          borderColor: colors.primary, 
+                          alignItems: 'center', 
+                          borderRadius: 24 
+                        }
+                      ]}
+                      onPress={() => saveAndCompleteOnboarding()}
+                    >
+                      <Text style={{ color: '#FFF', fontWeight: 'bold' }}>CONTINUE</Text>
+                    </TouchableOpacity>
+                  )}
                 </View>
               </View>
             )}
