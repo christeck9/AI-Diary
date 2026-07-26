@@ -1392,7 +1392,7 @@ export default function NeuralLinkScreen() {
       }, 5 * 60 * 1000);
 
       // Registrar mood y revisar triggers
-      const triggerPrompt = await MoodTriggerService.processMoodAndCheckTriggers(db, mood, moodMessageContextId);
+      const triggerPrompt = await MoodTriggerService.processMoodAndCheckTriggers(db, mood, moodMessageContextId, lang);
       
       // Si la IA decide detonar un trigger
       if (triggerPrompt) {
@@ -1410,7 +1410,7 @@ export default function NeuralLinkScreen() {
     } catch (error) {
       console.error('[MOOD] Error al procesar mood:', error);
     }
-  }, [db, moodMessageContextId, dictation, psyProfile]);
+  }, [db, moodMessageContextId, dictation, psyProfile, lang]);
 
   return (
     <>
