@@ -164,12 +164,12 @@ export const LanguageProvider = ({ children }: { children: React.ReactNode }) =>
   }, []);
 
   const setLang = async (newLang: AppLanguage) => {
+    setLangState(newLang);
     try {
       await settingsService.set({ app_language: newLang });
     } catch (e) {
       console.warn('[LANG] Failed to persist language:', e);
     }
-    setLangState(newLang);
   };
 
   const t = (key: string): string => {

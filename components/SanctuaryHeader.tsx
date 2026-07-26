@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Platform, StatusBar } from 'react-native';
+import * as Haptics from 'expo-haptics';
 import { useSQLiteContext } from './MemoryProvider';
 import Animated, { 
   useSharedValue, 
@@ -153,7 +154,7 @@ export const SanctuaryHeader = ({
               letterSpacing: 0.5,
               textAlign: 'center'
             }}>
-              {(lang === 'es' ? 'REINICIAR ' : 'RESTART ') + (activeModelLabel ? activeModelLabel.toUpperCase() : 'AI CORE')}
+              {lang === 'es' ? 'CAMBIAR MODELO' : 'CHANGE MODEL'}
             </Text>
           </TouchableOpacity>
         </TouchableOpacity>
@@ -211,7 +212,12 @@ export const SanctuaryHeader = ({
               alignItems: 'center'
             }}>
               <TouchableOpacity 
-                onPress={() => setLang('en')}
+                activeOpacity={0.7}
+                onPress={() => {
+                  try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch (_) {}
+                  setLang('en');
+                  onLangSelect?.('en');
+                }}
                 style={{
                   paddingVertical: 4,
                   paddingHorizontal: 8,
@@ -226,7 +232,12 @@ export const SanctuaryHeader = ({
                 }}>ENG</Text>
               </TouchableOpacity>
               <TouchableOpacity 
-                onPress={() => setLang('es')}
+                activeOpacity={0.7}
+                onPress={() => {
+                  try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch (_) {}
+                  setLang('es');
+                  onLangSelect?.('es');
+                }}
                 style={{
                   paddingVertical: 4,
                   paddingHorizontal: 8,
