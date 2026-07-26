@@ -303,6 +303,31 @@
       line-height: 1.75;
     }
 
+    .hero-slogan-box {
+      background: rgba(124, 92, 224, 0.04);
+      border: 1px dashed rgba(124, 92, 224, 0.2);
+      border-radius: var(--radius-sm);
+      padding: 16px 24px;
+      margin: 20px auto 28px;
+      max-width: 580px;
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      box-shadow: inset 0 0 12px rgba(124, 92, 224, 0.02);
+    }
+    .hero-slogan-box p {
+      font-size: 1.15rem;
+      font-weight: 600;
+      color: var(--primary-dark);
+      margin: 0;
+      line-height: 1.4;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
     .download-buttons {
       display: flex;
       justify-content: center;
@@ -1323,6 +1348,18 @@
 
       <h1 class="es">Tu Diario Personal.<br><span class="grad">Privado y Local.</span></h1>
       <h1 class="en">Your Personal Diary.<br><span class="grad">Private &amp; Local.</span></h1>
+
+      <!-- Slogans / Value Props Box -->
+      <div class="hero-slogan-box es">
+        <p>💬 El primer diario que te responde.</p>
+        <p>💡 No escribas al vacío. Habla con tu diario.</p>
+        <p>✍️ Tus memorias en formato de conversación.</p>
+      </div>
+      <div class="hero-slogan-box en">
+        <p>💬 The first diary that answers you.</p>
+        <p>💡 Don't write into the void. Talk to your diary.</p>
+        <p>✍️ Your memories in conversation format.</p>
+      </div>
 
       <p class="hero-sub es">Una experiencia completamente privada y funciona OFFLINE después de la primera descarga,
         impulsada
