@@ -820,7 +820,7 @@ export default function SelfKnowScreen() {
             style={[styles.testButton, { backgroundColor: colors.surfaceSecondary, borderColor: colors.border, borderLeftColor: colors.secondary }]}
             onPress={() => handleOpenTest('ocean')}
           >
-            <Text style={[styles.buttonTitle, { color: colors.textPrimary }]}>{lang === 'es' ? '1. Test Inicial (OCEAN+) [25 Q]' : '1. Initial Test (OCEAN+) [25 Q]'}</Text>
+            <Text style={[styles.buttonTitle, { color: colors.textPrimary }]}>{lang === 'es' ? '1. Test Psicométrico (OCEAN+) [25 Q]' : '1. Psychometric Test (OCEAN+) [25 Q]'}</Text>
             <Text style={[styles.buttonDesc, { color: colors.textSecondary }]}>{lang === 'es' ? 'Perfil de personalidad básico.' : 'Basic personality profile.'}</Text>
           </TouchableOpacity>
 
