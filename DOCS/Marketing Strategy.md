@@ -5,6 +5,19 @@
 **Estado:** Lanzamiento en Producción / Aprobado con Roadmap Monetario v5.0  
 
 ---
+Nombre y keywords para App Store / Google Play
+
+Nombre: "Anima — AI Diary & Journal"
+Subtítulo iOS: "Private AI Journal — 100% Offline"
+Keywords: ai journal, diary, private, offline, mental health, 
+          self reflection, mood tracker, gratitude, cbt
+
+Slogans y Posicionamiento de Marca (Branding):
+* **"El primer diario que te responde."** (The first diary that answers you.)
+* **"No escribas al vacío. Habla con tu diario."** (Don't write into the void. Talk to your diary.)
+* **"Tus memorias en formato de conversación."** (Your memories in conversation format.)
+
+
 
 ## 📌 Resumen Ejecutivo
 
