@@ -37,8 +37,22 @@ export default function TabLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: lang === 'es' ? 'IA Base' : 'AI Base',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="house.fill" color={color} />,
+          title: 'AI Diary',
+          tabBarIcon: ({ color }) => <IconSymbol size={28} name="book.fill" color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="projects"
+        options={{
+          title: lang === 'es' ? 'Diario/Proy' : 'Journal/Proj',
+          tabBarIcon: ({ color }) => <IconSymbol size={28} name="list.bullet.clipboard.fill" color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="self-know"
+        options={{
+          title: lang === 'es' ? 'Psicogramas' : 'Know Thyself',
+          tabBarIcon: ({ color }) => <PsiIcon size={28} color={color} />,
         }}
       />
       <Tabs.Screen
@@ -46,20 +60,6 @@ export default function TabLayout() {
         options={{
           title: lang === 'es' ? 'Herramientas' : 'Tools',
           tabBarIcon: ({ color }) => <IconSymbol size={28} name="wrench.fill" color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="projects"
-        options={{
-          title: lang === 'es' ? 'Diarios & Proyectos' : 'Journals & Projects',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="list.bullet.clipboard.fill" color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="self-know"
-        options={{
-          title: lang === 'es' ? 'Psicograma' : 'Know thyself',
-          tabBarIcon: ({ color }) => <PsiIcon size={28} color={color} />,
         }}
       />
       <Tabs.Screen

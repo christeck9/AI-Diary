@@ -6,6 +6,7 @@ import { OpaqueColorValue, type StyleProp, type TextStyle } from 'react-native';
 
 const MAPPING = {
   'house.fill': 'home',
+  'book.fill': 'menu-book',
   'paperplane.fill': 'send',
   'chevron.left.forwardslash.chevron.right': 'code',
   'chevron.right': 'chevron-right',
