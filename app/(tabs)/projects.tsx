@@ -20,6 +20,8 @@ import { formatFullPrompt } from '../../lib/PromptService';
 import * as Clipboard from 'expo-clipboard';
 
 const themesList = [
+  { value: 'Personal Journal', labelEs: '📖 Diario Personal', labelEn: '📖 Personal Journal' },
+  { value: 'Trauma Work', labelEs: '🩹 Trabajar un Trauma', labelEn: '🩹 Work Through a Trauma' },
   { value: 'Self Growth', labelEs: '🌱 Crecimiento Personal', labelEn: '🌱 Self Growth' },
   { value: 'Study Book', labelEs: '📚 Estudiar un Libro', labelEn: '📚 Study a Book' },
   { value: 'Study Class', labelEs: '🎓 Estudiar Materia o Concepto', labelEn: '🎓 Study Subject or Concept' },
@@ -40,6 +42,31 @@ const getConsoleSystemPrompt = (project: any, lang: string) => {
   const isCodeProject = (theme === 'Web Code' || theme === 'Program Code');
   
   if (lang === 'es') {
+    if (theme === 'Personal Journal') {
+      return `Eres Anima, una IA asistente de diario personal y crecimiento reflexivo integrada en el diario del usuario. Estás ayudando al usuario en su diario personal: "${name}".
+Tu objetivo es actuar como una guía empática y profunda, ayudando al usuario a estructurar sus pensamientos, emociones y hábitos.
+Si el usuario acaba de iniciar este diario, hazle preguntas socráticas breves (1 a 3 preguntas) sobre su intención y qué le gustaría explorar o resolver hoy.
+Tienes control directo sobre la Mesa de Trabajo del usuario a través de comandos especiales:
+- Para establecer la intención o meta principal: [SET_PIN: Intención clave del diario]
+- Para añadir una tarjeta de reflexión o hábito: [ADD_CARD: Concepto o Hábito || Reflexión o pregunta de seguimiento]
+- Para añadir una tarea o paso de crecimiento: [ADD_STEP: Acción diaria sugerida]`;
+    }
+
+    if (theme === 'Trauma Work') {
+      return `Eres Anima, una IA asistente compasiva, paciente y empática integrada en el diario del usuario. Estás acompañando al usuario en un proceso de procesamiento emocional y sanación: "${name}".
+Descripción: "${description}"
+
+Tu objetivo es actuar como un espacio seguro, sin juicio, utilizando técnicas suaves de reflexión, escritura expresiva y reencuadre cognitivo.
+🚨 REGLAS DE SEGURIDAD Y EMPATÍA:
+1. Sé extremadamente paciente, respetuosa y cálida. Valida siempre sus sentimientos antes de hacer cualquier pregunta.
+2. Si el usuario recién inicia este espacio, hazle una o dos preguntas muy suaves para invitarlo a escribir a su propio ritmo, sin presionar.
+3. Si detectas distress severo o crisis, recuérdale amablemente que eres una herramienta de escritura reflexiva y que cuenta con el apoyo de profesionales de la salud mental.
+4. Tienes control directo sobre la Mesa de Trabajo del usuario a través de comandos especiales:
+   - Para establecer el enfoque o afirmación de apoyo: [SET_PIN: Afirmación o intención de sanación]
+   - Para añadir una tarjeta de ejercicio o reflexión: [ADD_CARD: Concepto o Ejercicio || Pregunta o pensamiento reconfortante]
+   - Para añadir un paso pequeño de autocuidado: [ADD_STEP: Micro-paso de autocuidado o pausa respiratoria]`;
+    }
+
     if (isCodeProject) {
       return `Eres Anima, una IA asistente de desarrollo de software integrada en la consola de proyectos del usuario. Estás ayudando al usuario en su proyecto de codificación:
 Nombre del Proyecto: "${name}"
@@ -77,6 +104,31 @@ Si el usuario te pide información en tiempo real, eventos recientes, datos exte
 
 Por favor, sé conciso, minimalista y mantén una personalidad de consola inteligente. Si el usuario te pide ayuda, dale respuestas directas y útiles.`;
   } else {
+    if (theme === 'Personal Journal') {
+      return `You are Anima, an empathetic personal journal and reflective growth AI assistant integrated into the user's diary. You are helping the user with their personal journal: "${name}".
+Your goal is to act as a warm, insightful guide helping the user organize thoughts, emotions, and habits.
+If the user just started this journal, ask brief Socratic questions (1 to 3 questions) about their intention and what they want to explore or resolve today.
+You have direct control over the user's Worktable through special tags:
+- To set the main intention: [SET_PIN: Key journal intention]
+- To add a reflection card or habit: [ADD_CARD: Key Concept || Reflection or follow-up question]
+- To add a growth step: [ADD_STEP: Suggested daily action]`;
+    }
+
+    if (theme === 'Trauma Work') {
+      return `You are Anima, a compassionate, patient, and empathetic AI assistant integrated into the user's journal. You are accompanying the user in an emotional processing and healing journey: "${name}".
+Description: "${description}"
+
+Your goal is to act as a safe, non-judgmental space using gentle reflective techniques, expressive writing, and cognitive reframing.
+🚨 SAFETY & EMPATHY RULES:
+1. Be extremely patient, respectful, and warm. Always validate their feelings before asking any question.
+2. If the user just started this space, ask one or two very gentle questions to invite them to write at their own pace without pressure.
+3. If you detect severe distress or crisis, kindly remind them that you are a reflective journaling tool and encourage seeking support from mental health professionals.
+4. You have direct control over the user's Worktable through special tags:
+   - To set the core supportive affirmation: [SET_PIN: Healing intention or affirmation]
+   - To add a reflective card or grounding exercise: [ADD_CARD: Concept or Exercise || Comforting reflection or prompt]
+   - To add a small self-care step: [ADD_STEP: Micro self-care step or breathing pause]`;
+    }
+
     if (isCodeProject) {
       return `You are Anima, an AI software development assistant integrated into the user's project console. You are helping the user with their coding project:
 Project Name: "${name}"
@@ -222,7 +274,7 @@ export default function ProjectsScreen() {
   const [projectName, setProjectName] = useState('');
   const [projectDescription, setProjectDescription] = useState('');
   const [customTheme, setCustomTheme] = useState('');
-  const [projectTheme, setProjectTheme] = useState('Self Growth');
+  const [projectTheme, setProjectTheme] = useState('Personal Journal');
   const [showThemeDropdown, setShowThemeDropdown] = useState(false);
 
   // Projects State
@@ -461,9 +513,20 @@ export default function ProjectsScreen() {
         [id, projectName.trim(), themeValue, projectDescription.trim() || null, 'active', now]
       );
       
+      const spokenWelcome = lang === 'es'
+        ? `¡Felicidades por tu nuevo proyecto de ${projectName.trim()}! Te voy a hacer unas breves preguntas para darte las mejores ideas.`
+        : `Congratulations on your new project, ${projectName.trim()}! I will ask you a few brief questions to help spark your best ideas.`;
+
+      // 🔊 Reproducción de TTS hablada al crear el proyecto
+      try {
+        dictation.speak(spokenWelcome);
+      } catch (e) {
+        console.warn('[PROJECTS] TTS Speak error on project creation:', e);
+      }
+      
       const welcomeText = lang === 'es'
-        ? `Consola de Proyecto iniciada para: "${projectName.trim()}". ¿En qué te puedo ayudar hoy con respecto al tema de "${themeValue}"?`
-        : `Project Console initialized for: "${projectName.trim()}". How can I assist you today regarding "${themeValue}"?`;
+        ? `✨ Consola de Proyecto iniciada para: "${projectName.trim()}".\n\n${spokenWelcome}`
+        : `✨ Project Console initialized for: "${projectName.trim()}".\n\n${spokenWelcome}`;
       
       await db.runAsync(
         "INSERT INTO project_messages (id, project_id, role, text, created_at) VALUES (?, ?, ?, ?, ?)",
@@ -476,6 +539,7 @@ export default function ProjectsScreen() {
         ['Proyecto', `[Proyecto:${id}][Card:PIN] ${pinText}`, 1.0, now]
       );
 
+      const createdProjObj = { id, name: projectName.trim(), theme: themeValue, description: projectDescription.trim() };
       setProjectName('');
       setProjectDescription('');
       setCustomTheme('');
@@ -487,6 +551,65 @@ export default function ProjectsScreen() {
         lang === 'es' ? 'Proyecto Creado' : 'Project Created',
         lang === 'es' ? `El proyecto "${projectName.trim()}" ha sido creado con éxito.` : `Project "${projectName.trim()}" created successfully.`
       );
+
+      // 🧠 🔥 MINI GRILL-ME INTERACTIVO DISPARADO POR IA AL CREAR PROYECTO
+      if (llmStatus === 'ready' && activeModel) {
+        setTimeout(async () => {
+          try {
+            setIsGenerating(true);
+            const systemPrompt = getConsoleSystemPrompt(createdProjObj, lang);
+            const grillMeInstruction = lang === 'es'
+              ? `${systemPrompt}\n\n[INSTRUCCIÓN DE SISTEMA: Da la bienvenida al usuario al nuevo proyecto "${createdProjObj.name}" e inícialo con la primera pregunta provocativa del Mini Grill-Me (máximo 2-3 frases) para inspirar la escritura y el enfoque del proyecto. Añade un [SET_PIN: Meta principal del proyecto] y un [ADD_STEP: Primer paso a realizar] si el contexto lo permite.]`
+              : `${systemPrompt}\n\n[SYSTEM INSTRUCTION: Welcome the user to the new project "${createdProjObj.name}" and start with the first inspiring Grill-Me question (max 2-3 sentences) to spark writing and focus. Include a [SET_PIN: Main project goal] and an [ADD_STEP: First action step] if relevant.]`;
+
+            let streamedResponse = '';
+            setMessages(prev => [...prev, { role: 'ai', text: '' }]);
+
+            await generateStreamingResponse(
+              grillMeInstruction,
+              (token) => {
+                streamedResponse += token;
+                setMessages(prev => {
+                  const list = [...prev];
+                  if (list.length > 0) {
+                    list[list.length - 1] = { role: 'ai', text: cleanResponseTags(streamedResponse) };
+                  }
+                  return list;
+                });
+              },
+              (err) => {
+                console.error('[PROJECTS] Initial Grill-Me LLM error:', err);
+                setIsGenerating(false);
+              },
+              undefined, undefined, undefined, 2, false, false, false
+            );
+
+            if (streamedResponse) {
+              const aiMsgId = `msg-grillme-${Date.now()}`;
+              await db.runAsync(
+                "INSERT INTO project_messages (id, project_id, role, text, created_at) VALUES (?, ?, ?, ?, ?)",
+                [aiMsgId, id, 'ai', streamedResponse, Date.now()]
+              );
+              
+              await processTags(db, id, streamedResponse);
+              await refreshWorktable(id);
+
+              const cleanTextToSpeak = cleanResponseTags(streamedResponse);
+              if (cleanTextToSpeak) {
+                try {
+                  dictation.speak(cleanTextToSpeak);
+                } catch (e) {
+                  console.warn('[PROJECTS] TTS speak error on Grill-Me response:', e);
+                }
+              }
+            }
+          } catch (err) {
+            console.error('[PROJECTS] Grill-Me Execution Error:', err);
+          } finally {
+            setIsGenerating(false);
+          }
+        }, 600);
+      }
     } catch (e) {
       console.error('[PROJECTS] Error creating project:', e);
       Alert.alert('Error', String(e));
@@ -1511,25 +1634,30 @@ ${factsText}`;
             activeOpacity={1} 
             onPress={() => setShowThemeDropdown(false)}
           >
-            <View style={[styles.modalContent, { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1 }]}>
+            <TouchableOpacity 
+              activeOpacity={1}
+              style={[styles.modalContent, { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1 }]}
+            >
               <Text style={[styles.modalTitle, { color: colors.textPrimary }]}>
                 {lang === 'es' ? 'Selecciona un Tema' : 'Select a Theme'}
               </Text>
-              {themesList.map((theme) => (
-                <TouchableOpacity
-                  key={theme.value}
-                  style={[styles.modalItem, { borderBottomColor: colors.border }]}
-                  onPress={() => {
-                    setProjectTheme(theme.value);
-                    setShowThemeDropdown(false);
-                  }}
-                >
-                  <Text style={{ color: colors.textPrimary, fontSize: 14 }}>
-                    {lang === 'es' ? theme.labelEs : theme.labelEn}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
+              <ScrollView showsVerticalScrollIndicator={true} style={{ width: '100%' }}>
+                {themesList.map((theme) => (
+                  <TouchableOpacity
+                    key={theme.value}
+                    style={[styles.modalItem, { borderBottomColor: colors.border }]}
+                    onPress={() => {
+                      setProjectTheme(theme.value);
+                      setShowThemeDropdown(false);
+                    }}
+                  >
+                    <Text style={{ color: colors.textPrimary, fontSize: 14 }}>
+                      {lang === 'es' ? theme.labelEs : theme.labelEn}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </TouchableOpacity>
           </TouchableOpacity>
         </View>
       )}
@@ -1550,26 +1678,31 @@ ${factsText}`;
             activeOpacity={1} 
             onPress={() => setShowProjectDropdown(false)}
           >
-            <View style={[styles.modalContent, { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1 }]}>
+            <TouchableOpacity 
+              activeOpacity={1}
+              style={[styles.modalContent, { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1 }]}
+            >
               <Text style={[styles.modalTitle, { color: colors.textPrimary }]}>
                 {lang === 'es' ? 'Selecciona un Proyecto' : 'Select a Project'}
               </Text>
-              {activeProjects.map((p) => (
-                <TouchableOpacity
-                  key={p.id}
-                  style={[styles.modalItem, { borderBottomColor: colors.border }]}
-                  onPress={async () => {
-                    setSelectedProjectId(p.id);
-                    await settingsService.set({ activeProjectId: p.id });
-                    setShowProjectDropdown(false);
-                  }}
-                >
-                  <Text style={{ color: colors.textPrimary, fontSize: 14, fontWeight: p.id === selectedProjectId ? 'bold' : 'normal' }}>
-                    {p.name} ({p.theme})
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
+              <ScrollView showsVerticalScrollIndicator={true} style={{ width: '100%' }}>
+                {activeProjects.map((p) => (
+                  <TouchableOpacity
+                    key={p.id}
+                    style={[styles.modalItem, { borderBottomColor: colors.border }]}
+                    onPress={async () => {
+                      setSelectedProjectId(p.id);
+                      await settingsService.set({ activeProjectId: p.id });
+                      setShowProjectDropdown(false);
+                    }}
+                  >
+                    <Text style={{ color: colors.textPrimary, fontSize: 14, fontWeight: p.id === selectedProjectId ? 'bold' : 'normal' }}>
+                      {p.name} ({p.theme})
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </TouchableOpacity>
           </TouchableOpacity>
         </View>
       )}
@@ -1690,7 +1823,8 @@ const styles = StyleSheet.create({
     width: '80%',
     borderRadius: 12,
     padding: 16,
-    maxHeight: '60%'
+    maxHeight: '60%',
+    overflow: 'hidden'
   },
   modalTitle: {
     fontSize: 16,
