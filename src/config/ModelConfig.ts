@@ -18,27 +18,14 @@ export interface ModelDefinition {
 
 export const MODEL_LIST: ModelDefinition[] = [
   {
-    id: 'llama3.2-1b-q4',
+    id: 'gemma3-1b-it-q4',
     labelEs: 'Anima Light',
     labelEn: 'Anima Light',
-    sizeMB: 770,
+    sizeMB: 850,
     descEs: 'Núcleo Ligero — Especial para teléfonos básicos. (Sin visión / No soporta imágenes)',
     descEn: 'Light Core — Optimized for older phones. (No vision / No image support)',
-    fileName: 'Llama-3.2-1B-Instruct-Q4_K_M.gguf',
-    url: 'https://huggingface.co/bartowski/Llama-3.2-1B-Instruct-GGUF/resolve/main/Llama-3.2-1B-Instruct-Q4_K_M.gguf',
-  },
-  {
-    id: 'gemma3-4b-q4',
-    labelEs: 'Anima Balance',
-    labelEn: 'Anima Balance',
-    sizeMB: 2374,
-    mmprojSizeMB: 812,
-    descEs: 'Núcleo Diario — Veloz y estable. (Con visión / Soporta imágenes)',
-    descEn: 'Daily Core — Fast and stable. (With vision / Image support)',
-    fileName: 'google_gemma-3-4b-it-Q4_K_M.gguf',
-    url: 'https://huggingface.co/bartowski/google_gemma-3-4b-it-GGUF/resolve/main/google_gemma-3-4b-it-Q4_K_M.gguf',
-    mmprojFileName: 'mmproj-google_gemma-3-4b-it-f16.gguf',
-    mmprojUrl: 'https://huggingface.co/bartowski/google_gemma-3-4b-it-GGUF/resolve/main/mmproj-google_gemma-3-4b-it-f16.gguf',
+    fileName: 'google_gemma-3-1b-it-Q4_K_M.gguf',
+    url: 'https://huggingface.co/bartowski/google_gemma-3-1b-it-GGUF/resolve/main/google_gemma-3-1b-it-Q4_K_M.gguf',
   },
   {
     id: 'gemma4-e2b-qat',
@@ -79,24 +66,22 @@ export const MODEL_CONFIG = {
     mmproj: 'mmproj-google_gemma-4-E2B-it-f16.gguf',
 
     // Sampling parameters
-    temperature: 0.1, // Reducido para evitar verborrea
+    temperature: 0.3, // Equilibrado para razonamiento y fluidez
     top_p: 0.85,
     min_p: 0.05,
     repeat_penalty: 1.05,
-    bypassSqliteLimit: false, // Cambiar a true para depurar e inyectar todos los hechos (incluyendo Sabiduría)
   },
 
   gemma3: {
-    n_ctx: 4096,
+    n_ctx: 2048, 
     n_gpu_layers: 24,
-    ctx_shift: 512,
-    mmproj: 'mmproj-google_gemma-3-4b-it-f16.gguf',
+    ctx_shift: 256,
 
-    // Sampling parameters
-    temperature: 0.7, // Gemma 3 4B base temperature for standard Sanctuary mode
-    top_p: 0.95,
+    // Sampling parameters (adjusted for Gemma 3 dialect and stability)
+    temperature: 0.3, 
+    top_p: 0.9,
     min_p: 0.05,
-    repeat_penalty: 1.0, // Disabled repeat penalty to avoid cut-offs and word starvation
+    repeat_penalty: 1.05, 
   },
 
   llama3_2: {
@@ -124,6 +109,9 @@ export const MODEL_CONFIG = {
  * Calcula en tiempo real cuántos núcleos y capas de GPU usar
  * basado en la temperatura de la batería para evitar crashes.
  */
+let lastTempCelsius = -1;
+let lastTempTimestamp = 0;
+
 export const getDynamicEngineConfig = (
   tempCelsius: number,
   hwThreads: number,
@@ -131,17 +119,43 @@ export const getDynamicEngineConfig = (
   useTurbo: boolean = false,
   isIOS: boolean = false,
   architecture: string = 'unknown',
-  totalRAM: number = 8192
+  totalRAM: number = 8192,
+  freeRAM: number = 8192,
+  maxGpuLayers: number = 99
 ) => {
+  const now = Date.now();
+  let tempTrend = 0; // degrees per minute
+
+  if (lastTempCelsius !== -1 && lastTempTimestamp !== 0) {
+    const timeDeltaMs = now - lastTempTimestamp;
+    // Calculate trend if more than 5 seconds have passed
+    if (timeDeltaMs > 5000) {
+       const timeDeltaMin = timeDeltaMs / 60000;
+       tempTrend = (tempCelsius - lastTempCelsius) / timeDeltaMin;
+    }
+  }
+
+  // Update thermal state
+  lastTempCelsius = tempCelsius;
+  lastTempTimestamp = now;
+
   let threads = hwThreads;
   let gpu_layers = 0; // Por defecto seguro en Android
 
   if (useTurbo) {
     gpu_layers = 99; // Máxima delegación a Metal/OpenCL
   } else if (isIOS) {
-    // 🛡️ iOS stability guard: Metal GPU context allocation can cause native JSI
-    // stack depth overflow in llama.rn during early bootstrap. Use CPU by default.
-    gpu_layers = 0;
+    // 🛡️ iOS Adaptive Metal & Crash Recovery
+    const RAM_RESERVE_MB = 2000; 
+    const MB_PER_LAYER = 25; // 99 layers = ~2.5GB VRAM
+    const availableForMetal = freeRAM - RAM_RESERVE_MB;
+    let calculatedLayers = 0;
+    
+    if (availableForMetal > 0) {
+      calculatedLayers = Math.floor(availableForMetal / MB_PER_LAYER);
+    }
+    
+    gpu_layers = Math.max(0, Math.min(99, calculatedLayers, maxGpuLayers));
   } else if (
     (architecture === 'qualcomm-snapdragon' || architecture === 'google-tensor') &&
     totalRAM >= 7000
@@ -153,13 +167,18 @@ export const getDynamicEngineConfig = (
     return { threads: 4, gpu_layers: 0, reason: 'EMULATOR_SAFE_MODE' };
   }
 
-  // 🌡️ Protección Térmica (Thermal Throttling)
-  if (tempCelsius > 45) {
+  // 🌡️ Protección Térmica (Predictive Thermal Throttling)
+  if (tempCelsius >= 45) {
     // Calor Extremo: Reducir estrés en NPU/GPU a la mitad y limitar hilos
     threads = Math.min(threads, 4);
     gpu_layers = Math.floor(gpu_layers / 2);
     return { threads, gpu_layers, reason: 'CRITICAL_HEAT_45C+' };
-  } else if (tempCelsius > 40) {
+  } else if (tempCelsius >= 42 && tempTrend >= 1.0) {
+    // Throttling Predictivo: Está cerca del límite y calentándose rápido (>1°C/min)
+    threads = Math.min(threads, 4);
+    gpu_layers = Math.floor(gpu_layers / 2);
+    return { threads, gpu_layers, reason: 'PREDICTIVE_THROTTLE_RISING_FAST' };
+  } else if (tempCelsius >= 40) {
     // Calor Moderado
     threads = Math.min(threads, 6);
     return { threads, gpu_layers: Math.min(gpu_layers, 12), reason: 'MODERATE_HEAT_40C+' };

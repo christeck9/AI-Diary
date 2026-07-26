@@ -1,132 +1,116 @@
-# 🕊️ AI Diary: Estrategia de Posicionamiento y Plan de Monetización
+# 🕊️ AI Diary: Estrategia de Posicionamiento, Monetización y Sostenibilidad a Largo Plazo
 
-**Fecha del Informe:** 2026-07-18  
-**Autor:** Antigravity (Advisor AI)  
-**Versión del Documento:** v3.0.0 (Actualizado tras aprobación de Producción en Google)
+**Fecha del Documento:** 2026-07-26T04:55:00Z (v5.0.0)  
+**Autor:** Antigravity (Advisor AI) & Chris  
+**Estado:** Lanzamiento en Producción / Aprobado con Roadmap Monetario v5.0  
 
 ---
 
 ## 📌 Resumen Ejecutivo
 
-Este documento define la estrategia comercial, el posicionamiento de marca y el modelo de monetización híbrido para **AI Diary** (anteriormente conocido como AI Sanctuary). Tras obtener la aprobación oficial de producción en Google Play Console, la aplicación está lista para su lanzamiento al público general en Android, sirviendo como base para el posterior despliegue en iOS. 
+Este documento define la estrategia comercial, el modelo de monetización modular anti-frágil y el plan de escalabilidad financiera a largo plazo para **AI Diary**. 
 
-El núcleo del valor comercial de AI Diary reside en la **Privacidad Radical (Edge AI / 100% Offline)** y la **lucha contra la fatiga de las suscripciones mensuales**, estructurando un modelo *Freemium* de pago único que maximiza la adquisición orgánica sin costos de servidores recurrentes para nosotros.
+Resolvemos el dilema fundamental de la industria de software móvil: **¿Cómo ofrecer privacidad radical 100% offline con $0 costos de servidores por token sin morir por falta de ingresos recurrentes a largo plazo?**
 
----
-
-## 1. Radiografía Técnica Actual
-
-Nuestra infraestructura móvil local nos otorga ventajas competitivas insuperables frente a aplicaciones basadas en la nube:
-
-*   **Inferencia 100% Local:** Ejecución de modelos GGUF en el dispositivo mediante JSI nativo (`llama.rn`). Adaptación dinámica según el hardware del usuario:
-    *   **Llama 3.2 (1B):** Motor ultra-ligero y rápido para dispositivos de gama media/baja.
-    *   **Gemma 4 (2B):** Motor avanzado de alto razonamiento cognitivo para dispositivos de gama alta.
-*   **Voz y Transcripción Offline:** Integración nativa de Whisper STT (`whisper.rn`) y Piper TTS (`react-native-sherpa-onnx`) para conversación por voz y dictado en tiempo real sin dependencias de red.
-*   **Memoria y RAG Local:** Base de datos `expo-sqlite` con indexación FTS5 para búsquedas semánticas del historial del usuario, cifrada de manera segura en almacenamiento local (`vault.ts`).
-*   **Control de Hardware (RAM Guard):** Monitoreo activo de temperatura y memoria en el dispositivo para ajustar el número de hilos de procesamiento, evitando cierres por falta de RAM (OOM).
+Implementamos un **Modelo Híbrido Modular & Pase Anual Opcional**, asegurando sostenibilidad para financiar futuras generaciones de modelos (Gemma 5, Llama 4), optimizando la comisión de las tiendas (Apple/Google 30%) e implementando 4 disparadores contextuales de conversión (Conversion Triggers).
 
 ---
 
-## 2. Posicionamiento Estratégico en Tiendas
+## 🛠️ Radiografía Técnica de Infraestructura
 
-Evaluamos la orientación de marca para cumplir con las rigurosas normativas de Apple App Store y Google Play Store:
+Nuestra arquitectura móvil local nos otorga ventajas competitivas insuperables frente a aplicaciones basadas en la nube:
 
-### ❌ Evitar: Posicionamiento Clínico o Médico
-*   **El Riesgo:** Las directrices de Apple (Guideline 1.4.3 - Physical Harm) y las políticas de Google exigen acreditaciones médicas y certificaciones institucionales oficiales para apps de diagnóstico o tratamiento psicológico. Afirmar que la app es un "terapeuta digital" resulta en un **rechazo sistemático**.
+1. **Motores de Inferencia (JSI llama.rn):**
+   * **Anima Light (Gemma 3 1B IT Q4):** Core ultra-rápido de 850 MB para smartphones estándar o de generaciones anteriores (1.5 GB RAM libre mínima).
+   * **Anima Deep (Gemma 4 E2B QAT Q4):** Core avanzado de 2.5 GB optimizado con tecnología QAT de Google DeepMind para alto razonamiento cognitivo y lógica estructurada en terminales premium.
+   * **Módulo de Visión (Multimodal):** Proyector visual de 940 MB para análisis de fotos y RAG multimodal de PDFs en Gemma 4.
 
-###  Ganador: Diario Conversacional y Autodescubrimiento
-*   **Enfoque:** Un diario íntimo de estilo de vida, crecimiento personal y autoconocimiento guiado por IA, potenciado por tests de personalidad científicos (OCEAN / Big Five y MBTI).
-*   **Cumplimiento de Tiendas:** Cero fricciones. Al catalogarse como herramienta de "Productividad y Estilo de Vida", pasa las revisiones de inmediato.
-*   **Canal B2B2C Indirecto:** Los psicólogos del mundo real pueden recomendar la app de forma segura a sus pacientes: *"Usa este diario local para tus reflexiones semanales; tus datos nunca saldrán de tu teléfono"*. El usuario mantiene el control absoluto y puede exportar voluntariamente sus reportes para mostrarlos en consulta.
+2. **Puentes de Audio y Voz Offline:**
+   * **STT (Transcripción):** Whisper local a través de `ggml-tiny.bin` (75 MB) con descompresión nativa `MediaCodec`/`CoreAudio`.
+   * **TTS (Síntesis):** Piper local ONNX (`react-native-sherpa-onnx`) optimizado con modulación de ruido y Speaker ID.
 
----
+3. **Caché y Memoria Semántica RAG:**
+   * SQLite local (`expo-sqlite`) con indexación FTS5 persistente y embeddings locales con el modelo `all-MiniLM-L6-v2` (23 MB) para buscar en el historial del diario al instante.
 
-## 3. Modelo de Monetización: Freemium Híbrido
-
-Aprovechando que no tenemos costos de procesamiento por token ni servidores, implementamos una estrategia de monetización de pago único sumamente atractiva para combatir la fatiga de las suscripciones.
-
-┌────────────────────────────────────────────────────────┐
-│                   AI DIARY (FREE)                      │
-│ - IA Local con Llama 3.2 (1B)                          │
-│ - Diarios básicos de Texto y Voz                       │
-│ - Herramientas y Utilidades Generales                  │
-│ - Tests Básicos: OCEAN (Big 5), Cognitivo, 16 Tipos    │
-└───────────────────────────┬────────────────────────────┘
-                            │  Upgrade In-App
-                            ▼  (Pago Único: $9.99 - $14.99)
-┌────────────────────────────────────────────────────────┐
-│                   AI DIARY PRO (PAID)                  │
-│ - Motor de IA Avanzado Gemma 4 (2B)                    │
-│ - Bóveda de Datos Cifrada Local (AES-256 Vault)        │
-│ - Tests Psicológicos Avanzados Adicionales             │
-│ - Experimento Agéntico Avanzado (Gemma 4):             │
-│   • Módulo de Proyectos                                │
-│   • Automatizaciones / Tareas Repetitivas              │
-│ - Reporte Semanal & Exportación en PDF de Personalidad │
-│ - Voces Naturales Premium / Tema Zion (Matrix)         │
-└────────────────────────────────────────────────────────┘
-
-### A. Nivel Gratuito (Gancho de Adquisición)
-Ofrece un valor inmenso de entrada para garantizar descargas y viralidad:
-*   Acceso ilimitado al diario por texto y voz (almacenamiento local estándar).
-*   Procesamiento con el modelo **Llama 3.2 (1B)**.
-*   **Herramientas generales de la app** (diario, herramientas de apoyo básicas).
-*   **3 Tests de Personalidad Básicos:** OCEAN (Big Five), Aptitudes Cognitivas y 16 Tipos (MBTI).
-
-### B. "AI Diary Pro" (Pago Único / In-App Purchase)
-*   **Precio sugerido:** **$9.99 a $14.99 USD (Lifetime License)**.
-*   **Funcionalidades Exclusivas:**
-    1.  **Desbloqueo de Gemma 4 (2B):** Permite descargar y usar el motor local avanzado para respuestas de mayor profundidad lógica y filosófica.
-    2.  **Bóveda Cifrada de Datos (AES-256 Vault):** Protección criptográfica de nivel militar para cifrar físicamente los archivos del diario contra accesos no autorizados en caso de robo o pérdida física del teléfono.
-    3.  **Experimentos Agénticos Locales:** Acceso exclusivo a los módulos de **Proyectos** y **Automatizaciones / Tareas Repetitivas** (los cuales requieren el procesamiento y la inyección de herramientas avanzada del motor Gemma 4).
-    4.  **Generación de Reportes:** Creación de reportes semanales de ánimo y la capacidad de exportar el PDF extendido de personalidad para terapeutas.
-    5.  **Estética y Personalización:** Desbloqueo de voces premium naturales y temas visuales exclusivos (como el tema **Zion / Matrix**).
-
-### C. Botón "Buy me a Coffee" (Donación Voluntaria)
-*   Ubicado en la pestaña de Ajustes/Opciones.
-*   Permite a los usuarios amantes del código abierto y la privacidad realizar donaciones de **$3, $5 o $10 USD** para apoyar al desarrollador independiente. Esto genera un flujo de ingresos orgánico sumamente leal.
+4. **Monitoreo de Hardware y Salvaguardas:**
+   * **RAMGuard:** Validación del entorno de memoria libre antes de iniciar la carga.
+   * **CPU Scaling & Thermal Throttling:** Regulación de hilos según temperatura para evitar estrangulamiento.
+   * **iOS Adaptive Metal & Crash Auto-Tuning:** Asignación proporcional de capas GPU según RAM libre a la carga (reserva de 2GB de RAM, 1 capa por cada 25MB adicionales) combinada con auto-penalización de -10 capas en caso de crash OOM en el arranque previo.
 
 ---
 
-## 4. UX de Monetización: Candados Contextuales
+## 🛡️ Análisis de Riesgos Financieros y Mitigación Estratégica
 
-Las funciones premium no se ocultan; se muestran en la interfaz de forma sutil para despertar el deseo de uso (Paywall Contextual):
+### Riesgo 1: Sostenibilidad Futura (Financiamiento de Gemma 5, actualizaciones internas: oboe, llama.cpp, react native, mini, expo, etc)
+* **El Problema:** Un pago único de por vida de $14.99 no financia el mantenimiento técnico a 2-3 años cuando Google y Meta lancen Gemma 5 o Llama 4.
+* **La Solución:** **Pase de Actualización Anual de Cerebros ("Brain Upgrade Pass") - $4.99 USD/año (OPCIONAL)**.
+  * **Mecánica:** No coercitiva. Si el usuario no paga el pase anual, la app y sus modelos comprados (Gemma 4/Gemma 3) **siguen funcionando de por vida**.
+  * **Valor:** Da acceso a la descarga de la nueva generación de IAs (Gemma 5 / Llama 4), nuevas voces neuronales y características premium lanzadas ese año.
+  * **Posicionamiento:** *"Actualiza el cerebro de tu IA cuando quieras"*.
 
-1.  **Indicador Visual:** Se coloca un pequeño icono de un candado elegante (o la etiqueta `PRO` en color violeta/verde neón) junto al botón de Proyectos, el Tema Zion o la descarga de Gemma 4.
-2.  **Paywall Modal:** Si el usuario hace clic en una función Pro, se abre una ventana emergente muy pulida que:
-    *   Explica con claridad el valor de lo que está bloqueado (ej: *"Gemma 4 te ofrece un razonamiento filosófico profundo para desmenuzar pensamientos complejos localmente"*).
-    *   Muestra el botón de compra única *"Obtener AI Diary Pro por $9.99"*.
-    *   Ofrece un botón discreto de cerrar para mantener una experiencia agradable y sin presión.
+### Riesgo 2: Comisiones de las Tiendas (Apple 30% / Google 15-30%)
+* **El Problema:** En el año 1, Apple/Google cobran el 30% de comisión (recibes $10.49 netos de una venta de $14.99).
+* **La Solución:** Ajuste del margen individual por módulos a $4.99 USD y Roadmap de incremento progresivo de precio en el Bundle del Año 2.
 
----
-
-## 5. Estrategia de Crecimiento Orgánico (Presupuesto $0)
-
-Para adquirir usuarios sin presupuesto de marketing, nos apoyaremos en el crecimiento guiado por el producto (Product-Led Growth):
-
-*   **El Bucle Viral OCEAN+:** Tras completar un test de personalidad, la app genera una tarjeta visual hermosa y minimalista (estilo "Spotify Wrapped") con los rasgos del usuario y una marca de agua: *"Generado de forma 100% privada y local por AI Diary"*. Esto incentiva a compartirla en Instagram Stories o TikTok.
-*   **Marketing de Nicho en Reddit:** Participación en comunidades como `/r/digitaljournaling`, `/r/privacy` y `/r/selfimprovement`, posicionando la app como:
-    1.  La única alternativa real para quienes temen que las IAs en la nube lean sus secretos.
-    2.  El único diario interactivo sin suscripciones mensuales abusivas.
-*   **ASO (App Store Optimization):** Foco en palabras clave de alta intención de búsqueda offline y de privacidad: *"Diario privado offline"*, *"Diario por voz local"*, *"Test de personalidad OCEAN"*, *"IA offline"*.
+### Riesgo 3: Subvaloración de la Bóveda de Seguridad (AES-256 Vault)
+* **El Problema:** El cifrado físico local de datos personales es una característica de altísima percepción de valor (competidores como Standard Notes u Obsidian cobran de $4 a $9 USD al mes solo por esto).
+* **La Solución:** Elevar el precio del **Módulo Bóveda Cifrada de $2.99 a $4.99 USD (Pago Único)**. Esto incrementa la suma de los módulos a $17.96 USD, mejorando la matemática de anclaje de precios contra el bundle.
 
 ---
 
-## 6. Análisis FODA (SWOT)
+## 💰 Modelo de Monetización Modular & Roadmap de Precios
 
-```
-┌───────────────────────────────────────────┬───────────────────────────────────────────┐
-│              FORTALEZAS (S)               │             OPORTUNIDADES (O)             │
-│ • Privacidad radical certificada (local). │ • Capturar al nicho paranoico de la       │
-│ • Conversación por voz offline fluida.    │   privacidad de datos.                    │
-│ • Sin costos de servidores por tokens.    │ • Alianzas éticas con psicólogos reales   │
-│ • Tests de personalidad integrados.       │   (diario local de apoyo a terapia).      │
-│                                           │ • Tendencia de rechazo a suscripciones.   │
-├───────────────────────────────────────────┼───────────────────────────────────────────┤
-│              DEBILIDADES (W)              │              AMENAZAS (T)                 │
-│ • Descarga inicial pesada (modelos GGUF). │ • Invasión de asistentes del sistema      │
-│ • Consumo de batería por inferencia local.│   (Apple Intelligence/Gemini Nano).       │
-│ • Dispositivos de gama baja limitados     │ • Modelos web locales que utilicen        │
-│   a Llama 3.2 1B (menos de 6GB de RAM).   │   WebGPU directo en el navegador.         │
-└───────────────────────────────────────────┴───────────────────────────────────────────┘
-```
+### Tabla Comparativa de Módulos (Año 1 - Lanzamiento)
+
+| Elemento / Módulo | Tipo de Monetización | Precio Año 1 (Lanzamiento) | Razón y Psicología de Precios |
+| :--- | :--- | :--- | :--- |
+| **App Base (Anima Light)** | GRATIS | **$0.00** | Adquisición masiva (Gemma 3 1B + Voz local + Test OCEAN básico). |
+| **Módulo Razonamiento Profundo** | IAP Pago Único | **$4.99 USD** | Desbloquea Gemma 4 (2B) + Búsquedas Sentinel Web. |
+| **Módulo Multimodal (Visión)** | IAP Pago Único | **$3.99 USD** | Desbloquea el proyector de imágenes (940 MB). |
+| **Módulo Bóveda Cifrada (Vault)** | IAP Pago Único | **$4.99 USD** | Cifrado físico local AES-256 (Competencia cobra $4-9/mes). |
+| **Módulo Clínico (RAG & PDFs)** | IAP Pago Único | **$3.99 USD** | Lectura RAG de PDFs y exportación de reportes clínicos OCEAN+. |
+| **Suma Total de Módulos** | — | **$17.96 USD** | Base para el anclaje de precio. |
+| **Anima Full Unlock (Bundle)** | IAP Pago Único (Lifetime) | **$14.99 USD** | **Ahorro inmediato del 17% ($2.97)**. Desbloquea todo de por vida. |
+| **Pase Anual de Nuevos Cerebros** | Suscripción Opcional | **$4.99 USD / año** | Da acceso a Gemma 5 / Llama 4 en el futuro. Totalmente opcional. |
+| **Propinas / Donaciones** | Donación Voluntaria | **$3 / $5 / $10 / $25 USD** | Para power users y defensores del código abierto/privacidad. |
+
+---
+
+## 🗓️ Roadmap de Actualización de Precios (Año 1 vs. Año 2)
+
+Para maximizar ingresos a medida que la app madura y gana reputación, establecemos un plan dinámico de precios:
+
+* **Año 1 (Fase de Lanzamiento y Tracción):**
+  * Bundle `Anima Full Unlock` promocional de lanzamiento: **$14.99 USD**.
+  * Posiciona a AI Diary como el "deal" definitivo del año frente a Rosebud ($107.99/año).
+* **Año 2 (Fase de Madurez y Entrada de Gemma 5):**
+  * El precio del Bundle `Anima Full Unlock` se actualiza oficialmente a **$17.99 o $19.99 USD**.
+  * Se añade un nuevo módulo exclusivo o voces premium adicionales al bundle para justificar el incremento.
+  * Los compradores del Año 1 conservan su estatus de *Early Adopters* (compraron a $14.99), lo que genera un gran boca a boca ("Cómprala antes de que suba").
+
+---
+
+## 🎯 Disparadores Contextuales de Conversión (Conversion Triggers)
+
+Los módulos no se venden de forma pasiva en una tienda aburrida. Aparecen en **4 momentos de máxima intención de uso**:
+
+1. **Trigger 1: Carga de Anima Deep**
+   * *Acción del Usuario:* El usuario intenta cambiar el motor de IA a Anima Deep.
+   * *Mensaje Paywall:* *"Anima Deep (Gemma 4) ofrece razonamiento filosófico introspectivo. Desbloquea el Módulo de Razonamiento Profundo por $4.99 o activa todo con Full Unlock."*
+2. **Trigger 2: Adjuntar primera Imagen**
+   * *Acción del Usuario:* El usuario presiona el icono de cámara o selecciona una foto.
+   * *Mensaje Paywall:* *"La IA local necesita el Módulo Multimodal ($3.99) para analizar y describir tus imágenes sin subirlas a la nube."*
+3. **Trigger 3: Importar primer PDF**
+   * *Acción del Usuario:* El usuario selecciona un documento PDF largo para análisis.
+   * *Mensaje Paywall:* *"La lectura RAG de documentos y análisis profundo de archivos requiere el Módulo Clínico ($3.99)."*
+4. **Trigger 4: Finalización del Test OCEAN / Big Five**
+   * *Acción del Usuario:* El usuario concluye su test de personalidad y presiona "Exportar Reporte para Terapeuta".
+   * *Mensaje Paywall:* *"Genera un PDF clínico extendido con tus métricas de personalidad. Desbloquea el Módulo Clínico ($3.99) o adquiere Anima Full Unlock ($14.99)."*
+
+---
+
+## 📈 Estrategia de Crecimiento Orgánico ($0 Presupuesto)
+
+1. **Bucle Viral OCEAN+:** Tarjetas visuales minimalistas estilo "Spotify Wrapped" compartibles en Instagram/TikTok: *"Mi personalidad analizada 100% en mi teléfono por AI Diary"*.
+2. **Reddit Growth (Comunidades de Privacidad):** Guerrilla marketing en `/r/privacy`, `/r/selfimprovement` y `/r/digitaljournaling` destacando que AI Diary es la única app de IA que no cobra suscripciones obligatorias ni almacena datos en la nube.
+3. **ASO Palabras Clave:** *"Diario offline sin suscripción"*, *"Diario privado local"*, *"Test OCEAN privado"*, *"IA local"*.

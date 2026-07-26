@@ -6,7 +6,7 @@ import { initLlama, releaseAllLlama } from 'llama.rn';
 import { getHardwareConfig, getDeviceTemperature, getTotalRAM } from '../lib/hardware';
 import { MODEL_CONFIG, getDynamicEngineConfig, MODEL_LIST, ModelDefinition } from '../src/config/ModelConfig';
 import { cpuSemaphore } from '../lib/CPUSemaphore';
-import { canLoadModel } from '../lib/RAMGuard';
+import { canLoadModel, getFreeRAM } from '../lib/RAMGuard';
 import { settingsService } from '../lib/SettingsService';
 import { Asset } from 'expo-asset';
 
@@ -33,8 +33,11 @@ let activeContext: any = null;
 let isModelLoading = false;
 let generationId = 0;
 
+let globalEmbeddingContext: any = null;
+let embeddingInitPromise: Promise<void> | null = null;
 
 const clearCompletionQueue = () => {
+  generationId++; // Invalida cualquier callback de completion pendiente de inmediato
   console.log('[CONCURRENCY] Clearing Llama completion queue.');
   backgroundQueue.forEach(t => t.reject(new Error('Model released or changed')));
   backgroundQueue = [];
@@ -168,12 +171,13 @@ const processNextTasks = async (context: any) => {
 
 
 export function useAppLlm(lang: string = 'es') {
-  const AVAILABLE_MODELS = useMemo(() => MODEL_LIST.filter(m => m.id !== 'gemma3-4b-q4').map(m => ({
+  const AVAILABLE_MODELS = useMemo(() => MODEL_LIST.map(m => ({
     ...m,
     label: lang === 'es' ? m.labelEs : m.labelEn,
     description: lang === 'es' ? m.descEs : m.descEn,
   })),[lang]);
   const [status, setStatus] = useState<'idle' | 'downloading' | 'loading' | 'ready'>('idle');
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloadingModel, setDownloadingModel] = useState<ModelDefinition | null>(null);
   // Default to the last model in the list (Anima Deep) to show correct UI during async startup.
@@ -258,12 +262,22 @@ export function useAppLlm(lang: string = 'es') {
 
   const getModelRemoteSize = async (model: ModelDefinition): Promise<number | null> => {
     try {
-      const response = await fetch(model.url, { method: 'HEAD' });
+      // 🛡️ 5s timeout: Prevent hanging HEAD requests in offline/emulator scenarios
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
+      const response = await fetch(model.url, { method: 'HEAD', signal: controller.signal });
+      clearTimeout(timeoutId);
       const contentLength = response.headers.get('content-length');
       if (contentLength) {
         return parseInt(contentLength, 10);
       }
-    } catch (e) { console.log('Error fetching remote model size:', e); }
+    } catch (e: any) {
+      if (e?.name === 'AbortError') {
+        console.log('[LLM] getModelRemoteSize: HEAD request timed out (5s). Assuming model is complete.');
+      } else {
+        console.log('Error fetching remote model size:', e);
+      }
+    }
     return null;
   };
 
@@ -413,21 +427,21 @@ export function useAppLlm(lang: string = 'es') {
 
             if (!fileExists) {
               console.warn(`[LLM] Preferred model ${model.id} not found on disk. Falling back to Anima Light.`);
-              modelToUse = AVAILABLE_MODELS.find(m => m.id === 'llama3.2-1b-q4') || model;
+              modelToUse = AVAILABLE_MODELS.find(m => m.id === 'gemma3-1b-it-q4') || model;
               await settingsService.set({ preferredModel: modelToUse.id, wasModelActive: false });
             } else if (model.id === 'gemma4-e2b-qat' && totalRam < 3000 && !hwConfig?.isEmulator) {
               console.log(`[LLM] Device has very low RAM (${totalRam} MB). Downgrading preferred model to Anima Light on startup.`);
-              modelToUse = AVAILABLE_MODELS.find(m => m.id === 'llama3.2-1b-q4') || model;
+              modelToUse = AVAILABLE_MODELS.find(m => m.id === 'gemma3-1b-it-q4') || model;
             } else {
               modelToUse = model;
             }
           }
         } else {
           // Hardware analyzer: no preferred model yet. 
-          // Default to Llama 3.2 1B to be safe on all devices. 
-          // Future: Insert monetization rules here (e.g. Free Tier always gets Llama).
-          console.log(`[LLM] Hardware Analyzer: Total RAM = ${totalRam} MB. Defaulting to Llama 3.2.`);
-          const lightModel = AVAILABLE_MODELS.find(m => m.id === 'llama3.2-1b-q4');
+          // Default to Gemma 3 1B to be safe on all devices. 
+          // Future: Insert monetization rules here (e.g. Free Tier always gets Light model).
+          console.log(`[LLM] Hardware Analyzer: Total RAM = ${totalRam} MB. Defaulting to Gemma 3 1B.`);
+          const lightModel = AVAILABLE_MODELS.find(m => m.id === 'gemma3-1b-it-q4');
           if (lightModel) {
             modelToUse = lightModel;
           }
@@ -857,13 +871,31 @@ export function useAppLlm(lang: string = 'es') {
       const hw = await getHardwareConfig();
       const temp = await getDeviceTemperature();
       const totalRam = await getTotalRAM();
+      const freeRam = await getFreeRAM();
 
-      // Load gpuTurbo setting via SettingsService
+      // Load settings, handle gpuTurbo and execute crash recovery
       let useTurbo = false;
+      let maxGpuLayers = 99;
       try {
         const settings = await settingsService.get();
         if (settings.gpuTurbo ?? settings.experimentalTurbo) useTurbo = true;
-      } catch (e) { console.log('[LLM] Error reading turbo setting', e); }
+        
+        maxGpuLayers = settings.maxGpuLayers ?? 99;
+        
+        if (settings.isModelBooting === true) {
+          console.warn('[LLM] 💥 Crash detected on previous model boot! Reducing maxGpuLayers as safety backup.');
+          maxGpuLayers = Math.max(0, maxGpuLayers - 10);
+          await settingsService.set({
+            maxGpuLayers,
+            isModelBooting: false // Reset flag to allow normal booting on current attempt
+          });
+        }
+      } catch (e) { console.log('[LLM] Error reading settings for bootstrap:', e); }
+
+      // Mark that model boot sequence is in progress
+      try {
+        await settingsService.set({ isModelBooting: true });
+      } catch (e) { console.warn('[LLM] Failed to write booting state:', e); }
 
       const dynamicConfig = getDynamicEngineConfig(
         temp,
@@ -872,7 +904,9 @@ export function useAppLlm(lang: string = 'es') {
         useTurbo,
         Platform.OS === 'ios',
         hw.architecture,
-        totalRam
+        totalRam,
+        freeRam,
+        maxGpuLayers
       );
       let dyn_threads = loadOptions?.n_threads ?? dynamicConfig.threads;
       
@@ -891,19 +925,30 @@ export function useAppLlm(lang: string = 'es') {
 
       let dyn_ctx = 4096;
       let dyn_batch = 512;
+      let dyn_ubatch = 512;
 
       const tier = getCurrentTier();
-      const tierConfigs: Record<MemoryTier, { batch: number, ctx: number }> = {
-        [MemoryTier.TITAN]: { batch: 2048, ctx: 32768 },
-        [MemoryTier.ELITE]: { batch: 2048, ctx: 24576 },
-        [MemoryTier.AVANZADO]: { batch: 1024, ctx: 16384 },
-        [MemoryTier.ESTANDAR_PRO]: { batch: 1024, ctx: 8192 },
-        [MemoryTier.ESTANDAR]: { batch: 512, ctx: 4096 },
-        [MemoryTier.ENTRADA]: { batch: 512, ctx: 3072 },
+      const tierConfigs: Record<MemoryTier, { batch: number, ubatch: number, ctx: number }> = {
+        [MemoryTier.TITAN]: { batch: 2048, ubatch: 512, ctx: 32768 },
+        [MemoryTier.ELITE]: { batch: 2048, ubatch: 512, ctx: 24576 },
+        [MemoryTier.AVANZADO]: { batch: 2048, ubatch: 512, ctx: 16384 },
+        [MemoryTier.ESTANDAR_PRO]: { batch: 2048, ubatch: 512, ctx: 8192 },
+        [MemoryTier.ESTANDAR]: { batch: 1024, ubatch: 256, ctx: 4096 },
+        [MemoryTier.ENTRADA]: { batch: 1024, ubatch: 256, ctx: 3072 },
       };
       const config = tierConfigs[tier];
       dyn_batch = config.batch;
+      dyn_ubatch = config.ubatch;
       dyn_ctx = config.ctx;
+
+      // Cap de contexto en emuladores: Evitar los 16k/32k que disparan el TTFT a 142s
+      if (hw.isEmulator) {
+        const MAX_CTX_EMULATOR = 4096;
+        if (dyn_ctx > MAX_CTX_EMULATOR) {
+          console.log(`[LLM] Emulator detected: capping context from ${dyn_ctx} to ${MAX_CTX_EMULATOR} tokens.`);
+          dyn_ctx = MAX_CTX_EMULATOR;
+        }
+      }
 
       const cacheType = totalRam < 12000 ? 'q4_0' : 'q8_0';
 
@@ -920,7 +965,7 @@ export function useAppLlm(lang: string = 'es') {
         use_mmap: dyn_use_mmap, // 🚀 Carga rápida en alta gama, estable en gama de entrada
         n_ctx: dyn_ctx,
         n_batch: dyn_batch,
-        n_ubatch: dyn_batch, // 🌡️ Thermally controlled Chunked Prefill (must match n_batch)
+        n_ubatch: dyn_ubatch, // 🌡️ Thermally controlled Chunked Prefill (decoupled from n_batch)
         n_threads: dyn_threads,
         n_gpu_layers: dyn_gpu_layers,
         cache_type_k: cacheType,
@@ -960,6 +1005,9 @@ export function useAppLlm(lang: string = 'es') {
       }
       setStatus('ready');
       console.log('[LLM] Model loaded successfully!');
+      try {
+        await settingsService.set({ isModelBooting: false });
+      } catch (err) {}
       await saveModelActiveState(true, modelToLoad.id);
 
       if (Platform.OS === 'android') {
@@ -977,6 +1025,9 @@ export function useAppLlm(lang: string = 'es') {
     } catch (e: any) {
       console.error('[LLM] Error loading model:', e);
       setStatus('idle');
+      try {
+        await settingsService.set({ isModelBooting: false });
+      } catch (err) {}
       await saveModelActiveState(false);
       throw e;
     } finally {
@@ -1030,8 +1081,7 @@ export function useAppLlm(lang: string = 'es') {
       let adjustedMessages = multimodalMessages ? [...multimodalMessages] : null;
 
       const isLlama = activeModel?.id.includes('llama');
-      const isGemma3 = !isLlama && activeModel?.id.includes('gemma3');
-      const modelConfig = isLlama ? MODEL_CONFIG.llama3_2 : (isGemma3 ? MODEL_CONFIG.gemma3 : MODEL_CONFIG.gemma4);
+      const modelConfig = isLlama ? MODEL_CONFIG.llama3_2 : MODEL_CONFIG.gemma4;
 
       // 🛡️ Safeproof Switch: Dynamic temperature limits to prevent hallucination
       // and behavioral drift. LLMs in long sessions hallucinate at high temps.
@@ -1056,22 +1106,22 @@ export function useAppLlm(lang: string = 'es') {
         ));
         targetTopP = 1.0; // Disabled to let min_p work cleanly
         targetRepeatPenalty = 1.15;
-      } else if (isGemma3) {
-        // Gemma 3 4B requires higher temperature for stable outputs and to prevent loops/refusals
-        targetTemp = forceDeterminism ? 0.15 : (forceHighTemperature ? 0.85 : (
-          consciousnessLevel === 1 ? 0.30 // Highly deterministic (Forensic)
-            : consciousnessLevel === 2 ? modelConfig.temperature // Balanced but grounded (Default)
-              : consciousnessLevel === 3 ? 0.85 // Creative but safe
-                : 0.90
-        ));
       } else {
-        // Gemma 4 dynamic temperature scale
+        // Gemma 4 E2B QAT dynamic sampling
         targetTemp = forceDeterminism ? 0.15 : (forceHighTemperature ? 0.85 : (
-          consciousnessLevel === 1 ? 0.30
-            : consciousnessLevel === 2 ? modelConfig.temperature // 0.7
-              : consciousnessLevel === 3 ? 0.80
-                : 0.90
+          consciousnessLevel === 1 ? 0.20
+            : consciousnessLevel === 2 ? modelConfig.temperature
+              : consciousnessLevel === 3 ? 0.70
+                : 0.85
         ));
+        targetMinP = forceDeterminism ? 0.05 : (
+          consciousnessLevel === 1 ? 0.05
+            : consciousnessLevel === 2 ? 0.05
+              : consciousnessLevel === 3 ? 0.08
+                : 0.10
+        );
+        targetTopP = 0.85;
+        targetRepeatPenalty = 1.05;
       }
 
       // Map consciousnessLevel directly to directives (1=Zen, 2=Balance, 3=Deep, 4=Philosophic)
@@ -1084,23 +1134,19 @@ export function useAppLlm(lang: string = 'es') {
         4: ""
       };
 
-      // Only apply directives to Gemma architectures (they have reasoning blocks)
+      // Only apply directives to multimodal message structure if present (they have reasoning blocks)
       const directive = isLlama ? "" : (directives[consciousnessLevel] || "");
-      if (directive) {
-        if (adjustedMessages && adjustedMessages.length > 0) {
-          const lastIdx = adjustedMessages.length - 1;
-          const lastMsg = { ...adjustedMessages[lastIdx] };
+      if (directive && adjustedMessages && adjustedMessages.length > 0) {
+        const lastIdx = adjustedMessages.length - 1;
+        const lastMsg = { ...adjustedMessages[lastIdx] };
 
-          if (Array.isArray(lastMsg.content) && lastMsg.content.length > 0) {
-            const firstContent = lastMsg.content[0];
-            if (firstContent && typeof firstContent === 'object' && 'text' in firstContent) {
-              lastMsg.content = [{ ...firstContent, text: firstContent.text + directive }];
-            }
+        if (Array.isArray(lastMsg.content) && lastMsg.content.length > 0) {
+          const firstContent = lastMsg.content[0];
+          if (firstContent && typeof firstContent === 'object' && 'text' in firstContent) {
+            lastMsg.content = [{ ...firstContent, text: firstContent.text + directive }];
           }
-          adjustedMessages[lastIdx] = lastMsg;
-        } else if (adjustedPrompt) {
-          adjustedPrompt += directive;
         }
+        adjustedMessages[lastIdx] = lastMsg;
       }
 
       tokenCounterRef.current = 0;
@@ -1120,10 +1166,51 @@ export function useAppLlm(lang: string = 'es') {
         3: 1024,  // Deep
         4: 1024,  // Philosophic
       };
-      const dynamicNPredict = nPredictByLevel[consciousnessLevel] ?? 512;
+      let dynamicNPredict = nPredictByLevel[consciousnessLevel] ?? 512;
+
+      // Tarea 2: Dynamic n_predict calculation based on remaining tokens in context to prevent overflow crash
+      try {
+        if (adjustedPrompt && llamaContextRef.current && typeof llamaContextRef.current.tokenize === 'function') {
+          const tokenResult = await llamaContextRef.current.tokenize(adjustedPrompt);
+          const promptTokensCount = Array.isArray(tokenResult) ? tokenResult.length : (tokenResult?.tokens?.length || Math.ceil(adjustedPrompt.length / 3.0));
+          const availableTokens = currentContextSize - promptTokensCount - 32;
+          if (availableTokens > 0) {
+            dynamicNPredict = Math.min(dynamicNPredict, availableTokens);
+          } else {
+            dynamicNPredict = 16; // Safety floor
+          }
+          console.log(`[LLM] Dynamic n_predict calculated: ${dynamicNPredict} (Available: ${availableTokens}, Prompt tokens: ${promptTokensCount}, Context: ${currentContextSize})`);
+        }
+      } catch (err) {
+        console.warn('[LLM] Error calculating dynamic n_predict, falling back to heuristic:', err);
+        const estimatedTokens = Math.ceil((adjustedPrompt || "").length / 3.0);
+        const availableTokens = currentContextSize - estimatedTokens - 32;
+        if (availableTokens > 0) {
+          dynamicNPredict = Math.min(dynamicNPredict, availableTokens);
+        }
+      }
+
+      let systemTokens = 0;
+      if (adjustedMessages && adjustedMessages.length > 0 && adjustedMessages[0].role === 'system') {
+        const sysContent = adjustedMessages[0].content;
+        const text = typeof sysContent === 'string' ? sysContent : sysContent[0]?.text || '';
+        try {
+          if (llamaContextRef.current && typeof llamaContextRef.current.tokenize === 'function') {
+            const tokenResult = await llamaContextRef.current.tokenize(text);
+            systemTokens = Array.isArray(tokenResult) ? tokenResult.length : (tokenResult?.tokens?.length || Math.ceil(text.length / 2.8));
+          } else {
+            systemTokens = Math.ceil(text.length / 2.8);
+          }
+        } catch (err) {
+          systemTokens = Math.ceil(text.length / 2.8); // 🛡️ Fallback ratio preciso para español/multilingüe (~2.8 chars/token)
+        }
+      } else if (adjustedPrompt) {
+        systemTokens = 256; 
+      }
 
       const completionOptions: any = {
         n_predict: dynamicNPredict,
+        n_keep: systemTokens, // 🛡️ Anti-Drift: Anchor System Prompt
         temperature: targetTemp,
         top_p: targetTopP,
         min_p: targetMinP,
@@ -1131,11 +1218,7 @@ export function useAppLlm(lang: string = 'es') {
         repeat_last_n: 128,
         stop: isLlama
           ? ["<|eot_id|>", "<|eom_id|>", "<|begin_of_text|>"]
-          : isGemma3
-            // Gemma 3 4B: standard end-of-turn token + safety fallbacks
-            ? ["<eos>", "<end_of_turn>", "<|endoftext|>"]
-            // Gemma 4 E2B: standard end-of-turn token
-            : ["<eos>", "<end_of_turn>", "<|im_end|>", "<|eot_id|>"],
+          : ["<eos>", "<end_of_turn>", "<|turn|>", "<turn|>"],
         cache_prompt: true,
         slot_id: 0,
         prompt: adjustedMessages ? undefined : adjustedPrompt,
@@ -1171,6 +1254,11 @@ export function useAppLlm(lang: string = 'es') {
       let lastDispatchTime = Date.now();
       const BATCH_INTERVAL_MS = 40; // ~25 FPS UI updates
 
+      console.log(`[LLM-DEBUG] Model ID: ${activeModel?.id}`);
+      console.log(`[LLM-DEBUG] isLlama: ${isLlama}`);
+      console.log(`[LLM-DEBUG] Stop tokens: ${JSON.stringify(completionOptions.stop)}`);
+      console.log(`[LLM-DEBUG] Prompt being sent to llama.cpp:\n<<PROMPT_START>>\n${adjustedPrompt}\n<<PROMPT_END>>`);
+
       const result = await llamaContextRef.current.completion(completionOptions, (data: any) => {
         if (generationId !== currentGenId) return; // Contexto invalidado, descartar token
         
@@ -1205,6 +1293,7 @@ export function useAppLlm(lang: string = 'es') {
         setTokensUsed(result.tokens_cached);
       }
 
+      console.log(`[LLM-DEBUG] Final fullResponse from completion:\n<<RESPONSE_START>>\n${fullResponse}\n<<RESPONSE_END>>`);
       return fullResponse;
     } catch (e: any) {
       onError(`[NATIVE ERROR] Sanctuary Reasoning Loop failed: ${e?.message || e}`);
@@ -1253,6 +1342,18 @@ export function useAppLlm(lang: string = 'es') {
     // false in this stale closure.
     if (isDownloadingRef.current) return;
 
+    // 🛡️ Fast connectivity pre-check: avoid blocking the JS thread with
+    // network HEAD requests if offline or in an emulator without internet.
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 3000);
+      await fetch('https://huggingface.co', { method: 'HEAD', signal: controller.signal });
+      clearTimeout(timeoutId);
+    } catch {
+      console.log('[LLM] resumeIncompleteDownloads: No connectivity. Skipping resume check.');
+      return;
+    }
+
     const baseDir = FileSystem.documentDirectory?.replace(/\/+$/, '') + '/llm_models';
     const dirInfo = await FileSystem.getInfoAsync(baseDir);
     if (!dirInfo.exists) return;
@@ -1296,9 +1397,44 @@ export function useAppLlm(lang: string = 'es') {
     }
   };
 
+  const deleteModel = async (modelId: string) => {
+    if (activeModel?.id === modelId) {
+      console.log('[LLM] Deleting active model, resetting to home first.');
+      await resetToHome();
+    }
+    
+    const modelDef = AVAILABLE_MODELS.find(m => m.id === modelId);
+    if (modelDef) {
+      const baseDirRaw = FileSystem.documentDirectory?.replace(/\/+$/, '') || '';
+      const baseDir = baseDirRaw + '/llm_models';
+      const filesToDelete = [
+         modelDef.fileName,
+         modelDef.mmprojFileName,
+         modelDef.fileName ? `download_resume_${modelDef.fileName}.json` : undefined,
+         modelDef.mmprojFileName ? `download_resume_${modelDef.mmprojFileName}.json` : undefined
+      ];
+      
+      for (const fileName of filesToDelete) {
+         if (!fileName) continue;
+         const path = `${baseDir}/${fileName}`;
+         try {
+           const info = await FileSystem.getInfoAsync(path);
+           if (info.exists) {
+              await FileSystem.deleteAsync(path, { idempotent: true });
+              console.log(`[LLM] Deleted model file: ${fileName}`);
+           }
+         } catch(e) {
+           console.log(`[LLM] Failed to delete ${fileName}`, e);
+         }
+      }
+    }
+    setRefreshTrigger(prev => prev + 1);
+  };
+
   return {
     deviceRAM,
     status,
+    refreshTrigger,
     isDownloading,
     downloadingModel,
     downloadingType,
@@ -1325,54 +1461,62 @@ export function useAppLlm(lang: string = 'es') {
     getModelStatus,
     checkModelVersion,
     resumeIncompleteDownloads,
+    deleteModel,
 
     // RAG & Embeddings
     generateEmbeddings: async (texts: string[]): Promise<number[][]> => {
-      const baseDirRaw = FileSystem.documentDirectory?.replace(/\/+$/, '').replace(/^file:\/\//, '');
-      const modelPath = `${baseDirRaw}/llm_models/all-MiniLM-L6-v2-ggml-model-q4_0.gguf`;
-      const info = await FileSystem.getInfoAsync(`file://${modelPath}`);
-      
-      if (!info.exists) {
-        console.log(`[LLM] 🧠 Copying local embedding model (all-MiniLM-L6-v2) from assets...`);
-        const parentDir = `${baseDirRaw}/llm_models`;
-        const parentInfo = await FileSystem.getInfoAsync(`file://${parentDir}`);
-        if (!parentInfo.exists) {
-          await FileSystem.makeDirectoryAsync(`file://${parentDir}`, { intermediates: true });
+      const initGlobalEmbeddings = async () => {
+        if (globalEmbeddingContext) return;
+        if (embeddingInitPromise) {
+           await embeddingInitPromise;
+           return;
         }
-        const asset = Asset.fromModule(require('../assets/all-MiniLM-L6-v2-ggml-model-q4_0.gguf'));
-        await asset.downloadAsync();
-        if (asset.localUri) {
-          await FileSystem.copyAsync({
-            from: asset.localUri,
-            to: `file://${modelPath}`
+        embeddingInitPromise = (async () => {
+          const baseDirRaw = FileSystem.documentDirectory?.replace(/\/+$/, '').replace(/^file:\/\//, '');
+          const modelPath = `${baseDirRaw}/llm_models/all-MiniLM-L6-v2-ggml-model-q4_0.gguf`;
+          const info = await FileSystem.getInfoAsync(`file://${modelPath}`);
+          
+          if (!info.exists) {
+            console.log(`[LLM] 🧠 Copying local embedding model (all-MiniLM-L6-v2) from assets...`);
+            const parentDir = `${baseDirRaw}/llm_models`;
+            const parentInfo = await FileSystem.getInfoAsync(`file://${parentDir}`);
+            if (!parentInfo.exists) {
+              await FileSystem.makeDirectoryAsync(`file://${parentDir}`, { intermediates: true });
+            }
+            const asset = Asset.fromModule(require('../assets/all-MiniLM-L6-v2-ggml-model-q4_0.gguf'));
+            await asset.downloadAsync();
+            if (asset.localUri) {
+              await FileSystem.copyAsync({
+                from: asset.localUri,
+                to: `file://${modelPath}`
+              });
+              console.log(`[LLM] 🧠 Embedding Model copied successfully.`);
+            } else {
+              throw new Error('Failed to resolve local asset path for all-MiniLM-L6-v2');
+            }
+          }
+
+          console.log(`[LLM] 🧠 Initializing Singleton Embedding Context...`);
+          globalEmbeddingContext = await initLlama({
+            model: `file://${modelPath}`,
+            embedding: true,
+            n_ctx: 512,
+            n_threads: 2, // Minimal threads for small model
+            n_gpu_layers: 0 // Keep on CPU to avoid OpenCL conflicts with active chat model
           });
-          console.log(`[LLM] 🧠 Embedding Model copied successfully.`);
-        } else {
-          throw new Error('Failed to resolve local asset path for all-MiniLM-L6-v2');
-        }
-      }
+        })();
+        await embeddingInitPromise;
+      };
 
-      console.log(`[LLM] 🧠 Initializing Embedding Context...`);
-      const embeddingContext = await initLlama({
-        model: `file://${modelPath}`,
-        embedding: true,
-        n_ctx: 512,
-        n_threads: 2, // Minimal threads for small model
-        n_gpu_layers: 0 // Keep on CPU to avoid OpenCL conflicts with active chat model
-      });
+      await initGlobalEmbeddings();
 
-      try {
-        const results: number[][] = [];
-        console.log(`[LLM] 🧠 Generating ${texts.length} embeddings...`);
-        for (const text of texts) {
-          const { embedding } = await embeddingContext.embedding(text);
-          results.push(embedding);
-        }
-        return results;
-      } finally {
-        console.log(`[LLM] 🧠 Releasing Embedding Context...`);
-        await embeddingContext.release();
+      const results: number[][] = [];
+      console.log(`[LLM] 🧠 Generating ${texts.length} embeddings from Singleton...`);
+      for (const text of texts) {
+        const { embedding } = await globalEmbeddingContext.embedding(text);
+        results.push(embedding);
       }
+      return results;
     }
   };
 }
