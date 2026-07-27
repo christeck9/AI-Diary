@@ -137,6 +137,7 @@ export default function SettingsScreen() {
   const [securityStatus, setSecurityStatus] = useState<any>(null);
   const [isScanningSecurity, setIsScanningSecurity] = useState(false);
   const [voiceReportMode, setVoiceReportMode] = useState<'daily' | 'always' | 'never'>('daily');
+  const [ignoreRootWarnings, setIgnoreRootWarnings] = useState(false);
 
   const runSecurityScan = async () => {
     setIsScanningSecurity(true);
@@ -160,6 +161,9 @@ export default function SettingsScreen() {
           if (isMounted) {
             if (security.voiceReportMode) {
               setVoiceReportMode(security.voiceReportMode);
+            }
+            if (typeof security.ignoreRootWarnings === 'boolean') {
+              setIgnoreRootWarnings(security.ignoreRootWarnings);
             }
             const last = securityScanner.getLastStatus();
             if (last) {
@@ -231,8 +235,13 @@ export default function SettingsScreen() {
           if (settings.gpuTurbo ?? settings.experimentalTurbo) setGpuTurbo(true);
           if (settings.openAIVoice) setOpenAIVoice(settings.openAIVoice);
           if (settings.googleVoiceName) setGoogleVoiceName(settings.googleVoiceName);
-          if (settings.security && settings.security.voiceReportMode) {
-            setVoiceReportMode(settings.security.voiceReportMode);
+          if (settings.security) {
+            if (settings.security.voiceReportMode) {
+              setVoiceReportMode(settings.security.voiceReportMode);
+            }
+            if (typeof settings.security.ignoreRootWarnings === 'boolean') {
+              setIgnoreRootWarnings(settings.security.ignoreRootWarnings);
+            }
           }
 
           // Backup fallback: if Brave key is in settings but not in SecureStore (e.g. after upgrade),
@@ -1610,7 +1619,13 @@ export default function SettingsScreen() {
             {/* SECURITY AUDIT CARD */}
             <View style={styles.section}>
               <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 15, gap: 8 }}>
-                <IconSymbol name="shield" size={20} color={securityStatus?.isSecure ? '#4cd964' : '#ff3b30'} />
+                <IconSymbol 
+                  name="shield" 
+                  size={20} 
+                  color={securityStatus?.isRootedOrJailbroken
+                    ? (ignoreRootWarnings ? '#ffb300' : '#ff3b30')
+                    : '#4cd964'} 
+                />
                 <Text style={[styles.sectionTitle, { color: colors.textSecondary, marginBottom: 0 }]}>
                   {lang === 'es' ? 'AUDITORÍA DE SEGURIDAD (SENTINEL)' : 'SECURITY AUDIT (SENTINEL)'}
                 </Text>
@@ -1622,28 +1637,40 @@ export default function SettingsScreen() {
                 padding: 15,
                 borderRadius: 12,
                 borderWidth: 1,
-                borderColor: securityStatus?.isSecure ? '#4cd964' : '#ff3b30',
+                borderColor: securityStatus?.isRootedOrJailbroken
+                  ? (ignoreRootWarnings ? '#ffb300' : '#ff3b30')
+                  : '#4cd964',
                 marginBottom: 15,
                 flexDirection: 'row',
                 alignItems: 'center',
                 gap: 12
               }}>
                 <IconSymbol 
-                  name={securityStatus?.isRootedOrJailbroken ? 'exclamationmark.triangle' : 'checkmark.circle.fill'} 
+                  name={securityStatus?.isRootedOrJailbroken 
+                    ? (ignoreRootWarnings ? 'shield' : 'exclamationmark.triangle') 
+                    : 'checkmark.circle.fill'} 
                   size={24} 
-                  color={securityStatus?.isRootedOrJailbroken ? '#ff3b30' : '#4cd964'} 
+                  color={securityStatus?.isRootedOrJailbroken 
+                    ? (ignoreRootWarnings ? '#ffb300' : '#ff3b30') 
+                    : '#4cd964'} 
                 />
                 <View style={{ flex: 1 }}>
                   <Text style={{ color: colors.textPrimary, fontWeight: 'bold', fontSize: 16 }}>
                     {securityStatus?.isRootedOrJailbroken 
-                      ? (lang === 'es' ? 'DISPOSITIVO EN RIESGO' : 'DEVICE VULNERABLE')
+                      ? (ignoreRootWarnings 
+                          ? (lang === 'es' ? 'ADVERTENCIA OMITIDA' : 'WARNING IGNORED')
+                          : (lang === 'es' ? 'DISPOSITIVO EN RIESGO' : 'DEVICE VULNERABLE'))
                       : (lang === 'es' ? 'SISTEMA SEGURO' : 'SYSTEM SECURE')}
                   </Text>
                   <Text style={{ color: colors.textSecondary, fontSize: 11, marginTop: 2 }}>
                     {securityStatus?.isRootedOrJailbroken 
-                      ? (lang === 'es' 
-                          ? 'Se detectó acceso a la raíz (Root/Jailbreak). Tu privacidad está en peligro.' 
-                          : 'Root or jailbreak detected. Sandbox is compromised.')
+                      ? (ignoreRootWarnings 
+                          ? (lang === 'es' 
+                              ? 'Raíz detectada, pero las alertas están silenciadas por el usuario.' 
+                              : 'Root access detected, but warnings are silenced by user.')
+                          : (lang === 'es' 
+                              ? 'Se detectó acceso a la raíz (Root/Jailbreak). Tu privacidad está en peligro.' 
+                              : 'Root or jailbreak detected. Sandbox is compromised.'))
                       : (lang === 'es' 
                           ? 'No se detectó Root/Jailbreak. Tu caja de arena (Sandbox) está activa.' 
                           : 'No Root/Jailbreak detected. Device sandbox is active.')}
@@ -1756,6 +1783,46 @@ export default function SettingsScreen() {
                     </TouchableOpacity>
                   ))}
                 </View>
+              </View>
+
+              {/* Ignore Root Warnings Switch */}
+              <View style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                backgroundColor: colors.surfaceSecondary,
+                padding: 15,
+                borderRadius: 12,
+                borderWidth: 1,
+                borderColor: colors.border,
+                marginBottom: 15
+              }}>
+                <View style={{ flex: 1, paddingRight: 10 }}>
+                  <Text style={{ color: colors.textPrimary, fontWeight: 'bold', fontSize: 14, marginBottom: 5 }}>
+                    {lang === 'es' ? 'Omitir advertencia de raíz' : 'Ignore root warning'}
+                  </Text>
+                  <Text style={{ color: colors.textSecondary, fontSize: 12 }}>
+                    {lang === 'es' 
+                      ? 'Silencia los reportes por voz si tienes Root o Jailbreak deliberadamente.' 
+                      : 'Silence voice alerts if you have Root or Jailbreak deliberately.'}
+                  </Text>
+                </View>
+                <Switch
+                  trackColor={{ false: colors.border, true: colors.primary }}
+                  thumbColor={ignoreRootWarnings ? '#FFF' : '#f4f3f4'}
+                  onValueChange={async (val) => {
+                    setIgnoreRootWarnings(val);
+                    const settings = (await settingsService.get('security')) || {};
+                    await saveSettings({
+                      security: {
+                        ...settings,
+                        ignoreRootWarnings: val
+                      }
+                    });
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  }}
+                  value={ignoreRootWarnings}
+                />
               </View>
 
               {/* Manual Scan Action */}

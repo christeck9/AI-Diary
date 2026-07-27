@@ -149,7 +149,9 @@ class SecurityScanner {
 
     // Formular el mensaje según el resultado de integridad
     let text = '';
-    if (status.isRootedOrJailbroken) {
+    const ignoreRoot = settings.ignoreRootWarnings || false;
+
+    if (status.isRootedOrJailbroken && !ignoreRoot) {
       text = lang === 'es'
         ? 'Alerta de seguridad. Se ha detectado acceso a la raíz en tu dispositivo. Tu diario podría estar en riesgo.'
         : 'Security alert. Root access detected on your device. Your diary could be at risk.';
