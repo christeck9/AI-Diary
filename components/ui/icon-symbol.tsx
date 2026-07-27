@@ -77,6 +77,11 @@ const MAPPING = {
   'speaker.slash.fill': 'volume-off',
   'arrow.left': 'arrow-back',
   'arrow.right': 'arrow-forward',
+  'shield': 'security',
+  'key': 'vpn-key',
+  'camera': 'camera-alt',
+  'mic': 'mic',
+  'arrow.clockwise': 'refresh',
 } as const;
 
 type IconSymbolName = keyof typeof MAPPING;

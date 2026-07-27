@@ -25,6 +25,7 @@ import { useFocusEffect } from '@react-navigation/native';
 const IntroModal = React.lazy(() => import('../../components/modals/IntroModal').then(m => ({ default: m.IntroModal })));
 const VaultExplorerModal = React.lazy(() => import('../../components/modals/VaultExplorerModal').then(m => ({ default: m.VaultExplorerModal })));
 import { settingsService } from '../../lib/SettingsService';
+import { securityScanner } from '../../lib/SecurityScanner';
 import { cloudTTSService } from '../../lib/CloudTTSService';
 import { getAllBadges, BADGE_CATEGORIES } from '../../db/badgeSchema';
 import { useBadgeTracker } from '../../hooks/useBadgeTracker';
@@ -127,10 +128,55 @@ export default function SettingsScreen() {
 
 
   // Extraemos funciones de LLM para el Force Reload
-  const { status, activeModel, AVAILABLE_MODELS } = useLlmState();
-  const { loadModel, resetToHome, selectModel, getModelStatus, downloadModel } = useLlmActions();
+  const { status, activeModel, AVAILABLE_MODELS, refreshTrigger } = useLlmState();
+  const { loadModel, resetToHome, selectModel, getModelStatus, downloadModel, deleteModel } = useLlmActions();
   const [modelStatuses, setModelStatuses] = useState<Record<string, { status: 'missing' | 'outdated' | 'current', localSizeMB: number, remoteSizeMB: number, integrity: boolean }>>({});
   const [isCheckingModels, setIsCheckingModels] = useState(false);
+
+  // Security Diagnostics and Premium Vault
+  const [securityStatus, setSecurityStatus] = useState<any>(null);
+  const [isScanningSecurity, setIsScanningSecurity] = useState(false);
+  const [voiceReportMode, setVoiceReportMode] = useState<'daily' | 'always' | 'never'>('daily');
+
+  const runSecurityScan = async () => {
+    setIsScanningSecurity(true);
+    try {
+      const status = await securityScanner.runScan();
+      setSecurityStatus(status);
+    } catch (e) {
+      console.warn('[settings.tsx] runSecurityScan error:', e);
+    } finally {
+      setIsScanningSecurity(false);
+    }
+  };
+
+  useFocusEffect(
+    useCallback(() => {
+      let isMounted = true;
+      const loadSecuritySettings = async () => {
+        try {
+          const settings = await settingsService.get();
+          const security = settings.security || {};
+          if (isMounted) {
+            if (security.voiceReportMode) {
+              setVoiceReportMode(security.voiceReportMode);
+            }
+            const last = securityScanner.getLastStatus();
+            if (last) {
+              setSecurityStatus(last);
+            } else {
+              const status = await securityScanner.runScan();
+              if (isMounted) setSecurityStatus(status);
+            }
+          }
+        } catch (e) {
+          console.warn('[settings.tsx] loadSecuritySettings error:', e);
+        }
+      };
+      loadSecuritySettings();
+      return () => { isMounted = false; };
+    }, [])
+  );
 
 
 
@@ -185,6 +231,9 @@ export default function SettingsScreen() {
           if (settings.gpuTurbo ?? settings.experimentalTurbo) setGpuTurbo(true);
           if (settings.openAIVoice) setOpenAIVoice(settings.openAIVoice);
           if (settings.googleVoiceName) setGoogleVoiceName(settings.googleVoiceName);
+          if (settings.security && settings.security.voiceReportMode) {
+            setVoiceReportMode(settings.security.voiceReportMode);
+          }
 
           // Backup fallback: if Brave key is in settings but not in SecureStore (e.g. after upgrade),
           // restore it to SecureStore. Do NOT delete it from settings to preserve it as a backup.
@@ -241,6 +290,12 @@ export default function SettingsScreen() {
       return () => { isActive = false; };
     }, [db])
   );
+
+  // Re-scan model storage whenever a model is deleted from anywhere in the app
+  useEffect(() => {
+    scanModelStorage();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshTrigger]);
 
   const saveSettings = async (updates: any) => {
     try {
@@ -433,11 +488,19 @@ export default function SettingsScreen() {
         {
           text: lang === 'es' ? 'Eliminar' : 'Delete', style: 'destructive', onPress: async () => {
             const baseDir = FileSystem.documentDirectory?.replace(/\/+$/, '') + '/llm_models';
+            
+            // Try to use the synchronized deleteModel first
+            const fullModel = AVAILABLE_MODELS.find(m => m.id === scannedModel.id);
+            if (fullModel) {
+              await deleteModel(fullModel.id);
+            }
+            
+            // Fallback for partial/orphaned files that might not be perfectly matched
             for (const fileName of scannedModel.fileNames) {
               const path = `${baseDir}/${fileName}`;
               try {
                 await FileSystem.deleteAsync(path, { idempotent: true });
-              } catch (e) { console.error('Error deleting', path, e); }
+              } catch (e) {}
             }
             scanModelStorage();
           }
@@ -1544,6 +1607,241 @@ export default function SettingsScreen() {
               </View>
             </View>
 
+            {/* SECURITY AUDIT CARD */}
+            <View style={styles.section}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 15, gap: 8 }}>
+                <IconSymbol name="shield" size={20} color={securityStatus?.isSecure ? '#4cd964' : '#ff3b30'} />
+                <Text style={[styles.sectionTitle, { color: colors.textSecondary, marginBottom: 0 }]}>
+                  {lang === 'es' ? 'AUDITORÍA DE SEGURIDAD (SENTINEL)' : 'SECURITY AUDIT (SENTINEL)'}
+                </Text>
+              </View>
+
+              {/* Status Header */}
+              <View style={{
+                backgroundColor: colors.surfaceSecondary,
+                padding: 15,
+                borderRadius: 12,
+                borderWidth: 1,
+                borderColor: securityStatus?.isSecure ? '#4cd964' : '#ff3b30',
+                marginBottom: 15,
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 12
+              }}>
+                <IconSymbol 
+                  name={securityStatus?.isRootedOrJailbroken ? 'exclamationmark.triangle' : 'checkmark.circle.fill'} 
+                  size={24} 
+                  color={securityStatus?.isRootedOrJailbroken ? '#ff3b30' : '#4cd964'} 
+                />
+                <View style={{ flex: 1 }}>
+                  <Text style={{ color: colors.textPrimary, fontWeight: 'bold', fontSize: 16 }}>
+                    {securityStatus?.isRootedOrJailbroken 
+                      ? (lang === 'es' ? 'DISPOSITIVO EN RIESGO' : 'DEVICE VULNERABLE')
+                      : (lang === 'es' ? 'SISTEMA SEGURO' : 'SYSTEM SECURE')}
+                  </Text>
+                  <Text style={{ color: colors.textSecondary, fontSize: 11, marginTop: 2 }}>
+                    {securityStatus?.isRootedOrJailbroken 
+                      ? (lang === 'es' 
+                          ? 'Se detectó acceso a la raíz (Root/Jailbreak). Tu privacidad está en peligro.' 
+                          : 'Root or jailbreak detected. Sandbox is compromised.')
+                      : (lang === 'es' 
+                          ? 'No se detectó Root/Jailbreak. Tu caja de arena (Sandbox) está activa.' 
+                          : 'No Root/Jailbreak detected. Device sandbox is active.')}
+                  </Text>
+                </View>
+              </View>
+
+              {/* Permission Audits */}
+              <View style={{
+                backgroundColor: colors.surfaceSecondary,
+                padding: 15,
+                borderRadius: 12,
+                borderWidth: 1,
+                borderColor: colors.border,
+                marginBottom: 15,
+                gap: 12
+              }}>
+                {/* Camera Permission */}
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <IconSymbol name="camera" size={16} color={colors.textSecondary} />
+                    <Text style={{ color: colors.textPrimary, fontSize: 14 }}>
+                      {lang === 'es' ? 'Permiso de Cámara' : 'Camera Permission'}
+                    </Text>
+                  </View>
+                  <Text style={{ 
+                    color: securityStatus?.cameraPermission === 'granted' ? '#4cd964' : '#ff3b30', 
+                    fontWeight: 'bold', 
+                    fontSize: 12 
+                  }}>
+                    {securityStatus?.cameraPermission === 'granted' 
+                      ? (lang === 'es' ? 'CONCEDIDO' : 'GRANTED') 
+                      : (lang === 'es' ? 'DENEGADO' : 'DENIED')}
+                  </Text>
+                </View>
+
+                <View style={{ height: 1, backgroundColor: colors.border }} />
+
+                {/* Microphone Permission */}
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <IconSymbol name="mic" size={16} color={colors.textSecondary} />
+                    <Text style={{ color: colors.textPrimary, fontSize: 14 }}>
+                      {lang === 'es' ? 'Permiso de Micrófono' : 'Microphone Permission'}
+                    </Text>
+                  </View>
+                  <Text style={{ 
+                    color: securityStatus?.micPermission === 'granted' ? '#4cd964' : '#ff3b30', 
+                    fontWeight: 'bold', 
+                    fontSize: 12 
+                  }}>
+                    {securityStatus?.micPermission === 'granted' 
+                      ? (lang === 'es' ? 'CONCEDIDO' : 'GRANTED') 
+                      : (lang === 'es' ? 'DENEGADO' : 'DENIED')}
+                  </Text>
+                </View>
+              </View>
+
+              {/* Voice Report Selector */}
+              <View style={{
+                backgroundColor: colors.surfaceSecondary,
+                padding: 15,
+                borderRadius: 12,
+                borderWidth: 1,
+                borderColor: colors.border,
+                marginBottom: 15
+              }}>
+                <Text style={{ color: colors.textPrimary, fontWeight: 'bold', fontSize: 14, marginBottom: 8 }}>
+                  {lang === 'es' ? 'Reportes de Voz Sentinel' : 'Sentinel Voice Reports'}
+                </Text>
+                <Text style={{ color: colors.textSecondary, fontSize: 12, marginBottom: 12 }}>
+                  {lang === 'es' 
+                    ? 'Configura la frecuencia de los anuncios cibernéticos de seguridad de Anima.' 
+                    : 'Configure the frequency of Anima\'s cybernetic security reports.'}
+                </Text>
+                <View style={{ flexDirection: 'row', gap: 8 }}>
+                  {(['daily', 'always', 'never'] as const).map((mode) => (
+                    <TouchableOpacity
+                      key={mode}
+                      style={{
+                        flex: 1,
+                        paddingVertical: 10,
+                        alignItems: 'center',
+                        borderRadius: 8,
+                        borderWidth: 1,
+                        backgroundColor: voiceReportMode === mode ? colors.primary : 'transparent',
+                        borderColor: voiceReportMode === mode ? colors.primary : colors.border
+                      }}
+                      onPress={async () => {
+                        setVoiceReportMode(mode);
+                        const settings = (await settingsService.get('security')) || {};
+                        await saveSettings({
+                          security: {
+                            ...settings,
+                            voiceReportMode: mode
+                          }
+                        });
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      }}
+                    >
+                      <Text style={{ 
+                        color: voiceReportMode === mode ? '#FFF' : colors.textSecondary, 
+                        fontWeight: 'bold', 
+                        fontSize: 11 
+                      }}>
+                        {mode === 'daily' ? (lang === 'es' ? 'Diario' : 'Daily') :
+                         mode === 'always' ? (lang === 'es' ? 'Apertura' : 'Always') :
+                         (lang === 'es' ? 'Desactivar' : 'Disable')}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+
+              {/* Manual Scan Action */}
+              <TouchableOpacity
+                style={{
+                  backgroundColor: colors.surfaceSecondary,
+                  borderWidth: 1,
+                  borderColor: colors.primary,
+                  paddingVertical: 14,
+                  borderRadius: 12,
+                  alignItems: 'center',
+                  flexDirection: 'row',
+                  justifyContent: 'center',
+                  gap: 8
+                }}
+                disabled={isScanningSecurity}
+                onPress={async () => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                  await runSecurityScan();
+                  // Play report manually
+                  await securityScanner.runDailyVoiceReport(lang);
+                }}
+              >
+                <IconSymbol name="arrow.clockwise" size={16} color={colors.primary} />
+                <Text style={{ color: colors.primary, fontWeight: 'bold', fontSize: 13 }}>
+                  {isScanningSecurity 
+                    ? (lang === 'es' ? 'Analizando...' : 'Scanning...') 
+                    : (lang === 'es' ? 'Escanear Ahora (Voz Sentinel)' : 'Scan Now (Sentinel Voice)')}
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* PREMIUM CRYPTO VAULT CARD */}
+            <View style={styles.section}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 15, gap: 8 }}>
+                <IconSymbol name="lock.fill" size={20} color="#ffb300" />
+                <Text style={[styles.sectionTitle, { color: colors.textSecondary, marginBottom: 0 }]}>
+                  {lang === 'es' ? 'BÓVEDA DE PRIVACIDAD MILITAR' : 'MILITARY PRIVACITY VAULT'}
+                </Text>
+              </View>
+
+              <View style={{
+                backgroundColor: activeTheme === 'light' ? '#FFF9E6' : '#1c1503',
+                borderColor: '#ffb300',
+                borderWidth: 1,
+                borderRadius: 16,
+                padding: 20,
+                alignItems: 'center'
+              }}>
+                <IconSymbol name="key" size={32} color="#ffb300" style={{ marginBottom: 12 }} />
+                <Text style={{ color: '#ffb300', fontWeight: '900', fontSize: 18, textAlign: 'center', marginBottom: 8, letterSpacing: 1 }}>
+                  {lang === 'es' ? 'BÓVEDA CIFRADA AES-256' : 'AES-256 ENCRYPTED VAULT'}
+                </Text>
+                <Text style={{ color: activeTheme === 'light' ? '#333' : '#FFF', fontWeight: 'bold', fontSize: 14, textAlign: 'center', marginBottom: 10 }}>
+                  {lang === 'es' ? 'Cifrado de Extremo a Extremo Local' : 'Local End-to-End Encryption'}
+                </Text>
+                <Text style={{ color: activeTheme === 'light' ? '#555' : '#d4af37', fontSize: 12, textAlign: 'center', lineHeight: 18, marginBottom: 20 }}>
+                  {lang === 'es'
+                    ? 'Protege tus mensajes y recuerdos de miradas indiscretas y spywares. Cifra tus diarios en reposo bajo la clave de hardware de tu teléfono.'
+                    : 'Shield your entries and memories from spywares. Encrypt your database locally using your device\'s secure hardware-backed key.'}
+                </Text>
+                <TouchableOpacity
+                  style={{
+                    backgroundColor: '#ffb300',
+                    width: '100%',
+                    paddingVertical: 14,
+                    borderRadius: 12,
+                    alignItems: 'center'
+                  }}
+                  onPress={() => {
+                    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                    Alert.alert(
+                      lang === 'es' ? 'Adquirir Módulo Premium' : 'Purchase Premium Module',
+                      lang === 'es' 
+                        ? 'Este módulo cifra todas las columnas de texto sensible. Próximamente integrado con compras en la App Store / Play Store.'
+                        : 'This module encrypts all sensitive text columns. Coming soon in App Store / Play Store.'
+                    );
+                  }}
+                >
+                  <Text style={{ color: '#000', fontWeight: '900', fontSize: 13, letterSpacing: 0.5 }}>
+                    {lang === 'es' ? 'DESBLOQUEAR BÓVEDA POR $14.99' : 'UNLOCK VAULT FOR $14.99'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
             <View style={styles.section}>
               <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>
                 {lang === 'es' ? 'OPCIONES DE REINICIO' : 'RESET OPTIONS'}
@@ -1594,8 +1892,8 @@ export default function SettingsScreen() {
             <View style={{ alignItems: 'center', marginBottom: 25, marginTop: 10, paddingHorizontal: 20 }}>
               <Text style={{ color: colors.textSecondary, fontSize: 10, opacity: 0.5, textAlign: 'center', marginBottom: 8 }}>
                 {lang === 'es'
-                  ? 'Esta aplicación utiliza modelos locales de la familia Gemma de Google, distribuidos bajo la Licencia de Uso de Gemma (Gemma 3) y la Licencia Apache 2.0 (Gemma 4), así como el modelo Llama 3.2 1B de Meta, distribuido bajo la Licencia Comunitaria de Llama.'
-                  : 'This application utilizes local models from Google\'s Gemma family, distributed under the Gemma Terms of Use (Gemma 3) and the Apache License 2.0 (Gemma 4), as well as Meta\'s Llama 3.2 1B model, distributed under the Llama 3.2 Community License.'}
+                  ? 'Esta aplicación utiliza modelos locales de la familia Gemma de Google (Gemma 3 y Gemma 4), distribuidos bajo los Términos de Uso de Gemma, así como el modelo Llama 3.2 1B de Meta (inactivo), bajo la Licencia Comunitaria de Llama.'
+                  : 'This application utilizes local models from Google\'s Gemma family (Gemma 3 and Gemma 4), distributed under the Gemma Terms of Use, as well as Meta\'s Llama 3.2 1B model (inactive), under the Llama Community License.'}
               </Text>
               <Text style={{ color: '#5a5a5a', fontSize: 10, opacity: 0.6, textAlign: 'center' }}>© 2026 AI Diary. All rights reserved.</Text>
               <Text style={{ color: '#5a5a5a', fontSize: 9, letterSpacing: 2, marginTop: 5, opacity: 0.6, textAlign: 'center' }}>AI DIARY v1.9.6. AI DIARY COGNITION INTERFACE</Text>

@@ -129,6 +129,8 @@ if ((RNText as any).defaultProps == null) {
   (RNText as any).defaultProps = {};
 }
 import { AppThemeProvider, useAppTheme } from '../contexts/ThemeContext';
+import { useLanguage } from '../contexts/LanguageContext';
+import { securityScanner } from '../lib/SecurityScanner';
 
 export const unstable_settings = {
   anchor: '(tabs)',
@@ -136,6 +138,7 @@ export const unstable_settings = {
 
 function RootThemeContainer() {
   const { colors, activeTheme } = useAppTheme();
+  const { lang } = useLanguage();
   const isWeb = Platform.OS === 'web';
 
   useEffect(() => {
@@ -159,6 +162,19 @@ function RootThemeContainer() {
       return () => backHandler.remove();
     }
   }, []);
+
+  useEffect(() => {
+    if (isWeb) return;
+
+    // Periodo de gracia para que la app inicialice y la UI esté estable antes de iniciar el reporte de voz Sentinel
+    const timer = setTimeout(() => {
+      securityScanner.runDailyVoiceReport(lang).catch((err) => {
+        console.warn('[RootThemeContainer] Security daily report error:', err);
+      });
+    }, 8000);
+
+    return () => clearTimeout(timer);
+  }, [lang, isWeb]);
 
   // CRITICAL FIX (2026-07-18): Do NOT spread DarkTheme here.
   // In Hermes iOS production builds, @react-navigation/native exports DarkTheme
