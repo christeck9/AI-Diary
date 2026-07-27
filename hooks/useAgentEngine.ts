@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { useAppLlm } from './useAppLlm';
 import { useDocumentProcessor } from './useDocumentProcessor';
 import { DatabaseService } from '../lib/DatabaseService';
@@ -8,6 +8,7 @@ import * as PromptService from '../lib/PromptService';
 import { SanctuarySearchOrchestrator } from '../lib/tools';
 import { getDeviceTemperature } from '../lib/hardware';
 import * as SentinelService from '../lib/SentinelService';
+import { SentinelStream } from '../lib/SentinelService';
 import { factExtractionService } from '../lib/FactExtractionService';
 // WisdomService, ContextFoldingService, KnowledgeManager, and BadgeService are dynamically imported
 
@@ -19,18 +20,19 @@ import { ModelInfo } from './useAppLlm';
 import { Message, UserProfile, PsyProfile } from '../types';
 import { MODEL_CONFIG } from '../src/config/ModelConfig';
 
-type Architecture = 'gemma3' | 'gemma4' | 'llama';
+type Architecture = 'gemma4' | 'llama';
+
+const commonGreetings = new Set([
+  'hi', 'hello', 'hey', 'hola', 'buenas', 'buenos dias', 'buenas tardes', 'buenas noches',
+  'how are you', 'how r u', 'como estas', 'como te va', 'que tal', 'como andas',
+  'whats up', 'sup', 'test', 'prueba', 'hello there', 'hi there'
+]);
 
 const isZenMessage = (text: string): boolean => {
   const clean = text.trim().toLowerCase().replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?]/g, "");
   // Common short greetings and social queries
-  const commonGreetings = [
-    'hi', 'hello', 'hey', 'hola', 'buenas', 'buenos dias', 'buenas tardes', 'buenas noches',
-    'how are you', 'how r u', 'como estas', 'como te va', 'que tal', 'como andas',
-    'whats up', 'sup', 'test', 'prueba', 'hello there', 'hi there'
-  ];
   if (clean.length < 3) return true; // Extremely short inputs
-  if (commonGreetings.includes(clean)) return true;
+  if (commonGreetings.has(clean)) return true;
   if (clean.length < 15 && (clean.includes('hola') || clean.includes('hello') || clean.includes('hi') || clean.includes('hey'))) return true;
   return false;
 };
@@ -43,6 +45,59 @@ const isInputDangerous = (text: string): boolean => {
   ];
   return dangerousKeywords.some(keyword => lowercase.includes(keyword));
 };
+
+const executeSearchWithTimeout = async (stream: SentinelStream, query: string, lang: 'es' | 'en', timeoutMs = 6000): Promise<string> => {
+  let timer: any;
+  const timeoutPromise = new Promise<string>((_, reject) => {
+    timer = setTimeout(() => {
+      reject(new Error('TIMEOUT'));
+    }, timeoutMs);
+  });
+
+  try {
+    const res = await Promise.race([
+      SanctuarySearchOrchestrator(stream, query, lang),
+      timeoutPromise
+    ]);
+    clearTimeout(timer);
+    return res;
+  } catch (err) {
+    clearTimeout(timer);
+    console.warn('[AGENT_ENGINE] Sanctuary Search timed out or failed, returning SENTINEL_NULL_DATA:', err);
+    return "SENTINEL_NULL_DATA";
+  }
+};
+
+const detectNGramRepetition = (text: string, maxRepeats = 3): boolean => {
+  const words = text.toLowerCase().trim().split(/\s+/);
+  // No evaluar strings extremadamente cortos
+  if (words.length < 9) return false;
+
+  // Analizar secuencias de 3 a 5 palabras
+  for (let len = 3; len <= 5; len++) {
+    if (words.length < len * maxRepeats) continue;
+    
+    // Tomar el último segmento de len palabras
+    const lastSeq = words.slice(-len).join(' ');
+    
+    let matches = 0;
+    for (let r = 1; r < maxRepeats; r++) {
+      const prevSeq = words.slice(-len * (r + 1), -len * r).join(' ');
+      if (prevSeq === lastSeq) {
+        matches++;
+      } else {
+        break;
+      }
+    }
+    
+    if (matches >= maxRepeats - 1) {
+      console.warn(`[N-GRAM DETECTOR] Loop detected for sequence "${lastSeq}". Stop generation flag raised.`);
+      return true;
+    }
+  }
+  return false;
+};
+
 
 export const useAgentEngine = (
   lang: 'en' | 'es',
@@ -82,6 +137,13 @@ export const useAgentEngine = (
     generateEmbeddings
   );
 
+  useEffect(() => {
+    // Pre-cargar módulos pesados en background
+    import('../lib/WisdomService').catch(console.warn);
+    import('../lib/KnowledgeManager').catch(console.warn);
+    import('../lib/SemanticService').catch(console.warn);
+  }, []);
+
   const [isProcessing, setIsProcessing] = useState(false);
   const [isSearchingWeb, setIsSearchingWeb] = useState(false);
   const [searchingStep, setSearchingStep] = useState<string>('');
@@ -94,7 +156,7 @@ export const useAgentEngine = (
   const tokenCountRef = useRef(0);
   const isTypingRef = useRef(false);
   const textBufferRef = useRef('');
-  const flushIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
   const queueRef = useRef<any[]>([]);
   const toolQueryRef = useRef('');
   const searchPromiseRef = useRef<Promise<string> | null>(null);
@@ -107,17 +169,12 @@ export const useAgentEngine = (
   }, []);
 
   const getSanctuaryArchitecture = (): Architecture => {
-    const id = (activeModel?.id || '').toLowerCase();
-    const name = ((activeModel as any)?.name || '').toLowerCase();
+    if (!activeModel) return 'gemma4';
+    const id = activeModel.id?.toLowerCase() || '';
+    const name = (activeModel as any)?.name?.toLowerCase() || '';
 
-    if (id.includes('llama') || name.includes('llama')) return 'llama';
-
-    const isGemma4 = id.includes('gemma4') || name.includes('gemma4') || id.includes('e2b') ||
-      id.includes('27b') || id.includes('26b') ||
-      (id.includes('gemma-4') && !id.includes('e2b') && !id.includes('2b'));
-
-    if (isGemma4) return 'gemma4';
-    return 'gemma3';
+    if (id.includes('llama') || name.includes('llama') || id.includes('gemma3') || name.includes('gemma3')) return 'llama';
+    return 'gemma4';
   };
 
   const stopGeneration = async () => {
@@ -161,6 +218,7 @@ export const useAgentEngine = (
       consciousness?: number;
       onSentenceGenerated?: (sentence: string) => void;
       onClearSpeechQueue?: () => void;
+      onPreloadSpeech?: (text: string) => void;
     }
   ) => {
     const attachedFile = options?.attachedFile;
@@ -168,6 +226,7 @@ export const useAgentEngine = (
     const consciousness = options?.consciousness ?? 2;
     const onSentenceGenerated = options?.onSentenceGenerated;
     const onClearSpeechQueue = options?.onClearSpeechQueue;
+    const onPreloadSpeech = options?.onPreloadSpeech;
 
     let useCloudTTS = false;
     try {
@@ -282,19 +341,23 @@ export const useAgentEngine = (
     };
 
     // FIX BUG-07: Correct parameter order is (lang, userContext, complexity, arch)
-    let seedMemoryStr = 'No hay conceptos almacenados.';
+    let seedMemoryStr = '';
     if (db) {
       try {
         const { createKnowledgeManager } = await import('../lib/KnowledgeManager');
         const km = createKnowledgeManager(db);
-        const bypass = arch === 'gemma4' && !!MODEL_CONFIG.gemma4.bypassSqliteLimit;
-        seedMemoryStr = await km.getSeedMemoryMap(bypass);
+        seedMemoryStr = await km.getSeedMemoryMap();
       } catch (e) {
         console.warn('[AGENT_ENGINE] Error fetching seed memory:', e);
       }
     }
     
-    const contextDataStr = `nick:${contextData.nickname}, goal:${contextData.goal}, date:${contextData.date}\n\n[MEMORIA LOCAL EN SQLITE - CONCEPTOS CONOCIDOS]:\n${seedMemoryStr}`;
+    const profileParts: string[] = [];
+    if (contextData.nickname) profileParts.push(`name:${contextData.nickname}`);
+    if (contextData.goal) profileParts.push(`goal:${contextData.goal}`);
+
+    const contextDataStr = profileParts.join(', ') + 
+      (seedMemoryStr ? `\n\n[MEMORIA LOCAL EN SQLITE - CONCEPTOS CONOCIDOS]:\n${seedMemoryStr}` : '');
     const complexityMap: Record<number, PromptComplexity> = {
       1: PromptComplexity.LOW,
       2: PromptComplexity.MEDIUM,
@@ -355,9 +418,12 @@ export const useAgentEngine = (
           }));
 
         // 🛡️ Context Guillotine (Anti-Drift Measure)
-        // Restrict history to ~12000 chars (or 4000 for Llama) to avoid memory overflow which pushes 
-        // the System Prompt out of the context window and causes instant behavioral drift.
-        const MAX_HISTORY_CHARS = arch === 'llama' ? 4000 : 12000;
+        // Dynamic calculation based on actual context budget to maximize memory usage safely.
+        // Assuming ~512 tokens for output + ~300 for system prompt. Tokens are roughly chars / 3.5.
+        const reservedTokens = 812;
+        const availableHistoryTokens = Math.max(500, currentContextSize - reservedTokens);
+        const MAX_HISTORY_CHARS = Math.floor(availableHistoryTokens * 3.5);
+        
         let currentChars = 0;
         const safeHistory: typeof mappedHistory = [];
         for (let i = mappedHistory.length - 1; i >= 0; i--) {
@@ -407,7 +473,7 @@ export const useAgentEngine = (
       setIsSearchingWeb(true);
       setSearchingStep('searching');
       try {
-        searchResult = await SanctuarySearchOrchestrator(preemptiveCheck.stream, preemptiveCheck.query, lang);
+        searchResult = await executeSearchWithTimeout(preemptiveCheck.stream, preemptiveCheck.query, lang);
       } catch (e) {
         searchResult = "SENTINEL_NULL_DATA";
       } finally {
@@ -464,33 +530,11 @@ export const useAgentEngine = (
         setProcessingPhase('generating');
         resetFlushTimer();
         
-        if (flushIntervalRef.current) {
-          clearInterval(flushIntervalRef.current);
-        }
-        let lastFilteredLength = -1;
-        flushIntervalRef.current = setInterval(() => {
-          const currentText = textBufferRef.current;
-          if (currentText.length === lastFilteredLength) return;
-          lastFilteredLength = currentText.length;
-          
-          const filteredText = SentinelService.filterUI(currentText, arch);
-          const thoughts = SentinelService.purifyThoughts(currentText);
-          setMessagesUI((prev: any) => {
-            const last = prev[prev.length - 1];
-            if (!last) return prev;
-            // 🛡️ Anima Glitch Guard: while a Gemma 4 think block is open, filterUI returns
-            // empty string (unclosed tag regex). Don't overwrite existing text with blank —
-            // that causes the right-side dialogue to flash on/off on every 150ms tick.
-            if (isThinkingRef.current && !filteredText && last.text) return prev;
-            if (last.text === filteredText && last.thoughts === thoughts) return prev;
-            return [...prev.slice(0, -1), {
-              ...last,
-              text: filteredText,
-              tool_query: toolQueryRef.current,
-              thoughts: thoughts
-            }];
-          });
-        }, 150);
+        let incrementalCleanText = '';
+        let filterCursor = 0;
+        const LOOKBEHIND = 50;
+        let lastUiUpdateTime = 0;
+        let lastProcessInboundLength = 0;
 
         await generateStreamingResponse(
           currentPrompt,
@@ -511,11 +555,12 @@ export const useAgentEngine = (
             if (cleanPartial) {
               // 🛡️ Anti-corruption: strip raw vocabulary tokens (like <unused50>) during streaming
               cleanPartial = cleanPartial.replace(/<(?:unused\d+|pad|bos|eos|unk|mask)>/gi, '');
-              if (cleanPartial) {
+              if (cleanPartial && __DEV__) {
                 console.log(`[RAW TOKEN]: ${JSON.stringify(cleanPartial)}`);
               }
             }
             if (!cleanPartial) return;
+            resetFlushTimer();
 
             if (roundSearchTriggered) {
               if (!hasAborted && (searchResult !== null || /<\/thought>|<start_function_call>|<call:|!!SEARCH|<\|tool_call>|\[SEARCH:/i.test(roundResponse))) {
@@ -561,11 +606,17 @@ export const useAgentEngine = (
             fullResponse += cleanPartial;
             tokenCountRef.current++;
 
+            // 🛡️ N-Gram Repetition Guard: detect repetitive loops in Llama/Gemma (throttled every 20 tokens)
+            if (tokenCountRef.current > 40 && tokenCountRef.current % 20 === 0 && detectNGramRepetition(roundResponse)) {
+              await abortGeneration();
+              return;
+            }
+
             // Gemma 4 Thinking Indicator: detect <|think|> open/close tags in the streamed response.
             // When the think block opens, raise isThinking so the UI can show a reasoning indicator.
             // When it closes (or first real text arrives after the block), lower isThinking.
             if (arch === 'gemma4') {
-              const hasThinkOpen = /<(?:\|?\s*think\s*\|?|\|?thought\|?|\|channel>thought)>/i.test(fullResponse);
+              const hasThinkOpen = /<(?:\|?\s*think\s*\|?|\|?thought\|?)>|<\|channel>thought/i.test(fullResponse);
               const hasThinkClose = /<\/(?:\|?think\|?|\|?thought\|?)>|<(?:think|thought|channel)\|>/i.test(fullResponse);
               const thinkingNow = hasThinkOpen && !hasThinkClose;
               if (thinkingNow !== isThinkingRef.current) {
@@ -574,10 +625,23 @@ export const useAgentEngine = (
               }
             }
 
+            // 🛡️ Incremental Clean Text calculation for both UI and Sentence Splitting
+            let fullFiltered = roundResponse;
+            if (!roundSearchTriggered) {
+              const safeEnd = Math.max(0, roundResponse.length - LOOKBEHIND);
+              if (safeEnd > filterCursor) {
+                const chunk = roundResponse.substring(filterCursor, safeEnd);
+                incrementalCleanText += SentinelService.filterUI(chunk, arch);
+                filterCursor = safeEnd;
+              }
+              const tail = roundResponse.substring(filterCursor);
+              const filteredTail = SentinelService.filterUI(tail, arch);
+              fullFiltered = incrementalCleanText + filteredTail;
+            }
+
             // Sentence splitting logic for real-time speech (pipelining)
-            if (activeOnSentenceGenerated && !roundSearchTriggered) {
-              const roundClean = SentinelService.filterUI(roundResponse, arch);
-              const cleanText = previousRoundsCleanText + roundClean;
+            if (activeOnSentenceGenerated && !isThinkingRef.current && !roundSearchTriggered) {
+              const cleanText = previousRoundsCleanText + fullFiltered;
               const pending = cleanText.substring(globalSentenceOffset);
 
               // ═══ Semantic Boundary Detection (SBD) ═══
@@ -600,6 +664,14 @@ export const useAgentEngine = (
                     lastSentenceEmitTime = Date.now();
                     resetFlushTimer();
                     isFirstSpeechChunk = false;
+
+                    // 🔮 Preload predictivo: si hay más texto pendiente, precargar
+                    if (onPreloadSpeech && idx + 1 < cleanText.length) {
+                      const pendingNext = cleanText.substring(idx + 1).trim();
+                      if (pendingNext.length > 0) {
+                        onPreloadSpeech(pendingNext);
+                      }
+                    }
                   }
                   globalSentenceOffset = idx + 1;
                 }
@@ -608,13 +680,14 @@ export const useAgentEngine = (
             }
 
             if (!roundSearchTriggered && roundResponse.length > 20) {
-              // If a formal tool call is detected, do NOT strip thought blocks, otherwise Sentinel cannot detect the call
               const hasFormalToolCall = /<\|tool_call>|!!SEARCH|\[SEARCH:|<call:hybrid_search|\{query:|\[SENTINEL_QUERY\]/i.test(roundResponse);
-              const textForSentinel = hasFormalToolCall
-                ? roundResponse
-                : roundResponse.replace(/<(?:\|?thought\|?|\|?think\|?)>[\s\S]*?(?:<\/(?:\|?thought\|?|\|?think\|?)>|$)/gi, '');
+              if (hasFormalToolCall || roundResponse.length - lastProcessInboundLength > 25) {
+                lastProcessInboundLength = roundResponse.length;
+                const textForSentinel = hasFormalToolCall
+                  ? roundResponse
+                  : roundResponse.replace(/<(?:\|?thought\|?|\|?think\|?)>[\s\S]*?(?:<\/(?:\|?thought\|?|\|?think\|?)>|$)/gi, '');
 
-              if (textForSentinel.length > 20) {
+                if (textForSentinel.length > 20) {
                 const inbound = SentinelService.processInbound(textForSentinel, userText);
 
                 // 🛡️ Prevent proactive search loop: only allow PROACTIVE_CURRENCY_CHECK on the first round (toolRounds === 0)
@@ -626,11 +699,10 @@ export const useAgentEngine = (
                   roundSearchTriggered = true;
                   toolQueryRef.current = inbound.query;
 
-                  // Secondary round race
                   searchPromiseRef.current = (async () => {
                     try {
                       setIsSearchingWeb(true);
-                      const res = await SanctuarySearchOrchestrator(inbound.stream, inbound.query, lang);
+                      const res = await executeSearchWithTimeout(inbound.stream, inbound.query, lang);
                       searchResult = res;
                       return res;
                     } catch (e) {
@@ -642,6 +714,7 @@ export const useAgentEngine = (
                 }
               }
             }
+            } // Added missing closing brace here
 
             // Round synchronization (Hybrid: by search completion or explicit tokens)
             if (roundSearchTriggered && !hasAborted && (searchResult !== null || /<\/thought>|<start_function_call>|<call:|!!SEARCH|<\|tool_call>|\[SEARCH:/i.test(roundResponse))) {
@@ -687,6 +760,28 @@ export const useAgentEngine = (
             }
 
             textBufferRef.current = roundResponse;
+
+            // Throttled UI update
+            if (!roundSearchTriggered) {
+              const now = Date.now();
+              if (now - lastUiUpdateTime >= 150) {
+                lastUiUpdateTime = now;
+                const thoughts = SentinelService.purifyThoughts(roundResponse);
+
+                setMessagesUI((prev: any) => {
+                  const last = prev[prev.length - 1];
+                  if (!last) return prev;
+                  if (isThinkingRef.current && !fullFiltered && last.text) return prev;
+                  if (last.text === fullFiltered && last.thoughts === thoughts) return prev;
+                  return [...prev.slice(0, -1), {
+                    ...last,
+                    text: fullFiltered,
+                    tool_query: toolQueryRef.current,
+                    thoughts: thoughts
+                  }];
+                });
+              }
+            }
           },
           (err: any) => console.error("[ENGINE ERROR]", err),
           processedImages && processedImages.length > 0 ? processedImages : (attachedFile?.type === 'image' ? attachedFile.uri : undefined),
@@ -701,11 +796,6 @@ export const useAgentEngine = (
         if (flushTimerId) {
           clearTimeout(flushTimerId);
           flushTimerId = null;
-        }
-
-        if (flushIntervalRef.current) {
-          clearInterval(flushIntervalRef.current);
-          flushIntervalRef.current = null;
         }
 
         // Final UI flush of the round's accumulated text
@@ -811,10 +901,7 @@ export const useAgentEngine = (
         clearTimeout(flushTimerId);
         flushTimerId = null;
       }
-      if (flushIntervalRef.current) {
-        clearInterval(flushIntervalRef.current);
-        flushIntervalRef.current = null;
-      }
+
 
       let finalText = '';
       if (db && fullResponse.length > 0) {

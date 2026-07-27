@@ -26,7 +26,7 @@ export function useAnimaScanner() {
         for (const model of MODEL_LIST) {
           const fileInfo = await FileSystem.getInfoAsync(`${baseDir}/${model.fileName}`);
           if (fileInfo.exists) {
-            downloadedModels.push(model.id.includes('llama') ? 'Light' : model.id.includes('3-4b') ? 'Balanced' : 'Deepmind');
+            downloadedModels.push((model.id.includes('1b') || model.id.includes('llama')) ? 'Light' : model.id.includes('3-4b') ? 'Balanced' : 'Deep');
             if (model.mmprojFileName) {
               const mmprojInfo = await FileSystem.getInfoAsync(`${baseDir}/${model.mmprojFileName}`);
               if (mmprojInfo.exists) {

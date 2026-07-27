@@ -1081,7 +1081,10 @@ export function useAppLlm(lang: string = 'es') {
       let adjustedMessages = multimodalMessages ? [...multimodalMessages] : null;
 
       const isLlama = activeModel?.id.includes('llama');
-      const modelConfig = isLlama ? MODEL_CONFIG.llama3_2 : MODEL_CONFIG.gemma4;
+      const isGemma3 = activeModel?.id.includes('gemma3');
+      const modelConfig = isLlama 
+        ? MODEL_CONFIG.llama3_2 
+        : (isGemma3 ? MODEL_CONFIG.gemma3 : MODEL_CONFIG.gemma4);
 
       // 🛡️ Safeproof Switch: Dynamic temperature limits to prevent hallucination
       // and behavioral drift. LLMs in long sessions hallucinate at high temps.
@@ -1090,22 +1093,22 @@ export function useAppLlm(lang: string = 'es') {
       let targetRepeatPenalty = modelConfig.repeat_penalty;
       let targetTopP = forceDeterminism ? 0.90 : modelConfig.top_p;
 
-      if (isLlama) {
-        // Llama 3.2 1B Instruct dynamic parameters (optimal baseline configs)
-        targetTemp = forceDeterminism ? 0.15 : (forceHighTemperature ? 1.15 : (
-          consciousnessLevel === 1 ? 0.80 // Zen: lower bound to keep it concise, avoiding repetition collapse
-            : consciousnessLevel === 2 ? 0.90 // Balance: optimal baseline
-              : consciousnessLevel === 3 ? 1.00 // Deep: higher temperature to inject entropy
-                : 1.15 // Philosophic: maximum conceptual diversity
+      if (isLlama || isGemma3) {
+        // 1B Models dynamic parameters (optimal baseline configs)
+        targetTemp = forceDeterminism ? 0.15 : (forceHighTemperature ? 0.85 : (
+          consciousnessLevel === 1 ? 0.20
+            : consciousnessLevel === 2 ? modelConfig.temperature
+              : consciousnessLevel === 3 ? 0.55
+                : 0.70
         ));
-        targetMinP = forceDeterminism ? 0.05 : (forceHighTemperature ? 0.14 : (
-          consciousnessLevel === 1 ? 0.06 // Zen: dynamic min_p for concentrated distribution
-            : consciousnessLevel === 2 ? 0.09 // Balance: sweet spot
-              : consciousnessLevel === 3 ? 0.11 // Deep: extra weight to counteract thermal flattening
-                : 0.14 // Philosophic: maximum control against noise/hallucinations at high temperature
-        ));
-        targetTopP = 1.0; // Disabled to let min_p work cleanly
-        targetRepeatPenalty = 1.15;
+        targetMinP = forceDeterminism ? 0.05 : (
+          consciousnessLevel === 1 ? 0.05
+            : consciousnessLevel === 2 ? 0.05
+              : consciousnessLevel === 3 ? 0.08
+                : 0.10
+        );
+        targetTopP = forceDeterminism ? 0.90 : modelConfig.top_p;
+        targetRepeatPenalty = modelConfig.repeat_penalty;
       } else {
         // Gemma 4 E2B QAT dynamic sampling
         targetTemp = forceDeterminism ? 0.15 : (forceHighTemperature ? 0.85 : (
@@ -1129,13 +1132,13 @@ export function useAppLlm(lang: string = 'es') {
         1: lang === 'es' 
              ? "\n[[RULE: Sin preámbulos. Responde en una sola oración. No inventes datos. Si no sabes algo, di 'No lo sé'. No tienes acceso a internet.]]" 
              : "\n[[RULE: No preamble. Respond in one sentence. Do not hallucinate facts. If you do not know, say 'I don't know'. You have no internet access.]]",
-        2: isLlama ? "" : (lang === 'es' ? "\n[[RULE: Mantén tu Proceso de Pensamiento breve (máximo 2 párrafos).]]" : "\n[[RULE: Keep your Thinking Process brief (maximum 2 paragraphs).]]"),
-        3: isLlama ? "" : (lang === 'es' ? "\n[[RULE: Mantén tu Proceso de Pensamiento conciso (máximo 4 párrafos).]]" : "\n[[RULE: Keep your Thinking Process concise (maximum 4 paragraphs).]]"),
+        2: (isLlama || isGemma3) ? "" : (lang === 'es' ? "\n[[RULE: Mantén tu Proceso de Pensamiento breve (máximo 2 párrafos).]]" : "\n[[RULE: Keep your Thinking Process brief (maximum 2 paragraphs).]]"),
+        3: (isLlama || isGemma3) ? "" : (lang === 'es' ? "\n[[RULE: Mantén tu Proceso de Pensamiento conciso (máximo 4 párrafos).]]" : "\n[[RULE: Keep your Thinking Process concise (maximum 4 paragraphs).]]"),
         4: ""
       };
 
       // Only apply directives to multimodal message structure if present (they have reasoning blocks)
-      const directive = isLlama ? "" : (directives[consciousnessLevel] || "");
+      const directive = (isLlama || isGemma3) ? "" : (directives[consciousnessLevel] || "");
       if (directive && adjustedMessages && adjustedMessages.length > 0) {
         const lastIdx = adjustedMessages.length - 1;
         const lastMsg = { ...adjustedMessages[lastIdx] };
