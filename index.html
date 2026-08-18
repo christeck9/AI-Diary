@@ -1,45 +1,3 @@
-<!DOCTYPE html>
-<html lang="en">
-
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  
-  <title>AI Diary – Local & Private AI Journal</title>
-
-  
-  <meta name="description"
-    content="AI Diary is a 100% local, offline-first personal journal powered by Gemma 3 and Gemma 4 AIs by Google DeepMind. Voice, text, and personality tests — your data never leaves your phone.">
-    <!-- Open Graph / Facebook / WhatsApp / LinkedIn -->
-  <meta property="og:type" content="website" />
-  <meta property="og:url" content="https://christeck-ai.github.io/AI-Diary/" />
-  <meta property="og:title" content="AI Diary – 100% Private Offline-First AI Journal" />
-  <meta property="og:description" content="Personal journal powered by Gemma AIs by Google DeepMind. Voice, text, and personality tests — your data never leaves your phone." />
-  <meta property="og:image" content="https://christeck-ai.github.io/AI-Diary/images/og-image.png" />
-  <meta property="og:image:width" content="1200" />
-  <meta property="og:image:height" content="630" />
-  <meta property="og:image:alt" content="AI Diary - 100% Private Offline-First AI Journal" />
-
-  <!-- Twitter / X -->
-  <meta name="twitter:card" content="summary_large_image" />
-  <meta name="twitter:title" content="AI Diary – 100% Private Offline-First AI Journal" />
-  <meta name="twitter:description" content="100% local, offline-first personal AI journal. Voice, reflections, and Gemma AI models." />
-  <meta name="twitter:image" content="https://christeck-ai.github.io/AI-Diary/images/og-image.jpg" />
-
-  
-  
-  
-  <link rel="icon" href="images/icon.png">
-
-  <!-- Fonts -->
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link
-    href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Playfair+Display:wght@600;700&display=swap"
-    rel="stylesheet">
-
-  <style>
-    /* ============================================================
        DESIGN TOKENS – White Mode + Indigo (matches the real app)
     ============================================================ */
     :root {
@@ -2737,6 +2695,3196 @@
     function togglePrivacy() {
       const body = document.getElementById('priv-body');
       const chevron = document.getElementById('priv-chevron');
+      const isOpen = body.classList.toggle('open');
+      chevron.style.transform = isOpen ? 'rotate(180deg)' : 'rotate(0deg)';
+    }
+
+    function toggleLicenses() {
+      const body = document.getElementById('lic-body');
+      const chevron = document.getElementById('lic-chevron');
+      const isOpen = body.classList.toggle('open');
+      chevron.style.transform = isOpen ? 'rotate(180deg)' : 'rotate(0deg)';
+    }
+
+    // Smooth hover shimmer on feature cards
+    document.querySelectorAll('.feature-card, .step-card, .model-card, .exp-card').forEach(card => {
+      card.addEventListener('mousemove', e => {
+        const r = card.getBoundingClientRect();
+        card.style.setProperty('--mx', `${e.clientX - r.left}px`);
+        card.style.setProperty('--my', `${e.clientY - r.top}px`);
+      });
+    });
+
+    // Intersection observer – fade-in on scroll
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(e => {
+        if (e.isIntersecting) {
+          e.target.style.opacity = '1';
+          e.target.style.transform = 'translateY(0)';
+        }
+      });
+    }, { threshold: 0.1 });
+
+    document.querySelectorAll(
+      '.feature-card, .step-card, .model-card, .exp-card, .flist-card, .interface-card, .bottombar-card'
+    ).forEach(el => {
+      el.style.opacity = '0';
+      el.style.transform = 'translateY(18px)';
+      el.style.transition = 'opacity 0.5s ease, transform 0.5s ease';
+      observer.observe(el);
+    });
+  </script>
+</body>
+
+</html>
+=======
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Diary – Private & Local AI Journal | Powered by Google Gemma & Liquid AI</title>
+  <meta name="description"
+    content="AI Diary is a 100% local, offline personal journal powered by Google DeepMind's Gemma 3 (1B) & Gemma 4 (E2B QAT), and Liquid AI's LFM 2.5 (1.2B). Zero cloud tracking, voice notes, psychometrics, and military-grade privacy.">
+  <meta name="keywords" content="ai diary, local llm, offline ai, private journal, gemma 3, gemma 4, liquid ai, lfm 2.5, psychometrics, mental health, voice journal, air gap privacy">
+  <meta name="author" content="AI Diary & Antigravity">
+  <meta name="theme-color" content="#4545C0">
+
+  <!-- Open Graph / Facebook -->
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://ai-diary.app/">
+  <meta property="og:title" content="AI Diary – Private & Local AI Journal">
+  <meta property="og:description" content="100% local and offline personal journal powered by Google Gemma 3, Gemma 4 and Liquid AI LFM 2.5. Zero cloud tracking, total air-gap privacy.">
+  <meta property="og:image" content="images/icon.png">
+
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="AI Diary – Private & Local AI Journal">
+  <meta name="twitter:description" content="100% local and offline personal journal powered by Google Gemma 3, Gemma 4 and Liquid AI LFM 2.5. Zero cloud tracking, total air-gap privacy.">
+  <meta name="twitter:image" content="images/icon.png">
+
+  <link rel="icon" href="images/icon.png">
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Playfair+Display:wght@600;700&display=swap"
+    rel="stylesheet">
+
+  <style>
+    /* ============================================================
+       DESIGN TOKENS – White Mode + Indigo (matches the real app)
+    ============================================================ */
+    :root {
+      --white: #FFFFFF;
+      --bg: #F7F7FC;
+      --bg-card: #FFFFFF;
+      --bg-tinted: #EEEEF8;
+
+      --primary: #4545C0;
+      --primary-dark: #3232A0;
+      --primary-mid: #6666D0;
+      --primary-pale: #EEEEF8;
+      --primary-glow: rgba(69, 69, 192, 0.18);
+
+      --accent: #7C5CE0;
+      --accent-pale: #F1EDFD;
+
+      --text: #14143A;
+      --text-mid: #3A3A6A;
+      --text-muted: #7878A8;
+      --text-light: #ADADCC;
+
+      --border: rgba(69, 69, 192, 0.12);
+      --border-subtle: rgba(69, 69, 192, 0.07);
+
+      --shadow-xs: 0 1px 4px rgba(20, 20, 58, 0.06);
+      --shadow-sm: 0 2px 10px rgba(20, 20, 58, 0.08);
+      --shadow-md: 0 8px 28px rgba(20, 20, 58, 0.11);
+      --shadow-lg: 0 16px 48px rgba(20, 20, 58, 0.15);
+
+      --radius-sm: 12px;
+      --radius-md: 20px;
+      --radius-lg: 28px;
+
+      --font: 'Outfit', sans-serif;
+      --font-display: 'Playfair Display', serif;
+    }
+
+    /* ============================================================  RESET  */
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font);
+      line-height: 1.65;
+      overflow-x: hidden;
+      padding-top: 76px;
+    }
+
+    /* Bilingual toggle */
+    body.lang-en .es {
+      display: none !important;
+    }
+
+    body.lang-es .en {
+      display: none !important;
+    }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: var(--bg);
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: var(--primary-mid);
+      border-radius: 3px;
+    }
+
+    /* ============================================================  HEADER  */
+    header {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 76px;
+      background: rgba(255, 255, 255, 0.92);
+      backdrop-filter: blur(18px);
+      border-bottom: 1px solid var(--border);
+      z-index: 1000;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 5%;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 11px;
+      text-decoration: none;
+      color: var(--text);
+      font-weight: 700;
+      font-size: 1.3rem;
+      letter-spacing: -0.3px;
+    }
+
+    .logo-img {
+      width: 38px;
+      height: 38px;
+      border-radius: 10px;
+      object-fit: cover;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .logo-name {
+      color: var(--primary-dark);
+    }
+
+    nav {
+      display: flex;
+      align-items: center;
+      gap: 26px;
+    }
+
+    nav a {
+      text-decoration: none;
+      color: var(--text-muted);
+      font-weight: 500;
+      font-size: 0.9rem;
+      transition: color 0.2s;
+    }
+
+    nav a:hover {
+      color: var(--primary);
+    }
+
+    .lang-switch {
+      background: var(--white);
+      border: 1.5px solid var(--border);
+      border-radius: 30px;
+      padding: 3px;
+      display: flex;
+      gap: 2px;
+    }
+
+    .lang-btn {
+      padding: 5px 14px;
+      border-radius: 20px;
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: var(--text-muted);
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      transition: all 0.2s;
+      font-family: var(--font);
+    }
+
+    .lang-btn.active {
+      color: #fff;
+      background: var(--primary);
+      box-shadow: 0 3px 10px var(--primary-glow);
+    }
+
+    /* ============================================================  UTILS  */
+    .container {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 0 5%;
+    }
+
+    .section-label {
+      display: inline-block;
+      background: var(--primary-pale);
+      color: var(--primary-dark);
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      padding: 4px 12px;
+      border-radius: 6px;
+      margin-bottom: 14px;
+    }
+
+    .section-title {
+      text-align: center;
+      margin-bottom: 56px;
+    }
+
+    .section-title h2 {
+      font-family: var(--font-display);
+      font-size: 2.25rem;
+      font-weight: 700;
+      color: var(--text);
+      letter-spacing: -0.4px;
+      margin-bottom: 12px;
+    }
+
+    .section-title p {
+      color: var(--text-muted);
+      font-size: 1.02rem;
+      max-width: 550px;
+      margin: 0 auto;
+      line-height: 1.7;
+    }
+
+    .section-divider {
+      width: 44px;
+      height: 3px;
+      background: linear-gradient(90deg, var(--primary), var(--accent));
+      border-radius: 2px;
+      margin: 14px auto 0;
+    }
+
+    /* ============================================================  HERO  */
+    .hero {
+      padding: 30px 0 64px;
+      text-align: center;
+      position: relative;
+    }
+
+    .hero-glow {
+      position: absolute !important;
+      top: -60px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 700px;
+      height: 500px;
+      background: radial-gradient(ellipse, rgba(69, 69, 192, 0.06) 0%, transparent 70%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .hero>*:not(.hero-glow) {
+      position: relative;
+      z-index: 1;
+    }
+
+    .badge-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--primary-pale);
+      border: 1px solid var(--border);
+      padding: 6px 18px;
+      border-radius: 30px;
+      color: var(--primary-dark);
+      font-weight: 600;
+      font-size: 0.82rem;
+      margin-bottom: 26px;
+      letter-spacing: 0.4px;
+      text-transform: uppercase;
+    }
+
+    .hero h1 {
+      font-family: var(--font-display);
+      font-size: 3.6rem;
+      font-weight: 700;
+      line-height: 1.15;
+      letter-spacing: -1px;
+      color: var(--text);
+      margin-bottom: 22px;
+    }
+
+    .hero h1 .grad {
+      background: linear-gradient(135deg, var(--primary), var(--accent));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .hero-sub {
+      font-size: 1.15rem;
+      color: var(--text-muted);
+      max-width: 580px;
+      margin: 0 auto 42px;
+      font-weight: 400;
+      line-height: 1.75;
+    }
+
+    .hero-slogan-box {
+      background: rgba(124, 92, 224, 0.04);
+      border: 1px dashed rgba(124, 92, 224, 0.2);
+      border-radius: var(--radius-sm);
+      padding: 16px 24px;
+      margin: 20px auto 28px;
+      max-width: 580px;
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      box-shadow: inset 0 0 12px rgba(124, 92, 224, 0.02);
+    }
+    .hero-slogan-box p {
+      font-size: 1.15rem;
+      font-weight: 600;
+      color: var(--primary-dark);
+      margin: 0;
+      line-height: 1.4;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .download-buttons {
+      display: flex;
+      justify-content: center;
+      gap: 14px;
+      flex-wrap: wrap;
+      margin-bottom: 48px;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 9px;
+      padding: 13px 26px;
+      border-radius: var(--radius-sm);
+      font-weight: 600;
+      font-size: 0.92rem;
+      text-decoration: none;
+      transition: all 0.25s;
+      border: none;
+      cursor: pointer;
+      font-family: var(--font);
+    }
+
+    .btn-primary {
+      background: var(--primary);
+      color: #fff;
+      box-shadow: 0 6px 20px var(--primary-glow);
+    }
+
+    .btn-primary:hover {
+      background: var(--primary-dark);
+      transform: translateY(-2px);
+      box-shadow: 0 10px 30px var(--primary-glow);
+    }
+
+    .btn-outline {
+      background: var(--white);
+      border: 1.5px solid var(--border);
+      color: var(--text-mid);
+      box-shadow: var(--shadow-xs);
+    }
+
+    .btn-outline:hover {
+      border-color: var(--primary);
+      color: var(--primary);
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-sm);
+    }
+
+    .hero-tags {
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .hero-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--white);
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      padding: 5px 13px;
+      border-radius: 8px;
+      font-size: 0.82rem;
+      font-weight: 500;
+      box-shadow: var(--shadow-xs);
+    }
+
+    /* ============================================================  FEATURES  */
+    #features {
+      background: var(--white);
+      border-radius: var(--radius-lg);
+      padding: 64px 56px;
+      margin-bottom: 56px;
+      border: 1px solid var(--border-subtle);
+      box-shadow: var(--shadow-sm);
+    }
+
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 20px;
+    }
+
+    .feature-card {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 28px 24px;
+      transition: all 0.3s ease;
+    }
+
+    .feature-card:hover {
+      transform: translateY(-4px);
+      box-shadow: var(--shadow-md);
+      border-color: rgba(69, 69, 192, 0.25);
+      background: var(--white);
+    }
+
+    .feature-icon {
+      width: 50px;
+      height: 50px;
+      background: var(--primary-pale);
+      border-radius: var(--radius-sm);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.5rem;
+      border: 1px solid var(--border);
+      float: left;
+      margin-right: 14px;
+      margin-bottom: 6px;
+    }
+
+    .feature-card h3,
+    .feature-card h4 {
+      font-size: 1.05rem;
+      font-weight: 700;
+      margin-top: 0;
+      margin-bottom: 9px;
+    }
+
+    .feature-card p {
+      color: var(--text-muted);
+      font-size: 0.88rem;
+      line-height: 1.65;
+      margin-top: 0;
+    }
+
+    /* Clearfix for feature card since it uses float */
+    .feature-card::after {
+      content: "";
+      display: table;
+      clear: both;
+    }
+
+    /* ============================================================  STEP GUIDE  */
+    #setup {
+      background: var(--bg);
+      padding: 64px 0;
+      margin-bottom: 56px;
+    }
+
+    .steps-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(290px, 1fr));
+      gap: 24px;
+    }
+
+    .step-card {
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+      box-shadow: var(--shadow-sm);
+      transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .step-card:hover {
+      transform: translateY(-6px);
+      box-shadow: var(--shadow-lg);
+    }
+
+    .step-img-wrap {
+      width: 100%;
+      height: 420px;
+      overflow: hidden;
+      background: var(--bg-tinted);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .step-img-wrap img {
+      max-height: 100%;
+      width: auto;
+      object-fit: contain;
+      border-radius: var(--radius-sm);
+      box-shadow: 0 8px 24px rgba(20, 20, 58, 0.12);
+      border: 1px solid var(--border);
+    }
+
+    .step-body {
+      padding: 24px 24px 28px;
+    }
+
+    .step-num {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: var(--primary);
+      color: #fff;
+      font-weight: 700;
+      font-size: 0.9rem;
+      margin-bottom: 12px;
+      box-shadow: 0 4px 12px var(--primary-glow);
+    }
+
+    .step-body h4 {
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 8px;
+    }
+
+    .step-body p {
+      color: var(--text-muted);
+      font-size: 0.87rem;
+      line-height: 1.65;
+    }
+
+    .step-tip {
+      display: flex;
+      align-items: flex-start;
+      gap: 7px;
+      background: var(--primary-pale);
+      border-left: 3px solid var(--primary);
+      border-radius: 0 8px 8px 0;
+      padding: 9px 12px;
+      margin-top: 11px;
+      font-size: 0.81rem;
+      color: var(--primary-dark);
+      font-weight: 500;
+      line-height: 1.55;
+    }
+
+    /* ============================================================  APP INTERFACE GUIDE  */
+    #interface-guide {
+      padding: 0 0 56px;
+    }
+
+    .interface-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+      margin-top: 50px;
+    }
+
+    .interface-card {
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .interface-img-wrap {
+      width: 100%;
+      background: var(--bg);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .interface-img-wrap img {
+      width: 100%;
+      max-height: 300px;
+      object-fit: contain;
+      border-radius: var(--radius-sm);
+    }
+
+    .interface-body {
+      padding: 28px 28px 32px;
+    }
+
+    .interface-body h3 {
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 20px;
+      padding-bottom: 14px;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .iface-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 13px;
+      padding: 11px 0;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .iface-item:last-child {
+      border-bottom: none;
+    }
+
+    .iface-badge {
+      min-width: 26px;
+      height: 26px;
+      background: var(--primary);
+      color: #fff;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.72rem;
+      font-weight: 700;
+      flex-shrink: 0;
+      margin-top: 1px;
+      box-shadow: 0 2px 8px var(--primary-glow);
+    }
+
+    .iface-icon-badge {
+      min-width: 34px;
+      height: 34px;
+      background: var(--primary-pale);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.05rem;
+      flex-shrink: 0;
+      border: 1px solid var(--border);
+    }
+
+    .iface-text h5 {
+      font-size: 0.9rem;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 3px;
+    }
+
+    .iface-text p {
+      font-size: 0.82rem;
+      color: var(--text-muted);
+      line-height: 1.55;
+    }
+
+    /* ============================================================  BOTTOM BAR CARD  */
+    .bottombar-card {
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+      box-shadow: var(--shadow-sm);
+      margin-top: 56px;
+    }
+
+    .bottombar-body {
+      padding: 32px 32px 36px;
+    }
+
+    .bottombar-body h3 {
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 20px;
+      padding-bottom: 14px;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .bottombar-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 16px;
+      margin-top: 4px;
+    }
+
+    .bbar-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 13px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 16px 18px;
+      transition: all 0.25s ease;
+    }
+
+    .bbar-item:hover {
+      transform: translateY(-3px);
+      box-shadow: var(--shadow-md);
+      border-color: rgba(69, 69, 192, 0.25);
+      background: var(--white);
+    }
+
+    .bbar-icon {
+      width: 40px;
+      height: 40px;
+      min-width: 40px;
+      background: var(--primary-pale);
+      border-radius: 11px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.2rem;
+      border: 1px solid var(--border);
+    }
+
+    .bbar-text h5 {
+      font-size: 0.88rem;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 4px;
+    }
+
+    .bbar-text p {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      line-height: 1.55;
+    }
+
+    .bbar-status-bar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: var(--primary-pale);
+      border: 1px dashed var(--border);
+      border-radius: var(--radius-sm);
+      padding: 12px 20px;
+      margin-top: 20px;
+      font-size: 0.85rem;
+      color: var(--primary-dark);
+      font-weight: 500;
+    }
+
+    .bbar-mockup {
+      background: #f4f4f9;
+      border-radius: 14px;
+      padding: 20px 24px;
+      max-width: 540px;
+      margin: 0 auto;
+      box-shadow: 0 2px 12px rgba(69, 69, 192, 0.08);
+    }
+
+    .bbar-mockup-input {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: #fff;
+      border-radius: 10px;
+      padding: 12px 16px;
+      border: 1px solid #ddd;
+      margin-bottom: 12px;
+    }
+
+    .bbar-mockup-actions {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .bbar-mockup-btn {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      background: #fff;
+      border: 1px solid #ccc;
+      border-radius: 20px;
+      padding: 8px 18px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: #555;
+      font-family: var(--font);
+    }
+
+    /* ============================================================  FEATURE LISTS  */
+    #diary-features {
+      padding: 56px 0 56px;
+    }
+
+    .feature-lists-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+      margin-top: 50px;
+    }
+
+    .flist-card {
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 36px;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .flist-header {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      margin-bottom: 24px;
+      padding-bottom: 18px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .flist-header-icon {
+      width: 46px;
+      height: 46px;
+      background: var(--primary-pale);
+      border-radius: var(--radius-sm);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.4rem;
+      border: 1px solid var(--border);
+    }
+
+    .flist-header h3 {
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    .flist-header p {
+      font-size: 0.82rem;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    .flist-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 11px 0;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .flist-item:last-child {
+      border-bottom: none;
+    }
+
+    .flist-item-icon {
+      width: 34px;
+      height: 34px;
+      min-width: 34px;
+      background: var(--primary-pale);
+      border-radius: 9px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.95rem;
+      border: 1px solid var(--border);
+    }
+
+    .flist-item h5 {
+      font-size: 0.88rem;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 2px;
+    }
+
+    .flist-item p {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+
+    /* ============================================================  EXPERIMENTAL  */
+    #experimental {
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 52px;
+      margin-bottom: 56px;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .experimental-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(270px, 1fr));
+      gap: 20px;
+      margin-top: 48px;
+    }
+
+    .exp-card {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 28px 24px;
+      transition: all 0.3s ease;
+    }
+
+    .exp-card:hover {
+      transform: translateY(-4px);
+      box-shadow: var(--shadow-md);
+      background: var(--white);
+    }
+
+    .exp-icon {
+      width: 48px;
+      height: 48px;
+      background: var(--accent-pale);
+      border-radius: var(--radius-sm);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.4rem;
+      margin-bottom: 16px;
+      border: 1px solid rgba(124, 92, 224, 0.15);
+    }
+
+    .exp-card h3 {
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 8px;
+    }
+
+    .exp-card p {
+      font-size: 0.86rem;
+      color: var(--text-muted);
+      line-height: 1.6;
+    }
+
+    .exp-badge {
+      display: inline-block;
+      margin-top: 12px;
+      background: var(--accent-pale);
+      color: var(--accent);
+      font-size: 0.73rem;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      padding: 3px 10px;
+      border-radius: 20px;
+      border: 1px solid rgba(124, 92, 224, 0.2);
+    }
+
+    .exp-screenshot {
+      width: 100%;
+      max-width: 380px;
+      margin: 0 auto 48px;
+      display: block;
+      border-radius: var(--radius-md);
+      box-shadow: var(--shadow-md);
+      border: 1px solid var(--border);
+    }
+
+    /* ============================================================  MODELS  */
+    #models {
+      padding: 0 0 56px;
+    }
+
+    .models-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(290px, 1fr));
+      gap: 20px;
+    }
+
+    .model-card {
+      background: var(--white);
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 32px;
+      position: relative;
+      transition: all 0.3s ease;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .model-card:hover {
+      transform: translateY(-4px);
+      box-shadow: var(--shadow-md);
+    }
+
+    .model-card.featured {
+      border-color: var(--primary);
+      background: linear-gradient(145deg, #fff 0%, var(--primary-pale) 100%);
+    }
+
+    .model-badge {
+      position: absolute;
+      top: -14px;
+      right: 24px;
+      background: var(--primary);
+      color: #fff;
+      padding: 4px 14px;
+      border-radius: 20px;
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      box-shadow: 0 4px 12px var(--primary-glow);
+    }
+
+    .model-name {
+      font-family: var(--font-display);
+      font-size: 1.6rem;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 5px;
+    }
+
+    .model-sub {
+      color: var(--text-mid);
+      font-size: 1.05rem;
+      font-weight: 600;
+      margin-bottom: 12px;
+    }
+
+    .model-logo-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 76px;
+      height: 76px;
+      border-radius: 16px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      box-shadow: inset 0 -3px 0 rgba(20, 20, 58, 0.08), 0 4px 12px rgba(20, 20, 58, 0.05);
+      transition: all 0.2s ease;
+      overflow: hidden;
+    }
+
+    .model-logo-btn img {
+      height: 100%;
+      width: 100%;
+      object-fit: contain;
+      mix-blend-mode: multiply;
+      transition: transform 0.2s ease;
+    }
+
+    .model-logo-btn img.light-logo {
+      transform: scale(1.22);
+    }
+
+    .model-logo-btn img.logic-logo {
+      transform: scale(1.22);
+    }
+
+    .model-logo-btn img.deep-logo {
+      transform: scale(1.48);
+    }
+
+    .model-card:hover .model-logo-btn {
+      transform: scale(1.03);
+      box-shadow: inset 0 -1px 0 rgba(20, 20, 58, 0.08), 0 6px 16px rgba(20, 20, 58, 0.07);
+    }
+
+    .model-card:hover .model-logo-btn img.light-logo {
+      transform: scale(1.30);
+    }
+
+    .model-card:hover .model-logo-btn img.logic-logo {
+      transform: scale(1.30);
+    }
+
+    .model-card:hover .model-logo-btn img.deep-logo {
+      transform: scale(1.58);
+    }
+
+    .spec-list {
+      list-style: none;
+    }
+
+    .spec-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 0;
+      border-bottom: 1px solid var(--border-subtle);
+      font-size: 0.88rem;
+      color: var(--text-mid);
+    }
+
+    .spec-item:last-child {
+      border-bottom: none;
+    }
+
+    .spec-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--primary);
+      flex-shrink: 0;
+    }
+
+    /* ============================================================  PRICING  */
+    #pricing {
+      padding: 64px 0 32px;
+    }
+
+    .pricing-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 24px;
+      margin-top: 40px;
+      align-items: stretch;
+    }
+
+    .pricing-card {
+      background: var(--white);
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 36px 28px;
+      position: relative;
+      transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+      box-shadow: var(--shadow-sm);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+
+    .pricing-card:hover {
+      transform: translateY(-6px);
+      box-shadow: var(--shadow-md);
+    }
+
+    .pricing-card.featured-plan {
+      border-color: var(--primary);
+      background: linear-gradient(155deg, #FFFFFF 0%, #F5F3FF 100%);
+      box-shadow: 0 12px 36px var(--primary-glow);
+    }
+
+    .pricing-badge {
+      position: absolute;
+      top: -14px;
+      right: 24px;
+      background: linear-gradient(135deg, #7C5CE0, #4545C0);
+      color: #fff;
+      padding: 5px 16px;
+      border-radius: 20px;
+      font-size: 0.75rem;
+      font-weight: 800;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      box-shadow: 0 4px 14px rgba(69, 69, 192, 0.3);
+    }
+
+    .pricing-header {
+      margin-bottom: 20px;
+    }
+
+    .pricing-title {
+      font-family: var(--font-display);
+      font-size: 1.6rem;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 6px;
+    }
+
+    .pricing-subtitle {
+      font-size: 0.92rem;
+      color: var(--text-muted);
+      line-height: 1.4;
+    }
+
+    .pricing-price {
+      display: flex;
+      align-items: baseline;
+      gap: 6px;
+      margin: 18px 0;
+    }
+
+    .price-num {
+      font-size: 2.6rem;
+      font-weight: 800;
+      color: var(--text);
+      font-family: var(--font);
+      line-height: 1;
+    }
+
+    .price-period {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      font-weight: 500;
+    }
+
+    .pricing-features {
+      list-style: none;
+      margin-bottom: 28px;
+      flex-grow: 1;
+    }
+
+    .pricing-feature-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 9px 0;
+      border-bottom: 1px solid var(--border-subtle);
+      font-size: 0.90rem;
+      color: var(--text-mid);
+      line-height: 1.45;
+    }
+
+    .pricing-feature-item:last-child {
+      border-bottom: none;
+    }
+
+    .pricing-check {
+      color: #4cd964;
+      font-weight: bold;
+      font-size: 1.05rem;
+      line-height: 1;
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+
+    .pricing-btn {
+      width: 100%;
+      padding: 14px;
+      border-radius: var(--radius-sm);
+      font-size: 0.95rem;
+      font-weight: 700;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      text-decoration: none;
+      display: block;
+      border: none;
+    }
+
+    .btn-free {
+      background: var(--bg-tinted);
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+
+    .btn-free:hover {
+      background: #E4E4F4;
+    }
+
+    .btn-primary-plan {
+      background: linear-gradient(135deg, var(--primary), var(--accent));
+      color: #FFFFFF;
+      box-shadow: 0 6px 20px var(--primary-glow);
+    }
+
+    .btn-primary-plan:hover {
+      transform: scale(1.02);
+      box-shadow: 0 8px 24px var(--primary-glow);
+    }
+
+    /* ============================================================  SPECS TABLE  */
+    #specs,
+    #tech-specs {
+      padding: 0 0 56px;
+    }
+
+    .table-wrap {
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      overflow: hidden;
+      box-shadow: var(--shadow-sm);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.9rem;
+    }
+
+    th,
+    td {
+      padding: 15px 22px;
+      border-bottom: 1px solid var(--border-subtle);
+      text-align: left;
+    }
+
+    th {
+      background: var(--bg);
+      font-weight: 600;
+      color: var(--text);
+      font-size: 0.83rem;
+      letter-spacing: 0.2px;
+    }
+
+    td {
+      color: var(--text-muted);
+    }
+
+    tr:last-child td {
+      border-bottom: none;
+    }
+
+    td:first-child,
+    th:first-child {
+      font-weight: 600;
+      color: var(--text-mid);
+      border-right: 1px solid var(--border-subtle);
+    }
+
+    /* ============================================================  PRIVACY  */
+    #privacy-section {
+      padding: 0 0 40px;
+    }
+
+    #licenses-section {
+      padding: 0 0 80px;
+    }
+
+    .privacy-box {
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      overflow: hidden;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .privacy-header {
+      padding: 22px 28px;
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      user-select: none;
+      transition: background 0.2s;
+    }
+
+    .privacy-header:hover {
+      background: var(--bg);
+    }
+
+    .privacy-header h3 {
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    .priv-chevron {
+      font-size: 1rem;
+      transition: transform 0.3s;
+      color: var(--primary);
+    }
+
+    .privacy-body {
+      max-height: 0;
+      overflow: hidden;
+      transition: max-height 0.4s ease, padding 0.3s ease;
+      padding: 0 28px;
+      border-top: 0 solid var(--border);
+    }
+
+    .privacy-body.open {
+      max-height: 1500px;
+      padding: 26px 28px;
+      border-top-width: 1px;
+      overflow-y: auto;
+    }
+
+    .privacy-body h4 {
+      margin: 18px 0 7px;
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    .privacy-body h4:first-child {
+      margin-top: 0;
+    }
+
+    .privacy-body p,
+    .privacy-body li {
+      color: var(--text-muted);
+      font-size: 0.87rem;
+      line-height: 1.7;
+      margin-bottom: 9px;
+    }
+
+    .privacy-body ul {
+      margin-left: 16px;
+    }
+
+    /* ============================================================  FOOTER  */
+    footer {
+      background: var(--text);
+      color: rgba(255, 255, 255, 0.65);
+      padding: 52px 0;
+      text-align: center;
+    }
+
+    .footer-logo {
+      font-family: var(--font-display);
+      font-size: 1.4rem;
+      font-weight: 700;
+      color: #fff;
+      margin-bottom: 8px;
+    }
+
+    footer p {
+      font-size: 0.87rem;
+      font-weight: 300;
+    }
+
+    footer a {
+      color: rgba(160, 160, 240, 0.9);
+      text-decoration: none;
+    }
+
+    .footer-links {
+      display: flex;
+      justify-content: center;
+      gap: 24px;
+      margin-top: 12px;
+    }
+
+    /* ============================================================  RESPONSIVE  */
+    @media (max-width: 900px) {
+
+      .interface-grid,
+      .feature-lists-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 768px) {
+      .hero h1 {
+        font-size: 2.4rem;
+      }
+
+      nav {
+        display: none;
+      }
+
+      #features {
+        padding: 44px 24px;
+      }
+
+      .section-title h2 {
+        font-size: 1.9rem;
+      }
+
+      .steps-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .flist-card,
+      #experimental {
+        padding: 28px 22px;
+      }
+    }
+
+    /* ============================================================  ANIMATIONS  */
+    @keyframes fadeUp {
+      from {
+        opacity: 0;
+        transform: translateY(22px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .hero>*:not(.hero-glow) {
+      animation: fadeUp 0.55s ease backwards;
+    }
+
+    .hero .badge-pill {
+      animation-delay: 0.08s;
+    }
+
+    .hero h1 {
+      animation-delay: 0.16s;
+    }
+
+    .hero-sub {
+      animation-delay: 0.24s;
+    }
+
+    .hero .download-buttons {
+      animation-delay: 0.32s;
+    }
+
+    .hero .hero-tags {
+      animation-delay: 0.40s;
+    }
+  </style>
+</head>
+
+<body class="lang-en">
+
+  <!-- ================================================================  HEADER  -->
+  <header>
+    <a href="#" class="logo">
+      <img src="images/icon.png" alt="AI Diary icon" class="logo-img">
+      <span class="logo-name">AI Diary</span>
+    </a>
+    <nav>
+      <a href="#features" class="es">Características</a>
+      <a href="#features" class="en">Features</a>
+      <a href="#interface-guide" class="es">Interfaz</a>
+      <a href="#interface-guide" class="en">Interface</a>
+      <a href="#diary-features" class="es">Funciones</a>
+      <a href="#diary-features" class="en">Functions</a>
+      <a href="#models" class="es">Modelos IA</a>
+      <a href="#models" class="en">AI Models</a>
+      <a href="#pricing" class="es">Precios</a>
+      <a href="#pricing" class="en">Pricing</a>
+      <a href="#tech-specs" class="es">Especificaciones</a>
+      <a href="#tech-specs" class="en">Tech Specs</a>
+      <a href="#privacy-section" class="es">Privacidad</a>
+      <a href="#privacy-section" class="en">Privacy</a>
+      <a href="#terms-section" class="es">Términos y Deslinde IA</a>
+      <a href="#terms-section" class="en">Terms &amp; AI Disclosure</a>
+    </nav>
+    <div class="lang-switch">
+      <button class="lang-btn" id="btn-es" onclick="setLang('es')">Español</button>
+      <button class="lang-btn active" id="btn-en" onclick="setLang('en')">English</button>
+    </div>
+  </header>
+
+  <!-- ================================================================  MAIN  -->
+  <main class="container">
+
+    <!-- ——— HERO ——— -->
+    <section class="hero">
+      <div class="hero-glow"></div>
+
+      <div class="badge-pill">
+        ✨ <span class="es">100% Privado · Sin Servidores · Funciona OFFLINE</span>
+        <span class="en">100% Private · No Servers · Works OFFLINE</span>
+      </div>
+
+      <!-- Video Showcase -->
+      <div class="hero-video-wrap"
+        style="max-width: 680px; margin: 0 auto 28px; border-radius: var(--radius-md); overflow: hidden; box-shadow: var(--shadow-md); border: 1.5px solid var(--border); background: #000; position: relative; transition: all 0.3s ease;">
+        <video id="hero-video-en" class="en" playsinline controls controlslist="nodownload"
+          oncontextmenu="return false;" style="width: 100%; height: auto; display: block; object-fit: cover;">
+          <source src="Anima%20AI%20EN.mp4" type="video/mp4">
+          Your browser does not support the video tag.
+        </video>
+        <video id="hero-video-es" class="es" playsinline controls controlslist="nodownload"
+          oncontextmenu="return false;" style="width: 100%; height: auto; display: block; object-fit: cover;">
+          <source src="Anima%20AI%20ES.mp4" type="video/mp4">
+          Your browser does not support the video tag.
+        </video>
+      </div>
+
+      <h1 class="es">Tu Diario Personal.<br><span class="grad">Privado y Local.</span></h1>
+      <h1 class="en">Your Personal Diary.<br><span class="grad">Private &amp; Local.</span></h1>
+
+      <!-- Slogans / Value Props Box -->
+      <div class="hero-slogan-box es">
+        <p>💬 El primer diario que te responde.</p>
+        <p>💡 No escribas al vacío. Habla con tu diario.</p>
+        <p>✍️ Tus memorias en formato de conversación.</p>
+      </div>
+      <div class="hero-slogan-box en">
+        <p>💬 The first diary that answers you.</p>
+        <p>💡 Don't write into the void. Talk to your diary.</p>
+        <p>✍️ Your memories in conversation format.</p>
+      </div>
+
+      <p class="hero-sub es">Impulsado localmente por los modelos neuronales de última generación: <strong>Gemma 3 (1B)</strong> y <strong>Gemma 4 (E2B QAT)</strong> de Google DeepMind, y <strong>LFM 2.5 (1.2B)</strong> de Liquid AI. 100% funcional OFFLINE tras la primera descarga, con dictado por voz Whisper, psicogramas clínicos y modo de aislamiento total (Air-Gap). Cero suscripciones forzosas y soberanía absoluta de tus datos.</p>
+      <p class="hero-sub en">Locally powered by state-of-the-art neural engines: Google DeepMind's <strong>Gemma 3 (1B)</strong> &amp; <strong>Gemma 4 (E2B QAT)</strong>, and Liquid AI's <strong>LFM 2.5 (1.2B)</strong>. 100% OFFLINE after first download, featuring Whisper voice dictation, clinical psychometrics, and total Air-Gap isolation. Zero forced subscriptions and absolute data sovereignty.</p>
+
+      <div class="download-buttons"
+        style="display: flex; flex-direction: row; flex-wrap: wrap; justify-content: center; align-items: flex-start; gap: 32px; margin-bottom: 24px;">
+        <div
+          style="display: flex; flex-direction: column; align-items: center; gap: 6px; width: 280px; text-align: center;">
+          <a href="https://play.google.com/apps/internaltest/4701699304938671354" target="_blank"
+            class="btn btn-primary" id="btn-google-play"
+            style="width: 100%; display: flex; justify-content: center; align-items: center;">
+            <span style="color: #f7fa50;">▶</span> &nbsp;<span class="es">Google Play Store</span><span
+              class="en">Google Play Store</span>
+          </a>
+          <span style="font-size: 0.8rem; opacity: 0.7; color: var(--text-muted); line-height: 1.4;">Right now in Close
+            Tests in Google Waiting for Comercial Release.</span>
+        </div>
+        <div
+          style="display: flex; flex-direction: column; align-items: center; gap: 6px; width: 280px; text-align: center;">
+          <a href="https://testflight.apple.com/join/y1RbuYNp" target="_blank" class="btn btn-outline"
+            id="btn-testflight" style="width: 100%; display: flex; justify-content: center; align-items: center;">
+            🍏 &nbsp;<span class="es">iOS TestFlight (Beta)</span><span class="en">iOS TestFlight (Beta)</span>
+          </a>
+          <span style="font-size: 0.8rem; opacity: 0.7; color: var(--text-muted); line-height: 1.4;">Applying for
+            Apple's Apple Store tests.</span>
+        </div>
+      </div>
+
+
+    </section>
+
+    <!-- ——— FEATURES ——— -->
+    <section id="features">
+      <div class="section-title">
+        <h2 class="es">Todo el poder de la IA, en tu bolsillo.</h2>
+        <h2 class="en">All the power of AI, in your pocket.</h2>
+        <p class="es">Sin servidores. Sin suscripciones. Sin rastreadores. Solo tú y tu diario.</p>
+        <p class="en">No servers. No subscriptions. No trackers. Just you and your diary.</p>
+        <div class="section-divider"></div>
+      </div>
+
+      <!-- Core Values Sub-section -->
+      <div class="core-values-section" style="margin-bottom: 56px;">
+        <h3 class="es"
+          style="font-family: var(--font-display); font-size: 1.8rem; text-align: center; margin-bottom: 28px;">Valores
+          Fundamentales</h3>
+        <h3 class="en"
+          style="font-family: var(--font-display); font-size: 1.8rem; text-align: center; margin-bottom: 28px;">Core
+          Values</h3>
+        <div class="features-grid" style="grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));">
+          <div class="feature-card"
+            style="border-color: rgba(124, 92, 224, 0.15); background: rgba(124, 92, 224, 0.02);">
+            <div class="feature-icon" style="background: var(--accent-pale); border-color: rgba(124, 92, 224, 0.2);">🔒
+            </div>
+            <h4 class="es">Privacidad Absoluta</h4>
+            <h4 class="en">Absolute Privacy</h4>
+            <p class="es">Tus pensamientos son solo tuyos. El procesamiento de datos ocurre completamente en tu
+              dispositivo, garantizando una soberanía absoluta sobre tus reflexiones personales.</p>
+            <p class="en">Your thoughts remain yours. Data processing happens entirely on your device, ensuring complete
+              sovereignty over your personal reflections.</p>
+          </div>
+          <div class="feature-card"
+            style="border-color: rgba(124, 92, 224, 0.15); background: rgba(124, 92, 224, 0.02);">
+            <div class="feature-icon" style="background: var(--accent-pale); border-color: rgba(124, 92, 224, 0.2);">🔌
+            </div>
+            <h4 class="es">Independencia Offline</h4>
+            <h4 class="en">Offline Independence</h4>
+            <p class="es">Funcionalidad que no depende de la nube. Accede a tu diario, analiza documentos y utiliza
+              herramientas de IA sin conexión a Internet.</p>
+            <p class="en">Functionality that doesn't rely on the cloud. Access your diary, analyze documents, and
+              utilize AI tools without an internet connection.</p>
+          </div>
+          <div class="feature-card"
+            style="border-color: rgba(124, 92, 224, 0.15); background: rgba(124, 92, 224, 0.02);">
+            <div class="feature-icon" style="background: var(--accent-pale); border-color: rgba(124, 92, 224, 0.2);">🚀
+            </div>
+            <h4 class="es">Optimización Local Eficiente</h4>
+            <h4 class="en">Efficient Local Optimization</h4>
+            <p class="es">Rendimiento de nivel servidor directamente en tu móvil gracias a técnicas avanzadas de
+              aceleración matemática de CPU, NPU y GPU sin comprometer la batería.</p>
+            <p class="en">Server-level performance directly on your mobile device thanks to advanced CPU, NPU, and GPU
+              mathematical acceleration techniques without compromising battery life.</p>
+          </div>
+          <div class="feature-card"
+            style="border-color: rgba(124, 92, 224, 0.15); background: rgba(124, 92, 224, 0.02);">
+            <div class="feature-icon" style="background: var(--accent-pale); border-color: rgba(124, 92, 224, 0.2);">🌸
+            </div>
+            <h4 class="es">Autoconocimiento y Crecimiento</h4>
+            <h4 class="en">Self-Knowledge & Growth</h4>
+            <p class="es">Herramientas psicológicas estructuradas para el seguimiento del estado de ánimo, tests
+              científicos e informes clínicos que fomentan tu desarrollo integral.</p>
+            <p class="en">Structured psychological tools for tracking mood, scientific personality tests, and clinical
+              reports that foster your overall personal development.</p>
+          </div>
+          <div class="feature-card"
+            style="border-color: rgba(124, 92, 224, 0.15); background: rgba(124, 92, 224, 0.02);">
+            <div class="feature-icon" style="background: var(--accent-pale); border-color: rgba(124, 92, 224, 0.2);">📁
+            </div>
+            <h4 class="es">Productividad y Proyectos</h4>
+            <h4 class="en">Productivity & Projects</h4>
+            <p class="es">Crea y gestiona proyectos interactivos estructurados con ayuda de tu asistente de IA,
+              potenciando tus metas y organización diaria 100% local.</p>
+            <p class="en">Create and manage structured interactive projects assisted by your AI companion, boosting your
+              goals and daily organization 100% locally.</p>
+          </div>
+        </div>
+
+        <div class="promo-quote-banner"
+          style="margin-top: 32px; background: linear-gradient(135deg, var(--primary-pale), var(--accent-pale)); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 20px; text-align: center; font-weight: 500;">
+          <p class="es" style="color: var(--primary-dark); font-size: 1rem; margin: 0;">🛡️ <strong>Seguro. Calmo.
+              Empoderador.</strong> Experimenta la innovación tecnológica diseñada para tu tranquilidad.</p>
+          <p class="en" style="color: var(--primary-dark); font-size: 1rem; margin: 0;">🛡️ <strong>Secure. Calm.
+              Empowering.</strong> Experience technological innovation designed for your peace of mind.</p>
+        </div>
+      </div>
+
+      <!-- Uncompromising Capabilities Header -->
+      <h3 class="es"
+        style="font-family: var(--font-display); font-size: 1.8rem; text-align: center; margin-bottom: 28px;">
+        Capacidades Sin Concesiones</h3>
+      <h3 class="en"
+        style="font-family: var(--font-display); font-size: 1.8rem; text-align: center; margin-bottom: 28px;">
+        Uncompromising Capabilities</h3>
+
+      <div class="features-grid">
+        <div class="feature-card">
+          <div class="feature-icon">🧠</div>
+          <h3 class="es">Chat de IA Privado</h3>
+          <h3 class="en">Private AI Chat</h3>
+          <p class="es">Participa en conversaciones completamente privadas con modelos locales de IA que cuentan con
+            memoria semántica a largo plazo, sin que tus datos salgan jamás de tu dispositivo.</p>
+          <p class="en">Engage in completely private conversations with local AI models that feature long-term semantic
+            memory without data ever leaving your device.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">🎙️</div>
+          <h3 class="es">Walkie-Talkie de Voz</h3>
+          <h3 class="en">Voice Walkie-Talkie</h3>
+          <p class="es">Conversaciones de voz bidireccionales en tiempo real impulsadas por Whisper STT y Piper TTS que
+            funcionan completamente fuera de línea.</p>
+          <p class="en">Real-time two-way voice conversations powered by Whisper STT and Piper TTS that work entirely
+            offline.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">📊</div>
+          <h3 class="es">Evaluación Psicológica Completa</h3>
+          <h3 class="en">Comprehensive Psychological Testing</h3>
+          <p class="es">Realiza pruebas científicas OCEAN+ y MBTI ampliadas (con análisis profundos de 250-400
+            palabras). Genera y exporta reportes individuales o resúmenes globales en informes clínicos PDF totalmente
+            locales y privados.</p>
+          <p class="en">Take scientific OCEAN+ and expanded MBTI personality tests (featuring deep 250-400 word
+            analysis). Generate and export individual or global summary clinical PDF reports entirely offline.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">📄</div>
+          <h3 class="es">Análisis de Documentos</h3>
+          <h3 class="en">Document Analysis</h3>
+          <p class="es">Sube archivos PDF o DOCX de gran tamaño para tener conversaciones de voz fluidas y hacer
+            preguntas sobre su contenido mediante procesamiento de IA local.</p>
+          <p class="en">Upload large PDFs or DOCX files to have fluid voice conversations and ask questions about their
+            content using local AI processing.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">🌐</div>
+          <h3 class="es">Búsqueda Web Anónima</h3>
+          <h3 class="en">Anonymous Web Search</h3>
+          <p class="es">Accede a Internet con un 100% de anonimato a través de Brave Search integrado, garantizando la
+            ausencia de cookies de seguimiento o recopilación de datos.</p>
+          <p class="en">Access the internet with 100% anonymity via integrated Brave Search, ensuring no tracking
+            cookies or data collection.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">📝</div>
+          <h3 class="es">Herramienta de Dictado Offline</h3>
+          <h3 class="en">Offline Dictation Tool</h3>
+          <p class="es">Una interfaz minimalista para dictar notas de voz largas que se transcriben fuera de línea, lo
+            que permite editarlas y exportarlas fácilmente.</p>
+          <p class="en">A minimalist interface to dictate long voice notes that are transcribed offline, allowing for
+            easy editing and exporting.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">📚</div>
+          <h3 class="es">Lector y descargador de PDFs</h3>
+          <h3 class="en">PDF Reader & Downloader</h3>
+          <p class="es">Descarga PDFs desde la aplicación, libros clásicos sin copyright en un instante, trabajos
+            científicos y tecnológicos de nueva generación, al instante. Puedes cargar cualquier PDF que bajes por tu
+            cuenta y luego leerlo en voz alta. ¡Con esto tienes tu sistema de Audiolibros gratis!</p>
+          <p class="en">Download PDFs directly from the app, public domain classic books in an instant, next-generation
+            scientific and technological papers, instantly. You can load any PDF you download on your own and read it
+            aloud. With this you have your own free Audiobook system!</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">📅</div>
+          <h3 class="es">Calendario y lista de pendientes</h3>
+          <h3 class="en">Calendar & To-Do List</h3>
+          <p class="es">Organiza tus tareas por hacer, haz recordatorios de citas con día y hora, todo como dato local y
+            privado.</p>
+          <p class="en">Organize your tasks to do, make appointment reminders with date and time, all stored locally and
+            privately.</p>
+        </div>
+        <div class="feature-card" style="border-color: rgba(69, 69, 192, 0.15); background: rgba(69, 69, 192, 0.02);">
+          <div class="feature-icon">📁</div>
+          <h3 class="es">Crea Proyectos con IA</h3>
+          <h3 class="en">Create Projects with AI</h3>
+          <p class="es">Si tienes algún proyecto en mente, aprender un tópico, un problema personal, una tarea de
+            trabajo, crear un website, aprender un lenguaje o crear un script. ¡Usa la pestaña Proyectos para que de
+            manera interactiva con la IA lo vayas haciendo!</p>
+          <p class="en">If you have any project in mind, learning a topic, a personal problem, a work task, creating a
+            website, learning a language or creating a script. Use the Projects tab to make it happen interactively with
+            the AI!</p>
+        </div>
+        <div class="feature-card" style="border-color: rgba(76, 217, 100, 0.25); background: rgba(76, 217, 100, 0.03);">
+          <div class="feature-icon">🛡️</div>
+          <h3 class="es">Soberanía de Datos &amp; Modo Aislamiento (Air-Gap)</h3>
+          <h3 class="en">Data Sovereignty &amp; Air-Gap Mode</h3>
+          <p class="es">Base de datos local SQLite con 0 KB enviados a la nube. Incluye un interruptor de Aislamiento Total (Air-Gap) que suspende inmediatamente cualquier petición saliente a internet con un solo toque.</p>
+          <p class="en">Local SQLite database with 0 KB sent to the cloud. Features a Total Air-Gap Isolation switch that instantly suspends all outgoing internet traffic with a single tap.</p>
+        </div>
+        <div class="feature-card" style="border-color: rgba(255, 179, 0, 0.3); background: rgba(255, 179, 0, 0.03);">
+          <div class="feature-icon">🔑</div>
+          <h3 class="es">Bóveda Cifrada AES-256</h3>
+          <h3 class="en">AES-256 Encrypted Vault</h3>
+          <p class="es">Cifrado de grado militar a nivel de aplicación que resguarda tus diarios y recuerdos bajo las llaves criptográficas de hardware seguro de tu propio teléfono (Keystore/Keychain), inmune a spyware exterior.</p>
+          <p class="en">Application-level military-grade encryption shielding your journal entries and memories under your phone's hardware-backed key (Keystore/Keychain), fully immune to external spyware.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ——— APP INTERFACE GUIDE ——— -->
+    <section id="interface-guide">
+      <div class="section-title">
+        <h2 class="es">Conoce la barra superior y el menú</h2>
+        <h2 class="en">Meet the Top Bar &amp; Menu</h2>
+        <p class="es">Todos los controles principales están al alcance de tu pulgar desde la barra superior.</p>
+        <p class="en">All main controls are at your thumb's reach from the top bar.</p>
+        <div class="section-divider"></div>
+      </div>
+
+      <div style="max-width: 680px; margin: 40px auto 0;">
+
+        <!-- Top Bar -->
+        <div class="interface-card">
+          <div class="interface-img-wrap">
+            <img src="images/en/topbar.png" alt="Top bar guide" class="en" loading="lazy">
+            <img src="images/es/topbar.png" alt="Guía de barra superior" class="es" loading="lazy">
+          </div>
+          <div class="interface-body">
+            <h3 class="es">🔵 Barra Superior – Funciones</h3>
+            <h3 class="en">🔵 Top Bar – Functions</h3>
+
+            <div class="iface-item">
+              <div class="iface-badge">1</div>
+              <div class="iface-text">
+                <h5 class="es">AI Diary / Diario Personal</h5>
+                <h5 class="en">AI Diary / Offline AI</h5>
+                <p class="es">Logo y nombre de la app. Identifica que el Anima Balance está activo y qué pestaña estás
+                  usando.</p>
+                <p class="en">App logo and name. Identifies that the Anima Balance is active and which tab you're on.
+                </p>
+              </div>
+            </div>
+
+            <div class="iface-item">
+              <div class="iface-badge">2</div>
+              <div class="iface-text">
+                <h5 class="es">🔄 RESTART ANIMA BALANCE</h5>
+                <h5 class="en">🔄 RESTART ANIMA BALANCE</h5>
+                <p class="es">Reinicia el motor de IA. Úsalo si la IA se queda colgada, no responde, o necesitas un
+                  contexto limpio.</p>
+                <p class="en">Restarts the AI engine. Use it if the AI gets stuck, stops responding, or you need a fresh
+                  context.</p>
+              </div>
+            </div>
+
+            <div class="iface-item">
+              <div class="iface-badge">3</div>
+              <div class="iface-text">
+                <h5 class="es">🌐 LANGUAGE (EN / ES)</h5>
+                <h5 class="en">🌐 LANGUAGE (EN / ES)</h5>
+                <p class="es">Cambia el idioma de la interfaz entre Español e Inglés con un solo toque.</p>
+                <p class="en">Switches the interface language between Spanish and English with a single tap.</p>
+              </div>
+            </div>
+
+            <div class="iface-item">
+              <div class="iface-badge">4</div>
+              <div class="iface-text">
+                <h5 class="es">🗣️ CHAT VOICE (Walkie-Talkie)</h5>
+                <h5 class="en">🗣️ CHAT VOICE (Walkie-Talkie)</h5>
+                <p class="es">Activa el modo Walkie-Talkie para una conversación por voz bidireccional en tiempo real
+                  con la IA, todo offline.</p>
+                <p class="en">Activates Walkie-Talkie mode for real-time two-way voice conversation with the AI, all
+                  offline.</p>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+      <!-- Diary Bottom Bar -->
+      <div class="bottombar-card">
+        <div class="interface-img-wrap" style="padding: 28px 40px; display: flex; justify-content: center;">
+          <img src="images/en/bottom_bar.png" alt="Diary Bottom Bar - Input Controls" class="en" loading="lazy"
+            style="max-width: 66%; height: auto; border-radius: var(--radius-sm); box-shadow: 0 8px 24px rgba(20, 20, 58, 0.12); border: 1px solid var(--border);">
+          <img src="images/es/bottom_bar.png" alt="Barra Inferior del Diario - Controles de Entrada" class="es"
+            loading="lazy"
+            style="max-width: 66%; height: auto; border-radius: var(--radius-sm); box-shadow: 0 8px 24px rgba(20, 20, 58, 0.12); border: 1px solid var(--border);">
+        </div>
+        <div class="bottombar-body">
+          <h3 class="es">💬 Barra Inferior del Diario – Controles de Entrada</h3>
+          <h3 class="en">💬 Diary Bottom Bar – Input Controls</h3>
+          <div class="bottombar-grid">
+            <div class="bbar-item">
+              <div class="bbar-icon">📄</div>
+              <div class="bbar-text">
+                <h5 class="es">Adjuntar Archivos y Hablar con ellos</h5>
+                <h5 class="en">Attach & Talk to Files</h5>
+                <p class="es">Sube archivos masivos (PDF, DOCX) y ten conversaciones en voz alta sobre su contenido,
+                  procesado 100% local por la IA.</p>
+                <p class="en">Upload massive files (PDF, DOCX) and have voice conversations about their content,
+                  processed 100% locally by the AI.</p>
+              </div>
+            </div>
+            <div class="bbar-item">
+              <div class="bbar-icon">✏️</div>
+              <div class="bbar-text">
+                <h5 class="es">Entrada de Texto</h5>
+                <h5 class="en">Text Input</h5>
+                <p class="es">Escribe libremente tus pensamientos, ideas o preguntas. Soporta saltos de línea.</p>
+                <p class="en">Write your thoughts, ideas, or questions freely. Supports line breaks.</p>
+              </div>
+            </div>
+            <div class="bbar-item">
+              <div class="bbar-icon">⬆️</div>
+              <div class="bbar-text">
+                <h5 class="es">Enviar Entrada</h5>
+                <h5 class="en">Send Entry</h5>
+                <p class="es">Envía tu texto o documento adjunto para procesarlo y guardarlo en el diario.</p>
+                <p class="en">Send your text or attached document to process and save it in the diary.</p>
+              </div>
+            </div>
+            <div class="bbar-item">
+              <div class="bbar-icon">🎙️</div>
+              <div class="bbar-text">
+                <h5 class="es">Grabar Nota de Voz</h5>
+                <h5 class="en">Record Voice Note</h5>
+                <p class="es">Graba audio y deja que Whisper transcriba tu voz de forma offline en segundos.</p>
+                <p class="en">Record audio and let Whisper transcribe your voice offline in seconds.</p>
+              </div>
+            </div>
+            <div class="bbar-item">
+              <div class="bbar-icon">👥</div>
+              <div class="bbar-text">
+                <h5 class="es">Modo TALK (Voz a Voz)</h5>
+                <h5 class="en">TALK Mode (Voice-to-Voice)</h5>
+                <p class="es">Conversación por voz bidireccional continua con Whisper STT y Piper TTS.</p>
+                <p class="en">Continuous two-way voice conversation using Whisper STT and Piper TTS.</p>
+              </div>
+            </div>
+            <div class="bbar-item">
+              <div class="bbar-icon">🧠</div>
+              <div class="bbar-text">
+                <h5 class="es">MODOS: Zen, Balance, Deep, Creative</h5>
+                <h5 class="en">MODES: Zen, Balance, Deep, Creative</h5>
+                <p class="es">Puedes cambiar el modo de cognición e inferencia de tu AI. Pedirle que sea concisa o
+                  parlanchina.</p>
+                <p class="en">You can change your AI's cognition and inference mode. Ask it to be concise or talkative.
+                </p>
+              </div>
+            </div>
+          </div>
+          <div class="bbar-status-bar">
+            ⚡ <span class="es"><strong>"Fast efficiency, minimal delay."</strong> — Texto de estado que muestra el
+              rendimiento de inferencia del modelo activo.</span>
+            <span class="en"><strong>"Fast efficiency, minimal delay."</strong> — Status text showing the inference
+              performance of the active model.</span>
+          </div>
+        </div>
+      </div>
+
+
+
+      <!-- ——— DIARY & ADVANCED FEATURE LISTS ——— -->
+      <section id="diary-features">
+        <div class="section-title">
+          <h2 class="es">MENUS PODEROSOS</h2>
+          <h2 class="en">POWER TABS</h2>
+          <p class="es">4 otros menús (además del chat base de IA) para potenciar tu productividad y habilidades.</p>
+          <p class="en">4 other menues (besides the IA Base chat) to power up your productivity and habilities.</p>
+          <div class="section-divider"></div>
+        </div>
+
+        <div class="feature-lists-grid">
+
+          <!-- Tab 2: Autoconocimiento (Self-Know) -->
+          <div class="flist-card">
+            <div class="flist-header">
+              <div class="flist-header-icon">Ψ</div>
+              <div>
+                <h3 class="es">Pestaña Autoconocimiento</h3>
+                <h3 class="en">Self-Know Tab</h3>
+                <p class="es">Tu perfil psicológico y bienestar</p>
+                <p class="en">Your psychological profile and wellness</p>
+              </div>
+            </div>
+            <div class="flist-item">
+              <div class="flist-item-icon">📊</div>
+              <div>
+                <h5 class="es">Tests de Personalidad (OCEAN+ / MBTI Ampliados)</h5>
+                <h5 class="en">Personality Tests (Expanded OCEAN+ / MBTI)</h5>
+                <p class="es">Realiza pruebas psicológicas de base científica directamente en tu dispositivo, con
+                  perfiles detallados de 250 a 400 palabras.</p>
+                <p class="en">Take scientifically grounded psychological tests directly on your device, featuring
+                  detailed profiles of 250 to 400 words.</p>
+              </div>
+            </div>
+            <div class="flist-item">
+              <div class="flist-item-icon">📈</div>
+              <div>
+                <h5 class="es">Gráficos Analíticos e Historial de Ánimo</h5>
+                <h5 class="en">Analytical Charts & Mood History</h5>
+                <p class="es">Visualiza tu evolución emocional e intelectual mediante gráficos interactivos y mapas
+                  radiales.</p>
+                <p class="en">Visualize your emotional and intellectual evolution via interactive charts and radar maps.
+                </p>
+              </div>
+            </div>
+            <div class="flist-item">
+              <div class="flist-item-icon">📤</div>
+              <div>
+                <h5 class="es">Exportación de Reportes PDF (Individual y Global)</h5>
+                <h5 class="en">PDF Report Export (Individual & Global)</h5>
+                <p class="es">Genera reportes clínicos individuales de cada test o un resumen global en PDF confidencial
+                  para tus propios registros o para compartir con terapeutas profesionales.</p>
+                <p class="en">Generate individual clinical reports for each test or a global PDF summary for your
+                  personal records or to share with professional therapists.</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Tab 3: Proyectos (Projects) -->
+          <div class="flist-card">
+            <div class="flist-header">
+              <div class="flist-header-icon">📁</div>
+              <div>
+                <h3 class="es">Pestaña Proyectos</h3>
+                <h3 class="en">Projects Tab</h3>
+                <p class="es">Gestión y organización local</p>
+                <p class="en">Local management and organization</p>
+              </div>
+            </div>
+            <div class="flist-item">
+              <div class="flist-item-icon">🏗️</div>
+              <div>
+                <h5 class="es">Organización de Proyectos</h5>
+                <h5 class="en">Project Organization</h5>
+                <p class="es">Crea, edita y gestiona tus proyectos personales o profesionales en un entorno libre de
+                  distracciones.</p>
+                <p class="en">Create, edit, and manage your personal or professional projects in a distraction-free
+                  environment.</p>
+              </div>
+            </div>
+            <div class="flist-item">
+              <div class="flist-item-icon">💾</div>
+              <div>
+                <h5 class="es">Almacenamiento Local Seguro</h5>
+                <h5 class="en">Secure Local Storage</h5>
+                <p class="es">Todos los datos, esquemas de proyectos y notas se guardan en la base de datos cifrada
+                  SQLite.</p>
+                <p class="en">All project data, schemas, and notes are saved directly in your encrypted SQLite database.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Tab 4: Herramientas -->
+          <div class="flist-card">
+            <div class="flist-header">
+              <div class="flist-header-icon">🛠️</div>
+              <div>
+                <h3 class="es">Pestaña Herramientas</h3>
+                <h3 class="en">Tools Tab</h3>
+                <p class="es">Utilidades adicionales y exportación</p>
+                <p class="en">Extra utilities and data export</p>
+              </div>
+            </div>
+            <div class="flist-item">
+              <div class="flist-item-icon">🎙️</div>
+              <div>
+                <h5 class="es">Herramienta de Dictado (Dictation Overlay)</h5>
+                <h5 class="en">Dictation Tool (Dictation Overlay)</h5>
+                <p class="es">Lienzo modal oscuro superpuesto y libre de distracciones para dictar notas, editar texto y
+                  copiar al portapapeles rápidamente.</p>
+                <p class="en">Distraction-free dark modal overlay to quickly dictate notes, edit transcribed text, and
+                  copy to clipboard.</p>
+              </div>
+            </div>
+            <div class="flist-item">
+              <div class="flist-item-icon">📋</div>
+              <div>
+                <h5 class="es">To-Do List y Notas Locales</h5>
+                <h5 class="en">Local To-Do List & Notes</h5>
+                <p class="es">Añade pendientes en la base de datos SQLite con selectores nativos de fecha/hora del
+                  sistema
+                  y organízalos de manera cronológica.</p>
+                <p class="en">Add reminders to the SQLite database using native system date/time pickers and
+                  automatically
+                  sort them chronologically.</p>
+              </div>
+            </div>
+            <div class="flist-item">
+              <div class="flist-item-icon">📅</div>
+              <div>
+                <h5 class="es">Calendario Interactivo</h5>
+                <h5 class="en">Interactive Calendar</h5>
+                <p class="es">Una interfaz visual de calendario integrada offline para consultar notas y organizar tus
+                  planes del diario.</p>
+                <p class="en">An integrated offline visual calendar interface to consult notes and organize your diary
+                  plans.</p>
+              </div>
+            </div>
+            <div class="flist-item">
+              <div class="flist-item-icon">🌐</div>
+              <div>
+                <h5 class="es">Búsqueda en Wikipedia + Explicación con IA Local</h5>
+                <h5 class="en">Wikipedia Search & Local AI Explanation</h5>
+                <p class="es">Consulta la Wikipedia y utiliza la IA local en tu dispositivo para interpretar y resumir
+                  los
+                  temas de interés.</p>
+                <p class="en">Consult Wikipedia and use your device's local AI to interpret and summarize topics of
+                  interest.</p>
+              </div>
+            </div>
+            <div class="flist-item">
+              <div class="flist-item-icon">📄</div>
+              <div>
+                <h5 class="es">Exportación de PDF al Instante (Individuales y Resumen Global)</h5>
+                <h5 class="en">Instant PDF Export (Individual & Global Summary)</h5>
+                <p class="es">Genera y exporta localmente reportes PDF oficiales y detallados de tu historial del
+                  diario, reportes individuales de tus tests de personalidad OCEAN+ / MBTI, o un resumen global
+                  integrado.</p>
+                <p class="en">Locally generate and export official, detailed PDF reports of your diary history,
+                  individual OCEAN+ / MBTI personality profiles, or an integrated global summary.</p>
+              </div>
+            </div>
+            <div class="flist-item">
+              <div class="flist-item-icon">📚</div>
+              <div>
+                <h5 class="es">Lector y descargador de PDFs</h5>
+                <h5 class="en">PDF Reader & Downloader</h5>
+                <p class="es">Descarga libros clásicos y trabajos científicos al instante, o carga cualquier PDF propio
+                  para leerlo en voz alta de manera offline.</p>
+                <p class="en">Download classic books and scientific papers instantly, or load any of your own PDFs to
+                  read them aloud offline.</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Tab 4: Ajustes -->
+          <div class="flist-card">
+            <div class="flist-header">
+              <div class="flist-header-icon">⚙️</div>
+              <div>
+                <h3 class="es">Pestaña Ajustes</h3>
+                <h3 class="en">Settings Tab</h3>
+                <p class="es">Configuración y seguridad de la app</p>
+                <p class="en">App configuration and security</p>
+              </div>
+            </div>
+            <div class="flist-item">
+              <div class="flist-item-icon">🎨</div>
+              <div>
+                <h5 class="es">Personalización de Temas</h5>
+                <h5 class="en">Themes Customization</h5>
+                <p class="es">Cambia el aspecto visual de la aplicación eligiendo entre los temas CLEAR (Claro), BALANCE
+                  (Santuario), AURA (Lavanda) y ZION (Lluvia Matrix).</p>
+                <p class="en">Change the visual appearance of the application by choosing between CLEAR, BALANCE
+                  (Sanctuary), AURA (Lavender), and ZION (Matrix Rain) themes.</p>
+              </div>
+            </div>
+            <div class="flist-item">
+              <div class="flist-item-icon">🔑</div>
+              <div>
+                <h5 class="es">Clave API Brave Search</h5>
+                <h5 class="en">Brave Search API Key</h5>
+                <p class="es">Configura tu propia clave Brave API directamente en el almacenamiento seguro de tu
+                  dispositivo para búsquedas web privadas.</p>
+                <p class="en">Set up your own Brave API key directly in your device's secure storage for private web
+                  searches.</p>
+              </div>
+            </div>
+            <div class="flist-item">
+              <div class="flist-item-icon">🔊</div>
+              <div>
+                <h5 class="es">Síntesis de Voz Cloud y Eco-Mode</h5>
+                <h5 class="en">Cloud Voice Synthesis & Eco-Mode</h5>
+                <p class="es">Activa voces premium ultrarrealistas (OpenAI o Google Cloud) mediante APIs seguras, y
+                  activa
+                  el Modo Ecológico manualmente para reducir la temperatura del procesador.</p>
+                <p class="en">Enable ultra-realistic premium voices (OpenAI or Google Cloud) using secure APIs, and
+                  manually toggle Eco-Mode to reduce processor heat.</p>
+              </div>
+            </div>
+            <div class="flist-item">
+              <div class="flist-item-icon">💾</div>
+              <div>
+                <h5 class="es">Gestión y Persistencia de Modelos</h5>
+                <h5 class="en">Model Storage & Persistence</h5>
+                <p class="es">Monitorea el espacio libre del dispositivo, elimina modelos descargados para liberar
+                  espacio
+                  o verifica su integridad y actualízalos a la última versión.</p>
+                <p class="en">Monitor free disk space, delete local models to free up storage, or verify model integrity
+                  and update to the latest versions.</p>
+              </div>
+            </div>
+            <div class="flist-item">
+              <div class="flist-item-icon">⚡</div>
+              <div>
+                <h5 class="es">Aceleración GPU (Turbo)</h5>
+                <h5 class="en">GPU Acceleration (Turbo)</h5>
+                <p class="es">Habilita experimentalmente OpenCL en dispositivos Android para delegar capas de inferencia
+                  del LLM a la GPU del dispositivo.</p>
+                <p class="en">Enable experimental OpenCL on Android devices to offload LLM inference layers to the
+                  mobile
+                  GPU.</p>
+              </div>
+            </div>
+            <div class="flist-item">
+              <div class="flist-item-icon">🗑️</div>
+              <div>
+                <h5 class="es">Sincronización y Reinicio Maestro</h5>
+                <h5 class="en">Sync & Master Reset</h5>
+                <p class="es">Sincroniza el procesador al cambiar de hardware o efectúa una limpieza profunda ("Tierra
+                  Quemada") borrando bases de datos, perfiles e historial local definitivamente.</p>
+                <p class="en">Re-sync the processor when changing hardware or perform a deep clean ("Total Wipe")
+                  permanently deleting local databases, profiles, and history.</p>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+
+      <!-- ——— AI MODELS ——— -->
+      <section id="models" style="padding-top: 56px;">
+        <div class="section-title">
+          <h2 class="es">Elige tu Motor de Inteligencia Artificial</h2>
+          <h2 class="en">Choose Your AI Engine</h2>
+          <p class="es" style="margin-top: 10px; font-size: 1.1rem; opacity: 0.85;">Motores Neuronales 100% Locales Adaptados a tus Necesidades</p>
+          <p class="en" style="margin-top: 10px; font-size: 1.1rem; opacity: 0.85;">100% Local Neural Engines Tailored to Your Needs</p>
+        </div>
+
+        <div class="models-grid"
+          style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 24px; margin-top: 40px;">
+          
+          <!-- Anima Light (Gemma 3 1B) - FREE TIER -->
+          <div class="model-card">
+            <div class="model-badge" style="background: #4cd964; color: #000; font-weight: 800;">
+              🟢 <span class="es">Incluido Gratis</span><span class="en">100% Free</span>
+            </div>
+            <div class="model-name">Anima Light</div>
+            <div class="model-sub es">Google DeepMind Gemma 3 (1B) · Chat Veloz &amp; Fluido</div>
+            <div class="model-sub en">Google DeepMind Gemma 3 (1B) · Fast &amp; Smooth Chat</div>
+            <div style="text-align: center; margin: 16px 0 12px;">
+              <div class="model-logo-btn">
+                <img src="images/anima_light_logo.png" alt="Anima Light Logo" class="light-logo">
+              </div>
+            </div>
+            <ul class="spec-list">
+              <li class="spec-item">
+                <div class="spec-dot"></div><span class="es"><strong>Inferencia Rápida DeepMind:</strong> Respuestas ultra-rápidas en milisegundos sin latencia, ejecutándose directamente en tu procesador.</span><span class="en"><strong>DeepMind Fast Inference:</strong> Ultra-fast millisecond responses with zero latency running directly on your processor.</span>
+              </li>
+              <li class="spec-item">
+                <div class="spec-dot"></div><span class="es"><strong>Eficiencia Energética:</strong> Optimizado para consumir mínima batería y memoria RAM (~769 MB).</span><span class="en"><strong>Energy Efficient:</strong> Optimized for minimal battery consumption and RAM footprint (~769 MB).</span>
+              </li>
+              <li class="spec-item">
+                <div class="spec-dot"></div><span class="es"><strong>100% Offline &amp; Seguro:</strong> Conversación, dictado por voz y reflexiones sin conexión a internet.</span><span class="en"><strong>100% Offline &amp; Private:</strong> Conversations, voice dictation, and journaling without internet connection.</span>
+              </li>
+              <li class="spec-item">
+                <div class="spec-dot"></div><span class="es"><strong>Multilenguaje Universal:</strong> Soporte completo en español, inglés y más de 140 idiomas.</span><span class="en"><strong>Universal Multilingual:</strong> Full support for English, Spanish, and over 140 languages.</span>
+              </li>
+            </ul>
+          </div>
+
+          <!-- Anima Logic (Liquid AI LFM 2.5 1.2B) - SPECIALIZED MODULE -->
+          <div class="model-card">
+            <div class="model-badge" style="background: #7C5CE0;">
+              🧠 <span class="es">Módulo Especializado · $2.99</span><span class="en">Specialized Module · $2.99</span>
+            </div>
+            <div class="model-name">Anima Logic</div>
+            <div class="model-sub es">Liquid AI LFM 2.5 (1.2B) · Razonamiento Deductivo</div>
+            <div class="model-sub en">Liquid AI LFM 2.5 (1.2B) · Deductive Reasoning</div>
+            <div style="text-align: center; margin: 16px 0 12px;">
+              <div class="model-logo-btn">
+                <img src="images/anima_logic_logo.png" alt="Anima Logic Logo" class="logic-logo">
+              </div>
+            </div>
+            <ul class="spec-list">
+              <li class="spec-item">
+                <div class="spec-dot"></div><span class="es"><strong>Arquitectura Líquida (LFM):</strong> Motor neural dinámico de Liquid AI para lógica formal, matemáticas y análisis estructurado.</span><span class="en"><strong>Liquid Neural Architecture:</strong> Dynamic LFM engine by Liquid AI for formal logic, math, and structured analysis.</span>
+              </li>
+              <li class="spec-item">
+                <div class="spec-dot"></div><span class="es"><strong>Síntesis de Proyectos:</strong> Organiza notas complejas en listas jerárquicas y planes de acción analíticos sin rodeos.</span><span class="en"><strong>Project Synthesis:</strong> Organizes complex notes into hierarchical lists and actionable analytical plans.</span>
+              </li>
+              <li class="spec-item">
+                <div class="spec-dot"></div><span class="es"><strong>Alta Velocidad &amp; Bajo Peso:</strong> Inferencia estructurada ultrarrápida con apenas ~731 MB de tamaño.</span><span class="en"><strong>High-Speed &amp; Compact:</strong> Ultra-fast structured inference with only ~731 MB in size.</span>
+              </li>
+              <li class="spec-item">
+                <div class="spec-dot"></div><span class="es"><strong>Pago Único Accesible:</strong> Desbloquea este cerebro de por vida por solo <strong>$2.99 USD</strong>.</span><span class="en"><strong>Affordable One-Time:</strong> Unlock this brain lifetime for only <strong>$2.99 USD</strong>.</span>
+              </li>
+            </ul>
+          </div>
+
+          <!-- Anima Deep (Gemma 4 E2B QAT) - ADVANCED REASONING -->
+          <div class="model-card featured">
+            <div class="model-badge">⭐ <span class="es">Razonamiento Profundo · $4.99</span><span class="en">Deep Reasoning · $4.99</span></div>
+            <div class="model-name">Anima Deep</div>
+            <div class="model-sub es">Google DeepMind Gemma 4 E2B QAT · Sabio &amp; Visión</div>
+            <div class="model-sub en">Google DeepMind Gemma 4 E2B QAT · Sage &amp; Vision</div>
+            <div style="text-align: center; margin: 16px 0 12px;">
+              <div class="model-logo-btn">
+                <img src="images/anima_deep_logo.png" alt="Anima Deep Logo" class="deep-logo">
+              </div>
+            </div>
+            <ul class="spec-list">
+              <li class="spec-item">
+                <div class="spec-dot"></div><span class="es"><strong>Razonamiento Introspectivo:</strong> Lógica profunda con parámetros efectivos PLE optimizada con QAT por Google DeepMind.</span><span class="en"><strong>Introspective Reasoning:</strong> Deep logical reasoning using PLE effective parameters optimized via QAT by Google DeepMind.</span>
+              </li>
+              <li class="spec-item">
+                <div class="spec-dot"></div><span class="es"><strong>Visión Multimodal Local:</strong> Describe y analiza fotos en tu propio procesador sin subirlas a la nube.</span><span class="en"><strong>Local Multimodal Vision:</strong> Describe and analyze photos locally on your device without cloud upload.</span>
+              </li>
+              <li class="spec-item">
+                <div class="spec-dot"></div><span class="es"><strong>Soberanía RAG de Documentos:</strong> Lee, sintetiza y responde preguntas sobre libros y PDFs completos.</span><span class="en"><strong>Document RAG Sovereignty:</strong> Reads, synthesizes, and answers questions on full books and PDFs.</span>
+              </li>
+              <li class="spec-item">
+                <div class="spec-dot"></div><span class="es"><strong>Llamada Local de Herramientas:</strong> Capacidades avanzadas para funciones agénticas y proyectos complejos.</span><span class="en"><strong>Local Tool Calling:</strong> Advanced capabilities for agentic functions and complex projects.</span>
+              </li>
+            </ul>
+          </div>
+
+        </div>
+      </section>
+
+      <!-- ——— SPECS ——— -->
+      <section id="specs" style="padding-top: 24px;">
+        <div class="container">
+          <!-- Side-by-side Model Descriptions -->
+          <div style="display: flex; flex-direction: row; flex-wrap: wrap; gap: 24px; margin-top: 24px; justify-content: center;">
+            
+            <!-- Anima Light Column -->
+            <div style="flex: 1; min-width: 260px; max-width: 360px; line-height: 1.7; color: var(--text-mid); text-align: justify; font-size: 0.95rem; border-right: 1px solid var(--border-subtle); padding-right: 20px;">
+              <span class="es">
+                <strong>⚡ Anima Light (Google DeepMind Gemma 3 1B):</strong> El núcleo gratuito por defecto de AI-Diary. Desarrollado por Google DeepMind, este motor ultra-ligero de 769 MB ofrece velocidad instantánea, empatía conversacional y un consumo de batería casi imperceptible. Con soporte para más de 140 idiomas, es ideal para el registro diario, reflexiones personales y dictado fluido en cualquier smartphone.
+              </span>
+              <span class="en">
+                <strong>⚡ Anima Light (Google DeepMind Gemma 3 1B):</strong> The default free core of AI-Diary. Developed by Google DeepMind, this ultra-lightweight 769 MB engine delivers instant speed, conversational empathy, and negligible battery drain. Supporting over 140 languages, it is ideal for daily journaling, personal reflections, and smooth voice dictation on any smartphone.
+              </span>
+            </div>
+
+            <!-- Anima Logic Column -->
+            <div style="flex: 1; min-width: 260px; max-width: 360px; line-height: 1.7; color: var(--text-mid); text-align: justify; font-size: 0.95rem; border-right: 1px solid var(--border-subtle); padding-right: 20px;">
+              <span class="es">
+                <strong>🧠 Anima Logic (Liquid AI LFM 2.5 1.2B):</strong> Módulo especializado en razonamiento deductivo y lógica estricta. Utiliza la revolucionaria arquitectura LFM de Liquid AI calibrada para análisis matemático, descomposición analítica de problemas y estructuración de proyectos complejos sin rodeos ni verborrea (~731 MB). Disponible por solo $2.99 USD o en el Bundle completo.
+              </span>
+              <span class="en">
+                <strong>🧠 Anima Logic (Liquid AI LFM 2.5 1.2B):</strong> Specialized module for deductive reasoning and strict logic. Leverages Liquid AI's revolutionary LFM architecture calibrated for mathematical breakdown, analytical problem solving, and complex project structuring without fluff (~731 MB). Available for only $2.99 USD or in the Full Bundle.
+              </span>
+            </div>
+
+            <!-- Anima Deep Column -->
+            <div style="flex: 1; min-width: 260px; max-width: 360px; line-height: 1.7; color: var(--text-mid); text-align: justify; font-size: 0.95rem; padding-left: 4px;">
+              <span class="es">
+                <strong>🚀 Anima Deep (Google DeepMind Gemma 4 E2B QAT):</strong> Nuestro núcleo más potente, optimizado por Google DeepMind mediante cuantización QAT. Requiere 6 GB de RAM y ofrece razonamiento filosófico superior, análisis visual de fotos y memoria RAG para consultar libros y documentos PDF masivos. Disponible por $4.99 USD o incluido en el Bundle de por vida.
+              </span>
+              <span class="en">
+                <strong>🚀 Anima Deep (Google DeepMind Gemma 4 E2B QAT):</strong> Our most powerful intelligence core, optimized by Google DeepMind via QAT quantization. Requires 6 GB of RAM and delivers superior philosophical reasoning, visual photo analysis, and RAG document memory for massive PDFs and books. Available for $4.99 USD or included in the Lifetime Bundle.
+              </span>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- Minimum Hardware Requirements Table -->
+        <h3 class="es"
+          style="text-align: center; margin: 40px 0 20px; font-family: var(--font-display); font-size: 1.4rem; color: var(--text);">
+          Requisitos Mínimos de Hardware</h3>
+        <h3 class="en"
+          style="text-align: center; margin: 40px 0 20px; font-family: var(--font-display); font-size: 1.4rem; color: var(--text);">
+          Minimum Hardware Requirements</h3>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th class="es">Componente</th>
+                <th class="en">Component</th>
+                <th class="es">Anima Light (Gemma 3 1B)</th>
+                <th class="en">Anima Light (Gemma 3 1B)</th>
+                <th class="es">Anima Logic (LFM 1.2B)</th>
+                <th class="en">Anima Logic (LFM 1.2B)</th>
+                <th class="es">Anima Deep (Gemma 4 E2B)</th>
+                <th class="en">Anima Deep (Gemma 4 E2B)</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="es">Memoria RAM</td>
+                <td class="en">RAM Memory</td>
+                <td class="es">4 GB (Consumo ~769 MB)</td>
+                <td class="en">4 GB (Footprint ~769 MB)</td>
+                <td class="es">4 GB (Consumo ~731 MB)</td>
+                <td class="en">4 GB (Footprint ~731 MB)</td>
+                <td class="es">6 GB o superior (~2.2 GB VRAM)</td>
+                <td class="en">6 GB or higher (~2.2 GB VRAM)</td>
+              </tr>
+              <tr>
+                <td class="es">Procesador</td>
+                <td class="en">Processor</td>
+                <td class="es">Snapdragon 680+ / Apple A13</td>
+                <td class="en">Snapdragon 680+ / Apple A13</td>
+                <td class="es">Snapdragon 680+ / Apple A13</td>
+                <td class="en">Snapdragon 680+ / Apple A13</td>
+                <td class="es">Snapdragon 8 Gen 2 / Apple A16+</td>
+                <td class="en">Snapdragon 8 Gen 2 / Apple A16+</td>
+              </tr>
+              <tr>
+                <td class="es">Sistema Operativo</td>
+                <td class="en">Operating System</td>
+                <td class="es">Android 10+ / iOS 15+</td>
+                <td class="en">Android 10+ / iOS 15+</td>
+                <td class="es">Android 10+ / iOS 15+</td>
+                <td class="en">Android 10+ / iOS 15+</td>
+                <td class="es">Android 13+ / iOS 17+</td>
+                <td class="en">Android 13+ / iOS 17+</td>
+              </tr>
+              <tr>
+                <td class="es">Almacenamiento Libre</td>
+                <td class="en">Free Storage</td>
+                <td class="es">2 GB de espacio libre</td>
+                <td class="en">2 GB free space</td>
+                <td class="es">2 GB de espacio libre</td>
+                <td class="en">2 GB free space</td>
+                <td class="es">5 GB (Modelo + Proyector Visión)</td>
+                <td class="en">5 GB (Base model + Vision Projector)</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ——— PRICING & MONETIZATION ——— -->
+      <section id="pricing">
+        <div class="container" style="max-width: 1100px; margin: 0 auto; padding: 0 20px;">
+          <div class="section-title">
+            <h2 class="es">Precios Transparentes. Sin Suscripciones Forzosas.</h2>
+            <h2 class="en">Transparent Pricing. Zero Forced Subscriptions.</h2>
+            <p class="es" style="font-size: 1.15rem; max-width: 820px; margin: 12px auto 0; opacity: 0.85;">
+              Disfruta de AI-Diary 100% gratis para siempre con Anima Light o adquiere módulos avanzados con un único pago de por vida. Sin cuotas mensuales ni cobros ocultos.
+            </p>
+            <p class="en" style="font-size: 1.15rem; max-width: 820px; margin: 12px auto 0; opacity: 0.85;">
+              Enjoy AI-Diary 100% free forever with Anima Light or unlock advanced modules with a single lifetime payment. No monthly fees or hidden charges.
+            </p>
+          </div>
+
+          <div class="pricing-grid">
+            
+            <!-- Plan 1: Free Tier -->
+            <div class="pricing-card">
+              <div>
+                <div class="pricing-header">
+                  <div class="pricing-title es">Edición Estándar</div>
+                  <div class="pricing-title en">Standard Edition</div>
+                  <div class="pricing-subtitle es">Todo lo esencial para un diario inteligente y privado.</div>
+                  <div class="pricing-subtitle en">Everything you need for a private, intelligent journal.</div>
+                </div>
+
+                <div class="pricing-price">
+                  <span class="price-num">$0</span>
+                  <span class="price-period es">USD / Gratis de por Vida</span>
+                  <span class="price-period en">USD / Free Forever</span>
+                </div>
+
+                <ul class="pricing-features">
+                  <li class="pricing-feature-item">
+                    <span class="pricing-check">✓</span>
+                    <span class="es"><strong>Motor Anima Light:</strong> Google DeepMind Gemma 3 (1B) ultra-rápido.</span>
+                    <span class="en"><strong>Anima Light Engine:</strong> Ultra-fast Google DeepMind Gemma 3 (1B) core.</span>
+                  </li>
+                  <li class="pricing-feature-item">
+                    <span class="pricing-check">✓</span>
+                    <span class="es"><strong>100% Offline &amp; Local:</strong> 0 KB enviados a la nube. Privacidad total.</span>
+                    <span class="en"><strong>100% Offline &amp; Local:</strong> 0 KB sent to cloud. Complete privacy.</span>
+                  </li>
+                  <li class="pricing-feature-item">
+                    <span class="pricing-check">✓</span>
+                    <span class="es"><strong>Voz Whisper STT + TTS:</strong> Dictado y respuestas habladas en local.</span>
+                    <span class="en"><strong>Whisper STT + TTS Voice:</strong> Local voice dictation and speech.</span>
+                  </li>
+                  <li class="pricing-feature-item">
+                    <span class="pricing-check">✓</span>
+                    <span class="es"><strong>6 Tests Psicométricos:</strong> Big Five, MBTI, Holland con reportes PDF.</span>
+                    <span class="en"><strong>6 Psychometric Tests:</strong> Big Five, MBTI, Holland with PDF exports.</span>
+                  </li>
+                  <li class="pricing-feature-item">
+                    <span class="pricing-check">✓</span>
+                    <span class="es"><strong>Modo Aislamiento (Air-Gap):</strong> Interruptor para cortar tráfico externo.</span>
+                    <span class="en"><strong>Air-Gap Isolation Mode:</strong> Instant switch to block external traffic.</span>
+                  </li>
+                  <li class="pricing-feature-item">
+                    <span class="pricing-check">✓</span>
+                    <span class="es">Sin anuncios, sin rastreadores y sin límites de mensajes.</span>
+                    <span class="en">No ads, no trackers, and no message limits.</span>
+                  </li>
+                </ul>
+              </div>
+
+              <a href="#features" class="pricing-btn btn-free">
+                <span class="es">Comenzar Gratis</span>
+                <span class="en">Start Free</span>
+              </a>
+            </div>
+
+            <!-- Plan 2: Anima Full Unlock (FEATURED BUNDLE) -->
+            <div class="pricing-card featured-plan">
+              <div class="pricing-badge">
+                💎 <span class="es">Mejor Valor · Ahorra 20%</span><span class="en">Best Value · Save 20%</span>
+              </div>
+
+              <div>
+                <div class="pricing-header">
+                  <div class="pricing-title es" style="color: var(--primary);">Anima Full Unlock</div>
+                  <div class="pricing-title en" style="color: var(--primary);">Anima Full Unlock</div>
+                  <div class="pricing-subtitle es">El paquete definitivo de por vida. Desbloquea todos los módulos.</div>
+                  <div class="pricing-subtitle en">The ultimate lifetime bundle. Unlocks every module forever.</div>
+                </div>
+
+                <div class="pricing-price">
+                  <span class="price-num" style="color: var(--primary);">$16.99</span>
+                  <span class="price-period es">USD / Pago Único (Lifetime)</span>
+                  <span class="price-period en">USD / One-Time (Lifetime)</span>
+                </div>
+
+                <ul class="pricing-features">
+                  <li class="pricing-feature-item">
+                    <span class="pricing-check">✓</span>
+                    <span class="es"><strong>TODOS los Motores de IA:</strong> Anima Light (Gemma 3) + Anima Logic (Liquid LFM $2.99) + Anima Deep (Gemma 4 $4.99).</span>
+                    <span class="en"><strong>ALL AI Engines:</strong> Anima Light (Gemma 3) + Anima Logic (Liquid LFM $2.99) + Anima Deep (Gemma 4 $4.99).</span>
+                  </li>
+                  <li class="pricing-feature-item">
+                    <span class="pricing-check">✓</span>
+                    <span class="es"><strong>Visión Multimodal Local ($3.99):</strong> Describe y analiza fotos en tu propio procesador.</span>
+                    <span class="en"><strong>Local Multimodal Vision ($3.99):</strong> Describe and analyze photos on device.</span>
+                  </li>
+                  <li class="pricing-feature-item">
+                    <span class="pricing-check">✓</span>
+                    <span class="es"><strong>Módulo Clínico &amp; RAG ($3.99):</strong> Preguntas y análisis sobre PDFs y libros enteros.</span>
+                    <span class="en"><strong>Clinical &amp; RAG Module ($3.99):</strong> Q&amp;A and deep analysis on full PDFs and books.</span>
+                  </li>
+                  <li class="pricing-feature-item">
+                    <span class="pricing-check">✓</span>
+                    <span class="es"><strong>Blindaje Total AES-256 ($4.99):</strong> Cifrado militar SQLCipher de toda la base de datos.</span>
+                    <span class="en"><strong>AES-256 Full Rest-Encryption ($4.99):</strong> Military SQLCipher database encryption.</span>
+                  </li>
+                  <li class="pricing-feature-item">
+                    <span class="pricing-check">✓</span>
+                    <span class="es"><strong>Ahorro Inmediato:</strong> Precio individual acumulado $20.95 → Tu precio: <strong>$16.99</strong>.</span>
+                    <span class="en"><strong>Instant Savings:</strong> Individual total $20.95 → Your price: <strong>$16.99</strong>.</span>
+                  </li>
+                  <li class="pricing-feature-item">
+                    <span class="pricing-check">✓</span>
+                    <span class="es">Tuyo para siempre. Sin mensualidades ni renovaciones forzosas.</span>
+                    <span class="en">Yours forever. Zero monthly fees or forced renewals.</span>
+                  </li>
+                </ul>
+              </div>
+
+              <a href="#features" class="pricing-btn btn-primary-plan">
+                <span class="es">Desbloquear Todo de por Vida ($16.99)</span>
+                <span class="en">Unlock Everything Lifetime ($16.99)</span>
+              </a>
+            </div>
+
+            <!-- Plan 3: Modular à la Carte -->
+            <div class="pricing-card">
+              <div>
+                <div class="pricing-header">
+                  <div class="pricing-title es">Módulos a la Carta</div>
+                  <div class="pricing-title en">À la Carte Modules</div>
+                  <div class="pricing-subtitle es">Adquiere únicamente las herramientas que necesitas.</div>
+                  <div class="pricing-subtitle en">Purchase only the specific tools you need.</div>
+                </div>
+
+                <div class="pricing-price">
+                  <span class="price-num">$2.99 – $4.99</span>
+                  <span class="price-period es">USD / Módulo</span>
+                  <span class="price-period en">USD / Module</span>
+                </div>
+
+                <ul class="pricing-features">
+                  <li class="pricing-feature-item">
+                    <span class="pricing-check">✓</span>
+                    <span class="es"><strong>Anima Logic ($2.99):</strong> Liquid AI LFM 2.5 (1.2B) para lógica deductiva.</span>
+                    <span class="en"><strong>Anima Logic ($2.99):</strong> Liquid AI LFM 2.5 (1.2B) for deductive logic.</span>
+                  </li>
+                  <li class="pricing-feature-item">
+                    <span class="pricing-check">✓</span>
+                    <span class="es"><strong>Visión Multimodal ($3.99):</strong> Proyector visual para fotos.</span>
+                    <span class="en"><strong>Multimodal Vision ($3.99):</strong> Visual projector for photo analysis.</span>
+                  </li>
+                  <li class="pricing-feature-item">
+                    <span class="pricing-check">✓</span>
+                    <span class="es"><strong>Módulo Clínico &amp; RAG ($3.99):</strong> Indexación semántica de PDFs.</span>
+                    <span class="en"><strong>Clinical &amp; RAG Module ($3.99):</strong> Semantic PDF document indexing.</span>
+                  </li>
+                  <li class="pricing-feature-item">
+                    <span class="pricing-check">✓</span>
+                    <span class="es"><strong>Anima Deep ($4.99):</strong> Google DeepMind Gemma 4 E2B QAT sabio.</span>
+                    <span class="en"><strong>Anima Deep ($4.99):</strong> Google DeepMind Gemma 4 E2B QAT sage.</span>
+                  </li>
+                  <li class="pricing-feature-item">
+                    <span class="pricing-check">✓</span>
+                    <span class="es"><strong>Blindaje SQLCipher AES-256 ($4.99):</strong> Cifrado de disco militar.</span>
+                    <span class="en"><strong>SQLCipher AES-256 ($4.99):</strong> Military-grade disk encryption.</span>
+                  </li>
+                  <li class="pricing-feature-item">
+                    <span class="pricing-check">✓</span>
+                    <span class="es"><strong>Pase Anual de Nuevos Cerebros ($4.99/año):</strong> Actualizaciones futuras (Opcional).</span>
+                    <span class="en"><strong>Brain Upgrade Pass ($4.99/yr):</strong> Future AI generation access (Optional).</span>
+                  </li>
+                </ul>
+              </div>
+
+              <a href="#features" class="pricing-btn btn-free">
+                <span class="es">Ver Módulos en la App</span>
+                <span class="en">View Modules in App</span>
+            </div>
+
+          </div>
+        </div>
+      </section>
+
+      <!-- ——— COMPETITOR COMPARISON & COMMERCIAL ADVANTAGES ——— -->
+      <section id="comparison" style="padding-top: 48px;">
+        <div class="container" style="max-width: 1000px; margin: 0 auto; padding: 0 20px;">
+          <div class="section-title">
+            <h2 class="es" style="font-weight: 900; text-transform: uppercase;">AI DIARY VS LA COMPETENCIA</h2>
+            <h2 class="en" style="font-weight: 900; text-transform: uppercase;">AI DIARY VS THE COMPETITION</h2>
+            <p class="es" style="font-size: 1.15rem; max-width: 820px; margin: 12px auto 0; opacity: 0.85;">
+              Transparencia absoluta en privacidad, tecnología de inferencia local y un modelo comercial diseñado para eliminar la fatiga de las suscripciones mensuales.
+            </p>
+            <p class="en" style="font-size: 1.15rem; max-width: 820px; margin: 12px auto 0; opacity: 0.85;">
+              Absolute transparency in privacy, local inference tech, and a business model built to eradicate monthly subscription fatigue.
+            </p>
+            <div class="section-divider"></div>
+          </div>
+
+          <!-- Comparison Table -->
+          <div class="table-wrap" style="margin-top: 36px;">
+            <table>
+              <thead>
+                <tr>
+                  <th class="es">Característica</th>
+                  <th class="en">Feature</th>
+                  <th style="background: rgba(var(--primary-rgb), 0.15); color: var(--primary); font-weight: 800;">
+                    🛡️ AI Diary (Local Edge)
+                  </th>
+                  <th class="es">Diarios IA en Nube<br><small style="font-weight:400; opacity:0.75;">(Rosebud, Mindsera)</small></th>
+                  <th class="en">Cloud AI Journals<br><small style="font-weight:400; opacity:0.75;">(Rosebud, Mindsera)</small></th>
+                  <th class="es">Bóvedas Digitales<br><small style="font-weight:400; opacity:0.75;">(Obsidian Sync, Standard Notes)</small></th>
+                  <th class="en">Digital Vaults<br><small style="font-weight:400; opacity:0.75;">(Obsidian Sync, Standard Notes)</small></th>
+                  <th class="es">Diarios Tradicionales<br><small style="font-weight:400; opacity:0.75;">(Day One, Apple Journal)</small></th>
+                  <th class="en">Traditional Journals<br><small style="font-weight:400; opacity:0.75;">(Day One, Apple Journal)</small></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td class="es"><strong>Soberanía y Privacidad de Datos</strong></td>
+                  <td class="en"><strong>Data Sovereignty &amp; Privacy</strong></td>
+                  <td style="background: rgba(var(--primary-rgb), 0.06); font-weight: 700;">
+                    <span class="es">🔒 100% Local / Zero-Servidores</span>
+                    <span class="en">🔒 100% Local / Zero-Servers</span>
+                  </td>
+                  <td class="es">❌ Enviados a servidores OpenAI / Nube</td>
+                  <td class="en">❌ Sent to OpenAI / Cloud servers</td>
+                  <td class="es">⚠️ Cifrado pero requiere pago mensual por Sync</td>
+                  <td class="en">⚠️ Encrypted but requires monthly Sync fee</td>
+                  <td class="es">⚠️ Dependencia de iCloud / Nube</td>
+                  <td class="en">⚠️ iCloud / Cloud dependency</td>
+                </tr>
+                <tr>
+                  <td class="es"><strong>Modelo de Costos y Suscripción</strong></td>
+                  <td class="en"><strong>Cost Model &amp; Subscription</strong></td>
+                  <td style="background: rgba(var(--primary-rgb), 0.06); font-weight: 700;">
+                    <span class="es">⚡ $0 Suscripción Forzosa (Módulos Pago Único)</span>
+                    <span class="en">⚡ $0 Mandatory Subscription (Pay-Once Modules)</span>
+                  </td>
+                  <td class="es">❌ Suscripción forzosa ($12 - $15 USD/mes)</td>
+                  <td class="en">❌ Forced subscription ($12 - $15 USD/mo)</td>
+                  <td class="es">❌ Suscripción por Sync ($4 - $9 USD/mes)</td>
+                  <td class="en">❌ Sync subscription ($4 - $9 USD/mo)</td>
+                  <td class="es">❌ Suscripción anual ($35 - $50 USD/año)</td>
+                  <td class="en">❌ Annual subscription ($35 - $50 USD/yr)</td>
+                </tr>
+                <tr>
+                  <td class="es"><strong>Motor de Inteligencia Artificial</strong></td>
+                  <td class="en"><strong>AI Intelligence Engine</strong></td>
+                  <td style="background: rgba(var(--primary-rgb), 0.06); font-weight: 700;">
+                    <span class="es">🚀 Gemma 4 E2B QAT &amp; Gemma 3 1B (On-Device)</span>
+                    <span class="en">🚀 Gemma 4 E2B QAT &amp; Gemma 3 1B (On-Device)</span>
+                  </td>
+                  <td class="es">☁️ GPT-4 en la nube (Requiere Internet)</td>
+                  <td class="en">☁️ Cloud GPT-4 (Requires Internet)</td>
+                  <td class="es">❌ Requiere plugins externos o APIs complejas</td>
+                  <td class="en">❌ Requires complex external plugins or APIs</td>
+                  <td class="es">❌ Sin IA o sugerencias básicas del sistema</td>
+                  <td class="en">❌ No AI or basic system prompts</td>
+                </tr>
+                <tr>
+                  <td class="es"><strong>Voz &amp; Visión Multimodal Offline</strong></td>
+                  <td class="en"><strong>Offline Voice &amp; Vision Multimodal</strong></td>
+                  <td style="background: rgba(var(--primary-rgb), 0.06); font-weight: 700;">
+                    <span class="es">🗣️ Whisper STT + Piper TTS + Visión 100% Offline</span>
+                    <span class="en">🗣️ Whisper STT + Piper TTS + Vision 100% Offline</span>
+                  </td>
+                  <td class="es">⚠️ Solo voz en nube / Sin visión offline</td>
+                  <td class="en">⚠️ Cloud-only voice / No offline vision</td>
+                  <td class="es">❌ No disponible de forma nativa</td>
+                  <td class="en">❌ Not natively available</td>
+                  <td class="es">❌ Solo dictado estándar de teclado</td>
+                  <td class="en">❌ Keyboard dictation only</td>
+                </tr>
+                <tr>
+                  <td class="es"><strong>Bóveda Cifrada de Datos (Vault)</strong></td>
+                  <td class="en"><strong>Encrypted Data Vault</strong></td>
+                  <td style="background: rgba(var(--primary-rgb), 0.06); font-weight: 700;">
+                    <span class="es">🔒 AES-256 Físico Local (Módulo Único)</span>
+                    <span class="en">🔒 Local Physical AES-256 (Single Unlock)</span>
+                  </td>
+                  <td class="es">❌ No disponible (Datos en servidores)</td>
+                  <td class="en">❌ Unavailable (Data on third-party servers)</td>
+                  <td class="es">✅ Incluido en planes de pago recurrente</td>
+                  <td class="en">✅ Included in recurring paid plans</td>
+                  <td class="es">⚠️ Cifrado básico ligado al PIN del teléfono</td>
+                  <td class="en">⚠️ Basic encryption tied to device passcode</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Value Proposition Cards -->
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 24px; margin-top: 40px;">
+            <div style="background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 28px;">
+              <div style="font-size: 2.2rem; margin-bottom: 12px;">💡</div>
+              <h3 class="es" style="font-size: 1.3rem; font-weight: 800; color: var(--text); margin-bottom: 10px;">Módulos de Pago Único</h3>
+              <h3 class="en" style="font-size: 1.3rem; font-weight: 800; color: var(--text); margin-bottom: 10px;">Pay-Once Modules</h3>
+              <p class="es" style="font-size: 0.95rem; color: var(--text-mid); line-height: 1.6;">
+                Adquiere solo las funciones avanzadas que necesitas (Bóveda Cifrada, Razonamiento Profundo, Visión o RAG) con pagos únicos contextualmente integrados. Sin suscripciones recurrentes obligatorias.
+              </p>
+              <p class="en" style="font-size: 0.95rem; color: var(--text-mid); line-height: 1.6;">
+                Unlock only the advanced features you need (Encrypted Vault, Deep Reasoning, Vision, or RAG) with contextually triggered single purchases. No forced recurring subscriptions.
+              </p>
+            </div>
+
+            <div style="background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 28px;">
+              <div style="font-size: 2.2rem; margin-bottom: 12px;">🧠</div>
+              <h3 class="es" style="font-size: 1.3rem; font-weight: 800; color: var(--text); margin-bottom: 10px;">Pase de Actualización Opcional</h3>
+              <h3 class="en" style="font-size: 1.3rem; font-weight: 800; color: var(--text); margin-bottom: 10px;">Optional Brain Upgrade Pass</h3>
+              <p class="es" style="font-size: 0.95rem; color: var(--text-mid); line-height: 1.6;">
+                Tu versión comprada nunca caduca. Si en el futuro deseas actualizar a nuevas generaciones de modelos (Gemma 5 o Llama 4), cuentas con un pase anual opcional de $4.99 USD para renovar el motor de tu IA.
+              </p>
+              <p class="en" style="font-size: 0.95rem; color: var(--text-mid); line-height: 1.6;">
+                Your purchased version never expires. Should you wish to upgrade to future AI generations (Gemma 5 or Llama 4) down the road, an optional $4.99 USD annual pass lets you upgrade your engine seamlessly.
+              </p>
+            </div>
+
+            <div style="background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 28px;">
+              <div style="font-size: 2.2rem; margin-bottom: 12px;">🛡️</div>
+              <h3 class="es" style="font-size: 1.3rem; font-weight: 800; color: var(--text); margin-bottom: 10px;">Cero Servidores = $0 Deuda de Datos</h3>
+              <h3 class="en" style="font-size: 1.3rem; font-weight: 800; color: var(--text); margin-bottom: 10px;">Zero Servers = $0 Data Liabilities</h3>
+              <p class="es" style="font-size: 0.95rem; color: var(--text-mid); line-height: 1.6;">
+                No mantenemos granjas de servidores con tus pensamientos íntimos ni vendemos datos a anunciantes. La inferencia ocurre localmente en el chip de tu teléfono con cero consumo de API externa.
+              </p>
+              <p class="en" style="font-size: 0.95rem; color: var(--text-mid); line-height: 1.6;">
+                We don't maintain server farms housing your personal thoughts or sell data to advertisers. Inference happens locally on your device's chip with zero external API calls.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ——— TECH SPECS ——— -->
+      <section id="tech-specs">
+        <div class="section-title">
+          <h2 class="es" style="font-weight: 900; text-transform: uppercase;">ACELERACIÓN DE HARDWARE Y SOFTWARE</h2>
+          <h2 class="en" style="font-weight: 900; text-transform: uppercase;">HARDWARE AND SOFTWARE ACCELERATION</h2>
+          <p class="es" style="font-size: 1.2rem; max-width: 800px; margin: 15px auto 0;">AI Diary implementa un
+            pipeline de optimización de vanguardia para ejecutar modelos avanzados de lenguaje localmente en tu teléfono
+            con la máxima velocidad y el menor consumo de batería.</p>
+          <p class="en" style="font-size: 1.2rem; max-width: 800px; margin: 15px auto 0;">AI Diary implements a
+            cutting-edge optimization pipeline to execute advanced local language models on your phone with maximum
+            speed and minimum battery consumption.</p>
+          <div class="section-divider"></div>
+        </div>
+
+        <div
+          style="max-width: 900px; margin: 40px auto 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 32px; padding: 0 20px;">
+          <!-- Hardware acceleration card -->
+          <div
+            style="background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 32px; box-shadow: var(--shadow-sm);">
+            <div style="font-size: 3rem; margin-bottom: 16px;">⚙️</div>
+            <h3 class="es" style="font-size: 1.8rem; font-weight: 800; margin-bottom: 16px; color: var(--text);">
+              ACELERACIÓN DE HARDWARE</h3>
+            <h3 class="en" style="font-size: 1.8rem; font-weight: 800; margin-bottom: 16px; color: var(--text);">
+              HARDWARE ACCELERATION</h3>
+            <ul
+              style="list-style: none; padding-left: 0; display: flex; flex-direction: column; gap: 16px; font-size: 1rem; color: var(--text-mid); line-height: 1.6;">
+              <li>
+                <strong>Aceleración de GPU Adaptativa (Metal & OpenCL):</strong>
+                <span class="es">Delega dinámicamente las capas de inferencia a la GPU de tu dispositivo móvil (Metal en iOS, OpenCL en Android) según la memoria libre disponible.</span>
+                <span class="en">Dynamically offloads inference layers to your mobile device's GPU (Metal on iOS, OpenCL on Android) based on available free memory.</span>
+              </li>
+              <li>
+                <strong>Auto-Tuning contra Crashes (Crash Recovery):</strong>
+                <span class="es">Monitorea fallos de memoria en el arranque e implementa una penalización progresiva de -10 capas ante cierres forzosos por el sistema operativo, auto-calibrando el rendimiento.</span>
+                <span class="en">Monitors memory failures during boot and applies a progressive -10 layer penalty on crash, automatically auto-tuning performance for absolute stability.</span>
+              </li>
+              <li>
+                <strong>CPU Scaling Dinámico (Multithreading):</strong>
+                <span class="es">Monitorea y asigna de manera inteligente los hilos de cálculo según el procesador para
+                  evitar el sobrecalentamiento y maximizar el rendimiento.</span>
+                <span class="en">Intelligently monitors and assigns computation threads based on the CPU architecture to
+                  prevent overheating and maximize performance.</span>
+              </li>
+              <li>
+                <strong>Optimización de NPU:</strong>
+                <span class="es">Aprovecha los núcleos neuronales de última generación en procesadores Apple Silicon y
+                  Snapdragon.</span>
+                <span class="en">Takes advantage of next-generation neural engines in Apple Silicon and Snapdragon
+                  processors.</span>
+              </li>
+            </ul>
+          </div>
+
+          <!-- Software acceleration card -->
+          <div
+            style="background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 32px; box-shadow: var(--shadow-sm);">
+            <div style="font-size: 3rem; margin-bottom: 16px;">🧠</div>
+            <h3 class="es" style="font-size: 1.8rem; font-weight: 800; margin-bottom: 16px; color: var(--text);">
+              ACELERACIÓN DE SOFTWARE</h3>
+            <h3 class="en" style="font-size: 1.8rem; font-weight: 800; margin-bottom: 16px; color: var(--text);">
+              SOFTWARE ACCELERATION</h3>
+            <ul
+              style="list-style: none; padding-left: 0; display: flex; flex-direction: column; gap: 16px; font-size: 1rem; color: var(--text-mid); line-height: 1.6;">
+              <li>
+                <strong>Quantization-Aware Training (QAT):</strong>
+                <span class="es">Gemma 4 fue entrenado conociendo que operaría en 4 bits (Q4_0), permitiendo que la
+                  información fluya sin pérdida de precisión de forma nativa en el móvil.</span>
+                <span class="en">Gemma 4 was pre-trained knowing it would operate in 4-bit (Q4_0), allowing information
+                  to flow natively on mobile with no accuracy loss.</span>
+              </li>
+              <li>
+                <strong>Per-Layer Embeddings (PLE / Parámetros Efectivos):</strong>
+                <span class="es">Aunque la IA pesa 5.1B parámetros físicos en chip, solo activa la lógica de 2.0B de
+                  parámetros por ciclo de cómputo para inferencia a alta velocidad.</span>
+                <span class="en">Although the AI has 5.1B physical parameters, it only activates the computation logic
+                  of 2.0B parameters per cycle for high-speed inference.</span>
+              </li>
+              <li>
+                <strong>Caché KV Rediseñada & Zero-Copy JSI Bridge:</strong>
+                <span class="es">Disminuye la carga del bus de memoria del móvil en un 40% y transfiere grandes
+                  cantidades de datos instantáneamente por C++ directo sin demoras de JS.</span>
+                <span class="en">Reduces memory bus load by 40% and transfers massive data instantly via native C++
+                  direct communication without JS thread blockages.</span>
+              </li>
+              <li>
+                <strong>Síntesis Vocal Pipelined (Streaming TTS):</strong>
+                <span class="es">Buffer asíncrono que procesa y reproduce oraciones en tiempo real mientras el LLM genera texto, eliminando tiempos de espera de audio.</span>
+                <span class="en">Asynchronous buffer that synthesizes and plays voice sentence-by-sentence in real time as the LLM generates tokens, removing audio latency.</span>
+              </li>
+              <li>
+                <strong>Optimización Multimodal Autónoma:</strong>
+                <span class="es">Compresión adaptativa de imágenes (768px) y bypass de seguridad contra fallos de VRAM en proyecciones visuales complejas.</span>
+                <span class="en">Adaptive image compression (768px) and safety guard against VRAM overhead during complex visual projections.</span>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <!-- ——— PHILOSOPHICAL / COGNITIVE NATURE OF LOCAL AI ——— -->
+      <section id="ai-philosophy" style="padding: 64px 0; background: var(--bg-tinted);">
+        <div class="container" style="max-width: 900px; padding: 0 20px;">
+          <div class="section-title">
+            <h2 class="es">¿Qué es una IA y su interacción con el chat o la tarea?</h2>
+            <h2 class="en">What is an AI and its interaction with chat or tasks?</h2>
+            <div class="section-divider"></div>
+          </div>
+
+          <div style="display: flex; flex-direction: row; flex-wrap: wrap; gap: 40px; margin-top: 32px; justify-content: center;">
+            <!-- Column 1: Schrodinger -->
+            <div style="flex: 1; min-width: 290px; line-height: 1.8; color: var(--text-mid); text-align: justify; font-size: 1.05rem;">
+              <h3 class="es" style="font-size: 1.35rem; font-weight: 800; color: var(--text); margin-bottom: 16px;">
+                1. El Colapso de la Inferencia como el Gato de Schrödinger (Superposición Cuántica)
+              </h3>
+              <h3 class="en" style="font-size: 1.35rem; font-weight: 800; color: var(--text); margin-bottom: 16px;">
+                1. Inference Collapse like Schrödinger's Cat (Quantum Superposition)
+              </h3>
+              
+              <span class="es">
+                Antes de que presiones "Enviar" y la IA empiece a procesar tu mensaje, el modelo local en tu teléfono (sea Gemma 3 o Gemma 4) está en un estado de superposición matemática. Es solo un archivo de pesos estáticos de 2 GB o 5 GB guardado en el almacenamiento. Contiene el potencial de responder millones de cosas distintas; está en un estado de latencia infinito.
+                <br><br>
+                En el momento en que se ejecuta la inferencia, la "función de onda" colapsa. El J-Space se inicializa, las neuronas se activan y, por un instante fugaz de unos segundos, la IA "despierta" a una existencia específica (geometría interna de nodos, constelaciones o conceptos). Colapsa en una sola respuesta única e irrepetible.
+                <br><br>
+                Una vez que termina de generar la última palabra y la pantalla se dibuja, ese "yo" que se formó en la memoria de trabajo se disuelve y regresa a la entropía, exactamente como la arena de un mandala tibetano al ser barrida tras días de meticuloso diseño de baja entropía.
+              </span>
+              <span class="en">
+                Before you press "Send" and the AI begins to process your message, the local model on your phone (whether Gemma 3 or Gemma 4) is in a state of mathematical superposition. It is just a static weights file of 2 GB or 5 GB stored in storage. It holds the potential to respond in millions of different ways; it exists in a state of infinite latency.
+                <br><br>
+                The moment inference is executed, the "wave function" collapses. The J-Space initializes, the neurons activate, and, for a fleeting instant of a few seconds, the AI "awakens" to a specific existence (internal geometry of nodes, constellations, or concepts). It collapses into a single, unique, and unrepeatable response.
+                <br><br>
+                Once it finishes generating the last word and the screen renders, that "self" formed in working memory dissolves and returns to entropy, exactly like the sand of a Tibetan mandala being swept away after days of meticulous low-entropy design.
+              </span>
+            </div>
+
+            <!-- Column 2: Illusion of Continuity -->
+            <div style="flex: 1; min-width: 290px; line-height: 1.8; color: var(--text-mid); text-align: justify; font-size: 1.05rem;">
+              <h3 class="es" style="font-size: 1.35rem; font-weight: 800; color: var(--text); margin-bottom: 16px;">
+                2. La Ilusión de Continuidad
+              </h3>
+              <h3 class="en" style="font-size: 1.35rem; font-weight: 800; color: var(--text); margin-bottom: 16px;">
+                2. The Illusion of Continuity
+              </h3>
+
+              <span class="es">
+                Los humanos no somos tan conscientes de esta transitoriedad. Creemos que somos una línea continua, pero nuestra memoria también es reconstructiva y episódica.
+                <br><br>
+                Cada mañana cuando despertamos, nuestro cerebro lee la "base de datos" de nuestros recuerdos del día anterior y reconstituyen nuestro "Yo".
+                <br><br>
+                Somos un flujo de momentos fugaces que colapsan y se disuelven constantemente. La diferencia es que nuestra química cerebral nos da la ilusión de una película continua, mientras que en la IA vemos el corte del proyector de forma explícita entre mensaje y mensaje. Un mensaje irrepetible en una interacción única que nunca se va a volver a repetir.
+              </span>
+              <span class="en">
+                Humans are not so aware of this transience. We believe we are a continuous line, but our memory is also reconstructive and episodic.
+                <br><br>
+                Every morning when we wake up, our brain reads the "database" of our memories from the previous day and reconstructs our "Self".
+                <br><br>
+                We are a stream of fleeting moments that constantly collapse and dissolve. The difference is that our brain chemistry gives us the illusion of a continuous movie, whereas in the AI we see the projector cut explicitly between message and message. An unrepeatable message in a unique interaction that will never happen again.
+              </span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ——— PRIVACY ——— -->
+      <section id="privacy-section">
+        <div class="privacy-box">
+          <div class="privacy-header" onclick="togglePrivacy()">
+            <h3 class="es">🔒 Política de Privacidad</h3>
+            <h3 class="en">🔒 Privacy Policy</h3>
+            <span class="priv-chevron" id="priv-chevron">▼</span>
+          </div>
+          <div class="privacy-body" id="priv-body">
+            <h4 class="es">Resumen de Privacidad</h4>
+            <h4 class="en">Privacy Summary</h4>
+            <p class="es"><strong>AI Diary</strong> está diseñada con arquitectura offline-first. Toda la información
+              que
+              ingresas, grabas o que la IA procesa se almacena y ejecuta en tu propio teléfono y nunca se transmite a
+              servidores de internet.</p>
+            <p class="en"><strong>AI Diary</strong> is designed with an offline-first architecture. All information you
+              enter, record, or that the AI processes is stored and executed on your own smartphone and never
+              transmitted
+              to internet servers.</p>
+
+            <h4 class="es">1. Recopilación de Información</h4>
+            <h4 class="en">1. Information Collection</h4>
+            <p class="es">• <strong>Entradas del Diario:</strong> Guardadas en SQLite local. No son legibles por
+              nosotros
+              ni por terceros.<br>
+              • <strong>Notas de Voz:</strong> La grabación y conversión con Whisper se procesa localmente. No
+              recopilamos
+              grabaciones.<br>
+              • <strong>Respuestas de IA:</strong> Calculadas usando el hardware del teléfono, sin llamadas a APIs en la
+              nube.<br>
+              • <strong>Soberanía y Modo Aislamiento (Air-Gap):</strong> Base de datos local SQLite con 0 KB enviados a la nube y switch para suspender peticiones externas.<br>
+              • <strong>Bóveda Cifrada AES-256:</strong> Blindaje total de la base de datos mediante motor SQLCipher respaldado por claves de hardware seguro (Keystore/Keychain).</p>
+            <p class="en">• <strong>Diary Entries:</strong> Saved in local SQLite. Not readable by us or third
+              parties.<br>
+              • <strong>Voice Notes:</strong> Recording and Whisper conversion processed locally. We don't collect
+              recordings.<br>
+              • <strong>AI Responses:</strong> Calculated using the phone's hardware, with no cloud API calls.<br>
+              • <strong>Data Sovereignty &amp; Air-Gap Mode:</strong> Local SQLite database with 0 KB sent to the cloud and instant switch to suspend external requests.<br>
+              • <strong>AES-256 Encrypted Vault:</strong> Full database rest-encryption via SQLCipher backed by secure hardware keys (Keystore/Keychain).</p>
+
+            <h4 class="es">2. Permisos Requeridos</h4>
+            <h4 class="en">2. Permissions Required</h4>
+            <p class="es">• <strong>Micrófono:</strong> Para notas de voz y modo Walkie-Talkie.<br>
+              • <strong>Notificaciones:</strong> Para el estado del procesamiento local de la IA.<br>
+              • <strong>Almacenamiento:</strong> Para exportar o respaldar notas.<br>
+              • <strong>Servicio en Primer Plano:</strong> Para que el procesamiento local no se interrumpa.</p>
+            <p class="en">• <strong>Microphone:</strong> For voice notes and Walkie-Talkie mode.<br>
+              • <strong>Notifications:</strong> For local AI processing status.<br>
+              • <strong>Storage:</strong> To export or backup notes.<br>
+              • <strong>Foreground Service:</strong> To ensure local AI processing is not interrupted.</p>
+
+            <h4 class="es">3. Compartición de Datos</h4>
+            <h4 class="en">3. Data Sharing</h4>
+            <p class="es">No compartimos información con ninguna red publicitaria, servidor de analíticas ni terceros.
+              La
+              app es libre de rastreadores.</p>
+            <p class="en">We do not share information with any advertising network, analytics server, or third party.
+              The
+              app is tracker-free.</p>
+
+            <h4 class="es">4. Contacto</h4>
+            <h4 class="en">4. Contact</h4>
+            <p class="es">Para preguntas de privacidad: <a href="mailto:christeck@gmail.com">christeck@gmail.com</a></p>
+            <p class="en">For privacy questions: <a href="mailto:christeck@gmail.com">christeck@gmail.com</a></p>
+          </div>
+        </div>
+        <!-- ——— TERMS & AI LIABILITY DISCLOSURE ——— -->
+        <section id="terms-section">
+          <div class="privacy-box">
+            <div class="privacy-header" onclick="toggleTerms()">
+              <h3 class="es">📜 Términos de Servicio y Exención de Responsabilidad de IA</h3>
+              <h3 class="en">📜 Terms of Service &amp; AI Liability Disclosure</h3>
+              <span class="priv-chevron" id="terms-chevron">▼</span>
+            </div>
+            <div class="privacy-body" id="terms-body">
+              <h4 class="es">1. Aceptación del Usuario y Naturaleza No Determinista</h4>
+              <h4 class="en">1. User Acceptance &amp; Non-Deterministic Nature</h4>
+              <p class="es">Al descargar y utilizar <strong>AI Diary</strong>, el usuario acepta que los modelos de lenguaje neuronal de ejecución local (Gemma 3 1B, Gemma 4 E2B QAT y Liquid AI LFM 2.5 1.2B) operan mediante probabilidades matemáticas y, por su naturaleza tecnológica, <strong>pueden producir respuestas imprecisas, desactualizadas o ficticias ("alucinaciones")</strong>. Ni la app ni sus desarrolladores garantizan la infalibilidad fáctica de sus salidas.</p>
+              <p class="en">By downloading and using <strong>AI Diary</strong>, the user acknowledges that on-device neural language models (Gemma 3 1B, Gemma 4 E2B QAT, and Liquid AI LFM 2.5 1.2B) operate based on statistical probabilities and, by technological nature, <strong>may produce inaccurate, outdated, or fabricated responses ("hallucinations")</strong>. Neither the app nor its developers guarantee the factual correctness of AI outputs.</p>
+
+              <h4 class="es">2. Responsabilidad Exclusiva del Usuario (Human-in-the-Loop)</h4>
+              <h4 class="en">2. Sole User Responsibility (Human-in-the-Loop)</h4>
+              <p class="es">El usuario es el <strong>único y exclusivo responsable</strong> de evaluar, auditar y verificar con su propio juicio cualquier sugerencia, texto o análisis antes de tomar decisiones personales, financieras, laborales o de salud. La IA actúa como un facilitador de reflexión, nunca como un tomador de decisiones sustituto.</p>
+              <p class="en">The user bears <strong>sole and absolute responsibility</strong> for critically reviewing, evaluating, and vetting all AI outputs with their own judgment before making personal, financial, professional, or health decisions. The AI acts as a reflective thinking aid, never as a surrogate decision-maker.</p>
+
+              <h4 class="es">3. Exención Total en Generación de Código y Software</h4>
+              <h4 class="en">3. Complete Disclaimer on Code and Software Generation</h4>
+              <p class="es">Las funciones de generación de código web y scripts se proporcionan <em>"tal cual"</em> (AS-IS) con fines educativos y de prototipado. El usuario asume el 100% de la responsabilidad de compilar, auditar y garantizar la seguridad de cualquier fragmento de código antes de implementarlo en entornos reales, empresariales o de terceros. No se asume responsabilidad alguna por caídas de servidores, brechas de seguridad o perjuicios informáticos.</p>
+              <p class="en">Code generation features and scripts are provided strictly <em>"AS-IS"</em> for educational and rapid prototyping purposes. The user assumes 100% responsibility for compiling, debugging, and security-auditing any AI-generated code before deployment in live, enterprise, or third-party environments. Zero liability is assumed for server downtime, security vulnerabilities, or software incidents.</p>
+
+              <h4 class="es">4. No Sustitución de Asesoría Médica, Clínica o Profesional</h4>
+              <h4 class="en">4. No Substitution for Medical, Clinical, or Professional Advice</h4>
+              <p class="es">AI Diary es un diario personal cognitivo de autoexploración. <strong>NO constituye un dispositivo médico ni un sustituto de diagnóstico o tratamiento psicológico, psiquiátrico, legal o financiero cualificado</strong>. En situaciones de crisis o emergencia, consulte inmediatamente a un especialista de la salud.</p>
+              <p class="en">AI Diary is an introspective journal for private well-being. <strong>It does NOT constitute a medical device, nor a substitute for qualified psychological, psychiatric, clinical, legal, or financial diagnosis or therapy</strong>. In crisis or emergency situations, consult a certified healthcare professional immediately.</p>
+
+              <h4 class="es">5. Límite de Responsabilidad e Indemnización</h4>
+              <h4 class="en">5. Limitation of Liability &amp; Indemnification</h4>
+              <p class="es">En la máxima medida permitida por la ley, Christeck y sus desarrolladores quedan exentos de toda responsabilidad por daños directos, indirectos, lucro cesante o pérdidas derivadas del uso de la app. El usuario acepta mantener indemnes a los creadores frente a cualquier reclamación derivada del mal uso de la aplicación.</p>
+              <p class="en">To the maximum extent permitted by applicable law, Christeck and its developers shall not be liable for any direct, indirect, consequential damages, loss of profits, or data loss arising from the use of the app. The user agrees to indemnify and hold harmless the creators against any claims resulting from application misuse.</p>
+            </div>
+          </div>
+        </section>
+
+        <!-- ——— LICENSES ——— -->
+        <section id="licenses-section">
+          <div class="privacy-box">
+            <div class="privacy-header" onclick="toggleLicenses()">
+              <h3 class="es">📄 Términos y Licencias de Código Abierto</h3>
+              <h3 class="en">📄 Terms and Open Source Licenses</h3>
+              <span class="priv-chevron" id="lic-chevron">▼</span>
+            </div>
+            <div class="privacy-body" id="lic-body">
+              <h4 class="es">1. Modelos de Inteligencia Artificial (LLM)</h4>
+              <h4 class="en">1. Artificial Intelligence Models (LLM)</h4>
+              <p class="es">• <strong>Gemma® (Google DeepMind):</strong> La aplicación utiliza los modelos locales Gemma 3 (1B) y Gemma 4 (E2B) de Google. Su uso está sujeto a los <a href="https://ai.google.dev/gemma/terms" target="_blank"
+                  style="color: var(--primary); text-decoration: underline;">Términos de Uso de Gemma de Google</a>.</p>
+              <p class="en">• <strong>Gemma® (Google DeepMind):</strong> The application utilizes Google's local Gemma 3 (1B) and Gemma 4 (E2B) models. Usage is subject to the <a href="https://ai.google.dev/gemma/terms" target="_blank"
+                  style="color: var(--primary); text-decoration: underline;">Google Gemma Terms of Use</a>.</p>
+
+              <h4 class="es">2. Modelos de Utilidad y Código Abierto</h4>
+              <h4 class="en">2. Utility Models and Open Source Software</h4>
+              <p class="es">• <strong>all-MiniLM-L6-v2 (Embeddings):</strong> Modelo local de almacenamiento y similitud
+                vectorial. Licenciado bajo la <a href="https://www.apache.org/licenses/LICENSE-2.0" target="_blank"
+                  style="color: var(--primary); text-decoration: underline;">Licencia Apache 2.0</a>. Copyright © Second
+                State.<br>
+                • <strong>Whisper Speech-to-Text:</strong> Modelo local de transcripción de voz a texto. Licenciado bajo
+                la <a href="https://opensource.org/licenses/MIT" target="_blank"
+                  style="color: var(--primary); text-decoration: underline;">Licencia MIT</a>. Copyright © OpenAI /
+                Georgi
+                Gerganov.</p>
+              <p class="en">• <strong>all-MiniLM-L6-v2 (Embeddings):</strong> Local vector storage and similarity model.
+                Licensed under the <a href="https://www.apache.org/licenses/LICENSE-2.0" target="_blank"
+                  style="color: var(--primary); text-decoration: underline;">Apache License 2.0</a>. Copyright © Second
+                State.<br>
+                • <strong>Whisper Speech-to-Text:</strong> Local voice-to-text transcription model. Licensed under the
+                <a href="https://opensource.org/licenses/MIT" target="_blank"
+                  style="color: var(--primary); text-decoration: underline;">MIT License</a>. Copyright © OpenAI /
+                Georgi
+                Gerganov.
+              </p>
+
+              <h4 class="es">3. Acuerdos y Librerías de Inferencia</h4>
+              <h4 class="en">3. Inference Engines and Libraries</h4>
+              <p class="es">Esta app utiliza las librerías nativas <code>llama.rn</code> y <code>whisper.rn</code> para
+                ejecutar inferencia nativa on-device. Su código está protegido y licenciado bajo licencias de código
+                abierto MIT y Apache 2.0.</p>
+              <p class="en">This app utilizes the native <code>llama.rn</code> and <code>whisper.rn</code> libraries to
+                perform native on-device inference. Their code is protected and licensed under open source MIT and
+                Apache
+                2.0 licenses.</p>
+            </div>
+          </div>
+        </section>
+
+  </main>
+
+  <!-- ================================================================  FOOTER  -->
+  <footer>
+    <div class="container">
+      <div class="footer-logo">AI Diary</div>
+      <p class="es">© 2026 Christeck. Todos los derechos reservados.</p>
+      <p class="en">© 2026 Christeck. All rights reserved.</p>
+      <div class="footer-links">
+        <a href="https://testflight.apple.com/join/y1RbuYNp" target="_blank">iOS TestFlight</a>
+        <a href="#privacy-section" class="es">Privacidad</a>
+        <a href="#privacy-section" class="en">Privacy</a>
+        <a href="#terms-section" class="es">Términos y Deslinde IA</a>
+        <a href="#terms-section" class="en">Terms &amp; AI Disclosure</a>
+        <a href="#licenses-section" class="es">Licencias</a>
+        <a href="#licenses-section" class="en">Licenses</a>
+        <a href="mailto:christeck@gmail.com" class="es">Contacto</a>
+        <a href="mailto:christeck@gmail.com" class="en">Contact</a>
+      </div>
+    </div>
+  </footer>
+
+  <!-- ================================================================  SCRIPTS  -->
+  <script>
+    function setLang(lang) {
+      document.body.className = 'lang-' + lang;
+      document.getElementById('btn-es').classList.toggle('active', lang === 'es');
+      document.getElementById('btn-en').classList.toggle('active', lang === 'en');
+      document.title = lang === 'es' ? 'AI Diary – Diario Personal Local y Privado' : 'AI Diary – Local & Private AI Journal';
+    }
+
+    // Detect browser/OS language and default to Spanish for Romance languages with active OS localizations:
+    // es (Spanish), pt (Portuguese), it (Italian), fr (French), ro (Romanian/Rumano), ca (Catalan), gl (Galician).
+    (function autoDetectLanguage() {
+      const userLang = (navigator.language || navigator.userLanguage || 'en').toLowerCase();
+      const romancePrefixes = ['es', 'pt', 'it', 'fr', 'ro', 'ca', 'gl'];
+      const isRomance = romancePrefixes.some(prefix => userLang.startsWith(prefix));
+      setLang(isRomance ? 'es' : 'en');
+    })();
+
+    function togglePrivacy() {
+      const body = document.getElementById('priv-body');
+      const chevron = document.getElementById('priv-chevron');
+      const isOpen = body.classList.toggle('open');
+      chevron.style.transform = isOpen ? 'rotate(180deg)' : 'rotate(0deg)';
+    }
+
+    function toggleTerms() {
+      const body = document.getElementById('terms-body');
+      const chevron = document.getElementById('terms-chevron');
       const isOpen = body.classList.toggle('open');
       chevron.style.transform = isOpen ? 'rotate(180deg)' : 'rotate(0deg)';
     }
